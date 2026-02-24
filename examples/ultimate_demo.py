@@ -98,13 +98,9 @@ def header(title: str, subtitle: str = "", theme: Theme | None = None) -> list[C
     else:
         title_styled = title
     
-    box = BorderedBox(padding_x=2, padding_y=1, max_width=50, title=title_styled)
+    box = BorderedBox(padding_x=2, padding_y=1, max_width=45, title=title_styled)
     if subtitle:
-        if theme:
-            sub_styled = f"{theme.muted}{subtitle}{theme.reset}"
-        else:
-            sub_styled = subtitle
-        box.add_child(Text(sub_styled, 0, 0))
+        box.add_child(Text(subtitle, 0, 0))
     components.append(box)
     components.append(Spacer(1))
     
@@ -282,7 +278,7 @@ class UltimateDemoApp:
         
         # BorderedBox component
         self.tui.add_child(Text(f"{t.bold}BorderedBox (preferred):[0m", 0, 0))
-        b = BorderedBox(padding_x=2, padding_y=1, max_width=40, title="Panel")
+        b = BorderedBox(padding_x=2, padding_y=1, max_width=35, title="Panel")
         b.add_child(Text("Draws borders, wraps content"))
         self.tui.add_child(b)
         self.tui.add_child(Spacer(1))
