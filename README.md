@@ -254,6 +254,10 @@ lines = wrap_text_with_ansi("long text here", width=10)
 uv run pytest -v
 ```
 
+## Known Limitations
+
+- **Apple Emoji Font** - The Apple Emoji Font is known to cause alignment issues in some terminals. This is a font/terminal rendering issue, not a PyPiTUI bug. If you experience misaligned emoji characters, try using a different font (e.g., Noto Color Emoji) or terminal emulator.
+
 ## License
 
 MIT
