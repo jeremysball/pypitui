@@ -149,6 +149,7 @@ class _OverlayEntry:
     options: OverlayOptions
     hidden: bool = False
     closed: bool = False
+    previous_focus: Component | None = None
 
 
 class Container(Component):
@@ -287,8 +288,19 @@ class TUI(Container):
             Handle to control the overlay's visibility
         """
         opts = options or OverlayOptions()
-        entry = _OverlayEntry(component, opts)
+        entry = _OverlayEntry(component, opts, previous_focus=self._focused_component)
         self._overlay_stack.append(entry)
+
+        # Set focus to overlay component if it's focusable
+        if is_focusable(component):
+            self.set_focus(component)
+        # Or if the overlay has children, try to focus the first focusable one
+        elif hasattr(component, "children"):
+            for child in component.children:
+                if is_focusable(child):
+                    self.set_focus(child)
+                    break
+
         self.request_render()
         return OverlayHandle(entry)
 
@@ -297,6 +309,11 @@ class TUI(Container):
         if self._overlay_stack:
             entry = self._overlay_stack.pop()
             entry.closed = True
+
+            # Restore previous focus
+            if entry.previous_focus:
+                self.set_focus(entry.previous_focus)
+
             self.request_render()
 
     def has_overlay(self) -> bool:
@@ -567,7 +584,7 @@ class TUI(Container):
         self, base_line: str, overlay_line: str, col: int, width: int, total_width: int
     ) -> str:
         """Splice overlay content into a base line at a specific column."""
-        # Get before, overlay, and after segments
+        # Get before segment (everything up to col)
         before = slice_by_column(base_line, 0, col)
         
         # Pad before if it's shorter than col (base line was shorter)
@@ -575,12 +592,28 @@ class TUI(Container):
         if before_width < col:
             before += " " * (col - before_width)
         
+        # Get overlay content, limited to its width
         overlay = slice_by_column(overlay_line, 0, width)
-
-        # Calculate where overlay ends
+        # Preserve trailing reset code if original had one (prevents color bleeding)
+        if overlay_line.rstrip().endswith("\x1b[0m") and not overlay.endswith("\x1b[0m"):
+            overlay += "\x1b[0m"
         overlay_visible_width = visible_width(overlay)
+        
+        # Calculate where overlay ends and after segment begins
         after_start = col + overlay_visible_width
-        after = slice_by_column(base_line, after_start, total_width - after_start)
+        
+        # Calculate remaining width for after segment
+        remaining_width = total_width - after_start
+        if remaining_width < 0:
+            remaining_width = 0
+        
+        # Get after segment
+        after = slice_by_column(base_line, after_start, remaining_width)
+        
+        # Pad after if needed to fill total_width
+        after_width = visible_width(after)
+        if after_start + after_width < total_width:
+            after += " " * (total_width - after_start - after_width)
 
         return before + overlay + after
 
