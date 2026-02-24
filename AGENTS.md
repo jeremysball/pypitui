@@ -1,5 +1,14 @@
 # PyPiTUI Agent Guidelines
 
+## Check `.agents/` Folders for Utilities
+
+Always check for `.agents/` folders in the project root. These contain:
+- E2E test scripts using tmux
+- Automation utilities
+- Agent-specific tooling
+
+Example: `.agents/test_ultimate_demo.py` runs automated tests on the demo.
+
 ## Generating Type Stubs
 
 When adding type stubs to this library, use `stubgen` from mypy instead of writing them manually:
