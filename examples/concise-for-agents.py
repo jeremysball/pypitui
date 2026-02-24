@@ -88,7 +88,7 @@ class UltimateDemoApp:
 
         # Header using BorderedBox (preferred over manual box drawing)
         # NOTE: Uses default padding_y=0 for tight vertical alignment
-        header = BorderedBox(padding_x=2, padding_y=0, max_width=45, title="🐍 PyPiTUI")
+        header = BorderedBox(padding_x=2, max_width=45, title="🐍 PyPiTUI")
         header.add_child(Text("Terminal UI Framework", 0, 0))
         self.tui.add_child(header)
         self.tui.add_child(Spacer(1))
@@ -143,7 +143,7 @@ class UltimateDemoApp:
 
         # BorderedBox (recommended for panels)
         self.tui.add_child(Text(f"{Colors.BOLD}BorderedBox (preferred):{Colors.RESET}", 0, 0))
-        bordered = BorderedBox(padding_x=2, padding_y=0, max_width=35, title="Panel Title")
+        bordered = BorderedBox(padding_x=2, max_width=35, title="Panel Title")
         bordered.add_child(Text("BorderedBox draws borders and wraps content"))
         self.tui.add_child(bordered)
         self.tui.add_child(Spacer(1))
