@@ -450,9 +450,9 @@ class UltimateDemoApp:
             ))
         else:
             items = [
-                SelectItem("markdown", "Markdown", "Render markdown content"),
-                SelectItem("text", "RichText", "Styled text markup"),
-                SelectItem("table", "Table", "Formatted tables"),
+                SelectItem("markdown", "Markdown", f"Render markdown with {self.current_theme} colors"),
+                SelectItem("text", "RichText", f"Styled text in {self.current_theme}"),
+                SelectItem("table", "Table", f"Formatted tables ({self.current_theme} theme)"),
             ]
             lst = SelectList(items, 3, self._select_theme())
             lst.on_select = self.show_rich_example
@@ -463,22 +463,27 @@ class UltimateDemoApp:
         self.tui.add_child(footer())
 
     def show_rich_example(self, item: SelectItem) -> None:
-        """Show Rich component."""
+        """Show Rich component with theme colors."""
         if self.overlay_handle:
             self.overlay_handle.hide()
         
         content = Container()
+        t = self._theme()
+        
+        # Map ANSI colors to Rich color names based on theme
+        primary_color = "cyan" if self.current_theme == "neon" else ("yellow" if self.current_theme == "warm" else "blue")
+        secondary_color = "magenta" if self.current_theme == "neon" else ("red" if self.current_theme == "warm" else "cyan")
         
         if item.value == "markdown":
-            md = "# Markdown\n\n**Bold** and *italic* text.\n\n```python\nprint('Hello')\n```"
+            md = f"# {self.current_theme.title()} Theme\n\n**Bold** and *italic* text.\n\n```python\nprint('Hello from {self.current_theme} theme')\n```"
             content.add_child(Markdown(md, padding_x=1, padding_y=1))
         elif item.value == "text":
             content.add_child(RichText(
-                "[bold cyan]Styled[/bold cyan] [red]Text[/red]!",
+                f"[bold {primary_color}]{self.current_theme.title()}[/bold {primary_color}] [{secondary_color}]Theme[/]!",
                 padding_x=1, padding_y=1
             ))
         elif item.value == "table":
-            table = RichTable(title="Features", padding_x=1, padding_y=1)
+            table = RichTable(title=f"{self.current_theme.title()} Theme", padding_x=1, padding_y=1)
             table.add_column("Name")
             table.add_column("Status")
             table.add_row("Markdown", "✓")
