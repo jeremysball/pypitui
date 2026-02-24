@@ -5,6 +5,7 @@ component model but for terminal applications.
 """
 
 from .components import (
+    BorderedBox,
     Box,
     Input,
     SelectItem,
@@ -26,7 +27,7 @@ from .tui import (
     OverlayOptions,
     is_focusable,
 )
-from .utils import truncate_to_width, visible_width, wrap_text_with_ansi
+from .utils import slice_by_column, truncate_to_width, visible_width, wrap_text_with_ansi
 
 __all__ = [
     # Core
@@ -42,6 +43,7 @@ __all__ = [
     # Components
     "Text",
     "Box",
+    "BorderedBox",
     "Spacer",
     "SelectList",
     "SelectItem",
@@ -55,6 +57,7 @@ __all__ = [
     "visible_width",
     "truncate_to_width",
     "wrap_text_with_ansi",
+    "slice_by_column",
     # Terminal
     "Terminal",
     "ProcessTerminal",

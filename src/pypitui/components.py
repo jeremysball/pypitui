@@ -195,6 +195,183 @@ class Box(Component):
         return line
 
 
+class BorderedBox(Component):
+    """A box with borders that intelligently wraps content to fit inside.
+    
+    Unlike Box which just adds padding, BorderedBox draws borders and
+    wraps content to fit within the content area, maintaining the box shape.
+    """
+
+    # Box drawing characters
+    TOP_LEFT = "┌"
+    TOP_RIGHT = "┐"
+    BOTTOM_LEFT = "└"
+    BOTTOM_RIGHT = "┘"
+    HORIZONTAL = "─"
+    VERTICAL = "│"
+    T_LEFT = "├"
+    T_RIGHT = "┤"
+
+    def __init__(
+        self,
+        padding_x: int = 1,
+        padding_y: int = 0,
+        min_width: int = 10,
+    ) -> None:
+        """Initialize bordered box.
+        
+        Args:
+            padding_x: Horizontal padding inside the box (default 1)
+            padding_y: Vertical padding inside the box (default 0)
+            min_width: Minimum width for the box (default 10)
+        """
+        self.children: list[Component] = []
+        self._padding_x = padding_x
+        self._padding_y = padding_y
+        self._min_width = min_width
+        self._cache: tuple[int, list[str]] | None = None
+
+    def add_child(self, component: Component) -> None:
+        """Add a child component."""
+        self.children.append(component)
+        self._invalidate_cache()
+
+    def remove_child(self, component: Component) -> None:
+        """Remove a child component."""
+        if component in self.children:
+            self.children.remove(component)
+            self._invalidate_cache()
+
+    def clear(self) -> None:
+        """Remove all children."""
+        self.children.clear()
+        self._invalidate_cache()
+
+    def _invalidate_cache(self) -> None:
+        """Clear render cache."""
+        self._cache = None
+
+    def invalidate(self) -> None:
+        """Invalidate box and children."""
+        self._invalidate_cache()
+        for child in self.children:
+            child.invalidate()
+
+    def render(self, width: int) -> list[str]:
+        """Render bordered box with wrapped content.
+        
+        The box will use the requested width if possible, but content
+        will be wrapped to fit within the borders.
+        """
+        # Check cache
+        if self._cache and self._cache[0] == width:
+            return self._cache[1]
+
+        # Ensure minimum width
+        width = max(width, self._min_width)
+        
+        # Calculate content width (inside borders and padding)
+        # width = border (1) + padding + content + padding + border (1)
+        content_width = max(1, width - 2 - self._padding_x * 2)
+        
+        # Build content lines from children
+        content_lines: list[str] = []
+        for child in self.children:
+            child_lines = child.render(content_width)
+            content_lines.extend(child_lines)
+
+        # Build the box
+        lines: list[str] = []
+        
+        # Top border
+        top_border = self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
+        lines.append(top_border)
+        
+        # Top padding (if any)
+        for _ in range(self._padding_y):
+            lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
+        
+        # Content lines with wrapping and padding
+        for line in content_lines:
+            # Wrap line to fit content width
+            wrapped = self._wrap_line(line, content_width)
+            for wrapped_line in wrapped:
+                # Add horizontal padding
+                padded_content = " " * self._padding_x + wrapped_line + " " * self._padding_x
+                # Pad to full inner width
+                inner_width = width - 2
+                if visible_width(padded_content) < inner_width:
+                    padded_content += " " * (inner_width - visible_width(padded_content))
+                lines.append(self.VERTICAL + padded_content + self.VERTICAL)
+        
+        # Bottom padding (if any)
+        for _ in range(self._padding_y):
+            lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
+        
+        # Bottom border
+        bottom_border = self.BOTTOM_LEFT + self.HORIZONTAL * (width - 2) + self.BOTTOM_RIGHT
+        lines.append(bottom_border)
+
+        # Cache
+        self._cache = (width, lines)
+
+        return lines
+
+    def _wrap_line(self, line: str, max_width: int) -> list[str]:
+        """Wrap a line to fit within max_width visible characters.
+        
+        Unlike wrap_text_with_ansi, this preserves the line structure
+        and doesn't add reset codes at the end.
+        """
+        if not line:
+            return [""]
+        
+        visible = visible_width(line)
+        if visible <= max_width:
+            return [line]
+        
+        # Need to wrap - use word wrapping
+        words = line.split(" ")
+        result: list[str] = []
+        current_line = ""
+        current_width = 0
+        
+        for word in words:
+            word_visible = visible_width(word)
+            
+            # Check if word alone exceeds max_width
+            if word_visible > max_width:
+                # Flush current line if any
+                if current_line:
+                    result.append(current_line)
+                    current_line = ""
+                    current_width = 0
+                # Truncate the long word
+                result.append(truncate_to_width(word, max_width, pad=False))
+                continue
+            
+            # Check if adding this word would exceed width
+            space_needed = 1 if current_line else 0
+            if current_width + space_needed + word_visible > max_width:
+                # Flush current line
+                result.append(current_line)
+                current_line = word
+                current_width = word_visible
+            else:
+                # Add word to current line
+                if current_line:
+                    current_line += " "
+                    current_width += 1
+                current_line += word
+                current_width += word_visible
+        
+        # Don't forget the last line
+        if current_line:
+            result.append(current_line)
+        
+        return result if result else [""]
+
+
 class Spacer(Component):
     """Spacer component - empty vertical space."""
 
