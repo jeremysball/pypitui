@@ -23,7 +23,6 @@ from pypitui import (
     ProcessTerminal,
     matches_key,
     Key,
-    is_focusable,
 )
 from pypitui.tui import Component
 
@@ -783,6 +782,11 @@ class UltimateDemoApp:
         if not RICH_AVAILABLE:
             return
 
+        # Hide any existing overlay first
+        if self.overlay_handle:
+            self.overlay_handle.hide()
+            self.overlay_handle = None
+
         content = Container()
 
         if item.value == "markdown":
@@ -815,7 +819,7 @@ print("Hello!")
             content.add_child(table)
 
         opts = OverlayOptions(width="70%", anchor="center")
-        self.tui.show_overlay(content, opts)
+        self.overlay_handle = self.tui.show_overlay(content, opts)
 
     def show_about(self) -> None:
         """Show about screen."""
