@@ -88,13 +88,23 @@ THEMES = {
 # UI HELPERS
 # =============================================================================
 
-def header(title: str, subtitle: str = "") -> list[Component]:
-    """Create a consistent header section."""
+def header(title: str, subtitle: str = "", theme: Theme | None = None) -> list[Component]:
+    """Create a consistent header section with styling."""
     components: list[Component] = [Spacer(1)]
     
-    box = BorderedBox(padding_x=2, padding_y=1, max_width=60, title=title)
+    # Use theme colors if provided
+    if theme:
+        title_styled = f"{theme.bold}{theme.primary}{title}{theme.reset}"
+    else:
+        title_styled = title
+    
+    box = BorderedBox(padding_x=2, padding_y=1, max_width=60, title=title_styled)
     if subtitle:
-        box.add_child(Text(subtitle, 0, 0))
+        if theme:
+            sub_styled = f"{theme.muted}{subtitle}{theme.reset}"
+        else:
+            sub_styled = subtitle
+        box.add_child(Text(sub_styled, 0, 0))
     components.append(box)
     components.append(Spacer(1))
     
@@ -173,7 +183,7 @@ class UltimateDemoApp:
         self.current_screen = "menu"
         self.animation_active = False
         
-        for comp in header("🐍 PyPiTUI", "Terminal UI Framework"):
+        for comp in header("🐍 PyPiTUI", "Terminal UI Framework", self._theme()):
             self.tui.add_child(comp)
         
         items = [
@@ -252,7 +262,7 @@ class UltimateDemoApp:
         self.current_screen = "components"
         t = self._theme()
         
-        for comp in header("Component Showcase"):
+        for comp in header("Component Showcase", theme=self._theme()):
             self.tui.add_child(comp)
         
         # Text component
@@ -295,7 +305,7 @@ class UltimateDemoApp:
         
         step_name, step_desc = WIZARD_STEPS[self.wizard_step]
         
-        for comp in header(f"Wizard: {step_name}", step_desc):
+        for comp in header(f"Wizard: {step_name}", step_desc, self._theme()):
             self.tui.add_child(comp)
         
         # Progress indicator
@@ -361,7 +371,7 @@ class UltimateDemoApp:
         self._clear()
         self.current_screen = "overlays"
         
-        for comp in header("Overlay System", "Floating panels & dialogs"):
+        for comp in header("Overlay System", "Floating panels & dialogs", self._theme()):
             self.tui.add_child(comp)
         
         positions = [
@@ -407,7 +417,7 @@ class UltimateDemoApp:
         self._clear()
         self.current_screen = "themes"
         
-        for comp in header("Theme Gallery"):
+        for comp in header("Theme Gallery", theme=self._theme()):
             self.tui.add_child(comp)
         
         items = [
@@ -434,7 +444,7 @@ class UltimateDemoApp:
         self.current_screen = "rich"
         t = self._theme()
         
-        for comp in header("Rich Integration"):
+        for comp in header("Rich Integration", theme=self._theme()):
             self.tui.add_child(comp)
         
         if not RICH_AVAILABLE:
@@ -489,7 +499,7 @@ class UltimateDemoApp:
         self.current_screen = "about"
         t = self._theme()
         
-        for comp in header("About PyPiTUI"):
+        for comp in header("About PyPiTUI", theme=self._theme()):
             self.tui.add_child(comp)
         
         lines = [
