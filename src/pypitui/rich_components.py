@@ -17,9 +17,9 @@ if TYPE_CHECKING:
 
 class Markdown(Component):
     """Render markdown using Rich library.
-    
+
     Requires: pip install pypitui[rich]
-    
+
     Features:
     - Headings, bold, italic, code blocks
     - Lists, links, blockquotes
@@ -36,7 +36,7 @@ class Markdown(Component):
         code_theme: str = "monokai",
     ) -> None:
         """Initialize Markdown component.
-        
+
         Args:
             text: Markdown content
             padding_x: Horizontal padding
@@ -99,7 +99,7 @@ class Markdown(Component):
             console.print(md)
 
         output = capture.get()
-        return output.split('\n')
+        return output.split("\n")
 
     def render(self, width: int) -> list[str]:
         """Render markdown to lines."""
@@ -140,9 +140,9 @@ class Markdown(Component):
 
 class RichText(Component):
     """Render Rich text/markup.
-    
+
     Requires: pip install pypitui[rich]
-    
+
     Example:
         RichText("[bold red]Hello[/bold red] World!")
     """
@@ -204,7 +204,7 @@ class RichText(Component):
             console.print(rich_text)
 
         output = capture.get()
-        for line in output.split('\n'):
+        for line in output.split("\n"):
             if line:
                 padded = " " * self._padding_x + line
                 lines.append(padded)
@@ -219,9 +219,9 @@ class RichText(Component):
 
 class RichTable(Component):
     """Render Rich tables.
-    
+
     Requires: pip install pypitui[rich]
-    
+
     Example:
         table = RichTable(title="My Table")
         table.add_column("Name", style="cyan")
@@ -238,7 +238,7 @@ class RichTable(Component):
         self._title = title
         self._padding_x = padding_x
         self._padding_y = padding_y
-        self._columns: list[tuple[str, str | None]] = []
+        self._columns: list[tuple[str, str | None, str]] = []
         self._rows: list[tuple[str, ...]] = []
         self._cache: tuple[int, list[str]] | None = None
 
@@ -295,7 +295,7 @@ class RichTable(Component):
 
         for col in self._columns:
             name, style, justify = col
-            table.add_column(name, style=style, justify=justify)
+            table.add_column(name, style=style, justify="left")
 
         for row in self._rows:
             table.add_row(*row)
@@ -311,7 +311,7 @@ class RichTable(Component):
             console.print(table)
 
         output = capture.get()
-        for line in output.split('\n'):
+        for line in output.split("\n"):
             if line:
                 padded = " " * self._padding_x + line
                 lines.append(padded)
