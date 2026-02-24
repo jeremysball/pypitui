@@ -71,6 +71,10 @@ class Text(Component):
                 lines.append(" " * width)
 
             for line in wrapped:
+                # Strip trailing reset codes from wrap_text_with_ansi
+                # They interfere with background color application
+                while line.endswith("\x1b[0m"):
+                    line = line[:-4]
                 visible = visible_width(line)
                 padding = " " * self._padding_x
                 right_padding = " " * (width - visible - self._padding_x * 2)
@@ -79,9 +83,20 @@ class Text(Component):
             for _ in range(self._padding_y):
                 lines.append(" " * width)
 
-        # Apply background
+        # Apply background - ensure full width padding first
         if self._custom_bg_fn:
-            lines = [self._custom_bg_fn(line) for line in lines]
+            bg_lines = []
+            for line in lines:
+                # Remove trailing reset codes that would clear the background
+                # before we apply our background function (wrap_text_with_ansi adds these)
+                while line.endswith("\x1b[0m"):
+                    line = line[:-4]
+                # Pad to full width before applying background
+                visible = visible_width(line)
+                if visible < width:
+                    line += " " * (width - visible)
+                bg_lines.append(self._custom_bg_fn(line))
+            lines = bg_lines
 
         # Cache
         self._cached_lines = lines
@@ -170,6 +185,9 @@ class Box(Component):
     def _apply_bg(self, line: str, width: int) -> str:
         """Apply background to a line."""
         if self._bg_fn:
+            # Remove trailing reset codes that would clear the background
+            while line.endswith("\x1b[0m"):
+                line = line[:-4]
             visible = visible_width(line)
             if visible < width:
                 line += " " * (width - visible)
