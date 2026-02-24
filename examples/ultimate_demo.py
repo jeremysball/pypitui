@@ -262,15 +262,10 @@ class UltimateDemoApp:
         self.current_screen = "menu"
         self.animation_active = False
 
-        # Logo header
-        for line in SPLASH_FRAMES[0]:
-            colored = line.replace("═", f"{Colors.CYAN}═{Colors.RESET}")
-            colored = colored.replace("╔", f"{Colors.CYAN}╔{Colors.RESET}")
-            colored = colored.replace("╗", f"{Colors.CYAN}╗{Colors.RESET}")
-            colored = colored.replace("╚", f"{Colors.CYAN}╚{Colors.RESET}")
-            colored = colored.replace("╝", f"{Colors.CYAN}╝{Colors.RESET}")
-            colored = colored.replace("║", f"{Colors.CYAN}║{Colors.RESET}")
-            self.tui.add_child(Text(colored, 0, 0))
+        # Logo header using BorderedBox
+        logo_box = BorderedBox(padding_x=2, padding_y=1, title="🐍 PyPiTUI 🖥️")
+        logo_box.add_child(Text("Terminal UI Framework", 0, 0))
+        self.tui.add_child(logo_box)
 
         self.tui.add_child(Spacer(1))
 
