@@ -216,44 +216,9 @@ WIZARD_STEPS = [
 # SPLASH SCREEN ANIMATION
 # ============================================================================
 
-SPLASH_FRAMES = [
-    [
-        "    ╔═══════════════════════════════════════╗",
-        "    ║                                       ║",
-        "    ║              🐍 PyPiTUI 🖥️            ║",
-        "    ║                                       ║",
-        "    ║         ┌─────────────────┐           ║",
-        "    ║         │  🖥️ Terminal UI │           ║",
-        "    ║         └─────────────────┘           ║",
-        "    ║                                       ║",
-        "    ║      ✨ Terminal UI Framework ✨      ║",
-        "    ╚═══════════════════════════════════════╝",
-    ],
-    [
-        "    ╔═══════════════════════════════════════╗",
-        "    ║                                       ║",
-        "    ║              🐍 PyPiTUI 🖥️            ║",
-        "    ║                                       ║",
-        "    ║         ┌─────────────────┐           ║",
-        "    ║         │  🎨 Terminal UI │           ║",
-        "    ║         └─────────────────┘           ║",
-        "    ║                                       ║",
-        "    ║      ⚡ Terminal UI Framework ⚡      ║",
-        "    ╚═══════════════════════════════════════╝",
-    ],
-    [
-        "    ╔═══════════════════════════════════════╗",
-        "    ║                                       ║",
-        "    ║              🐍 PyPiTUI 🖥️            ║",
-        "    ║                                       ║",
-        "    ║         ┌─────────────────┐           ║",
-        "    ║         │  🚀 Terminal UI │           ║",
-        "    ║         └─────────────────┘           ║",
-        "    ║                                       ║",
-        "    ║      🔥 Terminal UI Framework 🔥      ║",
-        "    ╚═══════════════════════════════════════╝",
-    ],
-]
+# Splash screen animation frames - using BorderedBox instead of manual box drawing
+SPLASH_ICONS = ["🖥️", "🎨", "🚀"]
+SPLASH_EMOJIS = ["✨", "⚡", "🔥"]
 
 
 # ============================================================================
@@ -361,14 +326,14 @@ class UltimateDemoApp:
 
         self.tui.add_child(Spacer(3))
 
-        # Animated logo placeholder
-        self.splash_text = Text("", 0, 0)
-        self.tui.add_child(self.splash_text)
+        # Title using BorderedBox instead of hardcoded ASCII art
+        self.splash_box = BorderedBox(padding_x=2, padding_y=1, title="🐍 PyPiTUI 🖥️")
+        self.splash_box.add_child(Text("Terminal UI Framework", 0, 0))
+        self.tui.add_child(self.splash_box)
 
         self.tui.add_child(Spacer(2))
-        self.tui.add_child(
-            Text(f"{Colors.DIM}    Watch the animation...{Colors.RESET}", 0, 0)
-        )
+        self.splash_subtitle = Text(f"{Colors.DIM}    Watch the animation...{Colors.RESET}", 0, 0)
+        self.tui.add_child(self.splash_subtitle)
         self.tui.add_child(Spacer(1))
         self.tui.add_child(create_footer("Press any key to continue"))
 
@@ -390,24 +355,14 @@ class UltimateDemoApp:
 
             # Update animation every 10 frames (~6 FPS for text animation)
             if self.frame_count % 10 == 0:
-                self.splash_frame = (self.splash_frame + 1) % len(SPLASH_FRAMES)
+                self.splash_frame = (self.splash_frame + 1) % len(SPLASH_ICONS)
 
-                frame_lines = SPLASH_FRAMES[self.splash_frame]
-                colored_lines = []
-                for line in frame_lines:
-                    # Apply colors efficiently - box characters in cyan
-                    colored = (
-                        line.replace("═", f"{Colors.CYAN}═{Colors.RESET}")
-                        .replace("╔", f"{Colors.CYAN}╔{Colors.RESET}")
-                        .replace("╗", f"{Colors.CYAN}╗{Colors.RESET}")
-                        .replace("╚", f"{Colors.CYAN}╚{Colors.RESET}")
-                        .replace("╝", f"{Colors.CYAN}╝{Colors.RESET}")
-                        .replace("║", f"{Colors.CYAN}║{Colors.RESET}")
-                        .replace("✨", f"{Colors.YELLOW}✨{Colors.RESET}")
-                    )
-                    colored_lines.append(colored)
-
-                self.splash_text.set_text("\n".join(colored_lines))
+                # Update the BorderedBox content dynamically
+                icon = SPLASH_ICONS[self.splash_frame]
+                emoji = SPLASH_EMOJIS[self.splash_frame]
+                self.splash_box.clear()
+                self.splash_box.add_child(Text(f"{icon} Terminal UI {icon}", 0, 0))
+                self.splash_subtitle.set_text(f"    {emoji} {Colors.DIM}Watch the animation...{Colors.RESET} {emoji}")
                 self.tui.request_render()
             else:
                 # Still request render at 60 FPS for smooth display
