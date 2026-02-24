@@ -204,12 +204,11 @@ class DemoApp:
             self.overlay_handle.hide()
 
         content = Container()
-        content.add_child(Text("┌─────────────────┐", 0, 0))
-        content.add_child(Text("│  Overlay Panel  │", 0, 0))
-        content.add_child(Text("├─────────────────┤", 0, 0))
-        content.add_child(Text("│ Press ESC to    │", 0, 0))
-        content.add_child(Text("│ close overlay   │", 0, 0))
-        content.add_child(Text("└─────────────────┘", 0, 0))
+        content.add_child(Text("┌─────────────────────────────────┐", 0, 0))
+        content.add_child(Text("│  Overlay Panel                  │", 0, 0))
+        content.add_child(Text("├─────────────────────────────────┤", 0, 0))
+        content.add_child(Text("│ Press ESC to close this overlay │", 0, 0))
+        content.add_child(Text("└─────────────────────────────────┘", 0, 0))
 
         options = OverlayOptions(width=width, anchor=anchor)
         self.overlay_handle = self.tui.show_overlay(content, options)
@@ -246,11 +245,11 @@ class DemoApp:
                 else:
                     self.build_menu()
             elif data == "1":
-                self.show_overlay("center", 30)
+                self.show_overlay("center", 35)
             elif data == "2":
-                self.show_overlay("top-right", 30)
+                self.show_overlay("top-right", 35)
             elif data == "3":
-                self.show_overlay("bottom-left", 30)
+                self.show_overlay("bottom-left", 35)
             elif data == "4":
                 self.show_overlay("center", "80%")
 
