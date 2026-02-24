@@ -444,18 +444,10 @@ class UltimateDemoApp:
         self.tui.add_child(Spacer(2))
 
         if self.wizard_step == 0:
-            # Welcome step
-            self.tui.add_child(
-                Text(
-                    "This wizard demonstrates the Input component with validation.",
-                    0,
-                    0,
-                )
-            )
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(
-                Text(f"{Colors.DIM}Press Enter to continue...{Colors.RESET}", 0, 0)
-            )
+            # Welcome step - auto-advance to profile step immediately
+            self.wizard_step = 1
+            self.show_inputs()
+            return
 
         elif self.wizard_step == 1:
             # Profile step
