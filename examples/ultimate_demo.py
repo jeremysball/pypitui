@@ -49,6 +49,8 @@ class Theme:
     muted: str
     success: str
     error: str
+    bold: str = "\x1b[1m"
+    reset: str = "\x1b[0m"
 
 
 THEMES = {
@@ -223,6 +225,14 @@ class UltimateDemoApp:
         if not self.animation_active:
             return
         
+        # Only update every 500ms (2 FPS for animation)
+        now = time.time()
+        if not hasattr(self, '_last_animation_update'):
+            self._last_animation_update = 0
+        if now - self._last_animation_update < 0.5:
+            return
+        self._last_animation_update = now
+        
         frames = ["✨", "⭐", "💫", "🌟"]
         icon = frames[self.splash_frame % len(frames)]
         
@@ -247,28 +257,28 @@ class UltimateDemoApp:
         
         # Text component
         self.tui.add_child(Text(
-            f"{t.bold}Text:{t.reset} Auto-wraps content to fit width. "
+            f"{t.bold}Text:[0m Auto-wraps content to fit width. "
             "This demonstrates word wrapping in action.",
             padding_x=2, padding_y=1
         ))
         self.tui.add_child(Spacer(1))
         
         # Box component
-        self.tui.add_child(Text(f"{t.bold}Box (padding):{t.reset}", 0, 0))
+        self.tui.add_child(Text(f"{t.bold}Box (padding):[0m", 0, 0))
         box = Box(padding_x=2, padding_y=1)
         box.add_child(Text("Content with padding"))
         self.tui.add_child(box)
         self.tui.add_child(Spacer(1))
         
         # BorderedBox component
-        self.tui.add_child(Text(f"{t.bold}BorderedBox (preferred):{t.reset}", 0, 0))
+        self.tui.add_child(Text(f"{t.bold}BorderedBox (preferred):[0m", 0, 0))
         b = BorderedBox(padding_x=2, padding_y=1, max_width=50, title="Panel")
         b.add_child(Text("Draws borders, wraps content"))
         self.tui.add_child(b)
         self.tui.add_child(Spacer(1))
         
         # Input component
-        self.tui.add_child(Text(f"{t.bold}Input:{t.reset}", 0, 0))
+        self.tui.add_child(Text(f"{t.bold}Input:[0m", 0, 0))
         inp = Input(placeholder="Type and press Enter...")
         inp.on_submit = lambda v: self.show_result(f"You typed: {v}")
         self.tui.add_child(inp)
@@ -302,25 +312,25 @@ class UltimateDemoApp:
             self.tui.add_child(Text(f"{t.muted}Press Enter to start\x1b[0m", 0, 0))
             
         elif self.wizard_step == 1:
-            self.tui.add_child(Text(f"{t.bold}Name:{t.reset}", 0, 0))
+            self.tui.add_child(Text(f"{t.bold}Name:[0m", 0, 0))
             name = Input(placeholder="Your name")
             name.set_value(self.form_data["name"])
             self.tui.add_child(name)
             self.name_input = name
             
             self.tui.add_child(Spacer(1))
-            self.tui.add_child(Text(f"{t.bold}Email:{t.reset}", 0, 0))
+            self.tui.add_child(Text(f"{t.bold}Email:[0m", 0, 0))
             email = Input(placeholder="Your email")
             email.set_value(self.form_data["email"])
             self.tui.add_child(email)
             self.email_input = email
             
             self.tui.add_child(Spacer(1))
-            self.tui.add_child(Text(f"{t.muted}Tab: switch • Enter: continue{t.reset}", 0, 0))
+            self.tui.add_child(Text(f"{t.muted}Tab: switch • Enter: continue[0m", 0, 0))
             self.tui.set_focus(name)
             
         elif self.wizard_step == 2:
-            self.tui.add_child(Text(f"{t.bold}Choose Theme:{t.reset}", 0, 0))
+            self.tui.add_child(Text(f"{t.bold}Choose Theme:[0m", 0, 0))
             
             items = [SelectItem(k, v.name) for k, v in THEMES.items()]
             lst = SelectList(items, 3, self._select_theme())
@@ -329,7 +339,7 @@ class UltimateDemoApp:
             self.tui.set_focus(lst)
             
         else:  # Complete
-            self.tui.add_child(Text(f"{t.success}✓ Setup Complete!{t.reset}", 0, 0))
+            self.tui.add_child(Text(f"{t.success}✓ Setup Complete![0m", 0, 0))
             self.tui.add_child(Spacer(1))
             self.tui.add_child(Text(f"Name: {self.form_data['name'] or '(none)'}", 0, 0))
             self.tui.add_child(Text(f"Email: {self.form_data['email'] or '(none)'}", 0, 0))
@@ -429,7 +439,7 @@ class UltimateDemoApp:
         
         if not RICH_AVAILABLE:
             self.tui.add_child(Text(
-                f"{t.error}Rich not installed. Run: pip install pypitui[rich]{t.reset}",
+                f"{t.error}Rich not installed. Run: pip install pypitui[rich][0m",
                 0, 0
             ))
         else:
@@ -485,13 +495,13 @@ class UltimateDemoApp:
         lines = [
             "PyPiTUI is a Python terminal UI library.",
             "",
-            f"{t.bold}Features:{t.reset}",
+            f"{t.bold}Features:[0m",
             "• Component-based architecture",
             "• Differential rendering",
             "• Overlay system",
             "• Rich integration",
             "",
-            f"{t.muted}https://github.com/user/pypitui{t.reset}",
+            f"{t.muted}https://github.com/user/pypitui[0m",
         ]
         
         for line in lines:
@@ -500,7 +510,7 @@ class UltimateDemoApp:
         self.tui.add_child(Spacer(2))
         
         box = BorderedBox(padding_x=2, padding_y=1, max_width=50)
-        box.add_child(Text(f"  {t.primary}Try the other demos!{t.reset}"))
+        box.add_child(Text(f"  {t.primary}Try the other demos![0m"))
         self.tui.add_child(box)
         
         self.tui.add_child(Spacer(1))
