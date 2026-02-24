@@ -1,0 +1,324 @@
+"""Markdown component using Rich for rendering.
+
+This is an optional component that requires the 'rich' extra:
+    pip install pypitui[rich]
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from .tui import Component
+from .utils import visible_width
+
+if TYPE_CHECKING:
+    pass
+
+
+class Markdown(Component):
+    """Render markdown using Rich library.
+    
+    Requires: pip install pypitui[rich]
+    
+    Features:
+    - Headings, bold, italic, code blocks
+    - Lists, links, blockquotes
+    - Syntax highlighting in code blocks
+    - Tables
+    """
+
+    def __init__(
+        self,
+        text: str = "",
+        padding_x: int = 0,
+        padding_y: int = 0,
+        width: int | None = None,
+        code_theme: str = "monokai",
+    ) -> None:
+        """Initialize Markdown component.
+        
+        Args:
+            text: Markdown content
+            padding_x: Horizontal padding
+            padding_y: Vertical padding
+            width: Fixed width (None = use render width)
+            code_theme: Pygments theme for code blocks
+        """
+        self._text = text
+        self._padding_x = padding_x
+        self._padding_y = padding_y
+        self._width = width
+        self._code_theme = code_theme
+        self._cache: tuple[int, list[str]] | None = None
+
+    def set_text(self, text: str) -> None:
+        """Update markdown content."""
+        self._text = text
+        self._cache = None
+
+    def set_code_theme(self, theme: str) -> None:
+        """Set code highlighting theme."""
+        self._code_theme = theme
+        self._cache = None
+
+    def invalidate(self) -> None:
+        """Clear render cache."""
+        self._cache = None
+
+    def _render_with_rich(self, width: int) -> list[str]:
+        """Render markdown using Rich."""
+        try:
+            from rich.console import Console
+            from rich.markdown import Markdown as RichMarkdown
+        except ImportError as e:
+            raise ImportError(
+                "Markdown component requires 'rich' package. "
+                "Install with: pip install pypitui[rich]"
+            ) from e
+
+        # Calculate content width
+        content_width = width - self._padding_x * 2
+        if content_width <= 0:
+            return []
+
+        # Create Rich markdown
+        md = RichMarkdown(
+            self._text,
+            code_theme=self._code_theme,
+        )
+
+        # Create console and capture output
+        console = Console(
+            width=content_width,
+            no_color=False,
+            force_terminal=True,
+            legacy_windows=False,
+        )
+
+        with console.capture() as capture:
+            console.print(md)
+
+        output = capture.get()
+        return output.split('\n')
+
+    def render(self, width: int) -> list[str]:
+        """Render markdown to lines."""
+        # Check cache
+        if self._cache and self._cache[0] == width:
+            return self._cache[1]
+
+        content_width = width - self._padding_x * 2
+        if content_width <= 0:
+            return []
+
+        lines: list[str] = []
+
+        # Top padding
+        for _ in range(self._padding_y):
+            lines.append(" " * width)
+
+        # Render markdown
+        md_lines = self._render_with_rich(width)
+
+        # Apply horizontal padding and ensure width
+        for line in md_lines:
+            if line:  # Skip empty lines from split
+                padded = " " * self._padding_x + line
+                line_width = visible_width(padded)
+                if line_width < width:
+                    padded += " " * (width - line_width)
+                lines.append(padded)
+
+        # Bottom padding
+        for _ in range(self._padding_y):
+            lines.append(" " * width)
+
+        # Cache result
+        self._cache = (width, lines)
+        return lines
+
+
+class RichText(Component):
+    """Render Rich text/markup.
+    
+    Requires: pip install pypitui[rich]
+    
+    Example:
+        RichText("[bold red]Hello[/bold red] World!")
+    """
+
+    def __init__(
+        self,
+        text: str = "",
+        padding_x: int = 0,
+        padding_y: int = 0,
+    ) -> None:
+        self._text = text
+        self._padding_x = padding_x
+        self._padding_y = padding_y
+        self._cache: tuple[int, list[str]] | None = None
+
+    def set_text(self, text: str) -> None:
+        """Update text content."""
+        self._text = text
+        self._cache = None
+
+    def invalidate(self) -> None:
+        """Clear cache."""
+        self._cache = None
+
+    def render(self, width: int) -> list[str]:
+        """Render to lines."""
+        if self._cache and self._cache[0] == width:
+            return self._cache[1]
+
+        try:
+            from rich.console import Console
+            from rich.text import Text as RichTextLib
+        except ImportError as e:
+            raise ImportError(
+                "RichText component requires 'rich' package. "
+                "Install with: pip install pypitui[rich]"
+            ) from e
+
+        content_width = width - self._padding_x * 2
+        if content_width <= 0:
+            return []
+
+        lines: list[str] = []
+
+        # Top padding
+        for _ in range(self._padding_y):
+            lines.append(" " * width)
+
+        # Parse and render
+        console = Console(
+            width=content_width,
+            no_color=False,
+            force_terminal=True,
+        )
+
+        rich_text = RichTextLib.from_markup(self._text)
+
+        with console.capture() as capture:
+            console.print(rich_text)
+
+        output = capture.get()
+        for line in output.split('\n'):
+            if line:
+                padded = " " * self._padding_x + line
+                lines.append(padded)
+
+        # Bottom padding
+        for _ in range(self._padding_y):
+            lines.append(" " * width)
+
+        self._cache = (width, lines)
+        return lines
+
+
+class RichTable(Component):
+    """Render Rich tables.
+    
+    Requires: pip install pypitui[rich]
+    
+    Example:
+        table = RichTable(title="My Table")
+        table.add_column("Name", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_row("Item 1", "100")
+    """
+
+    def __init__(
+        self,
+        title: str = "",
+        padding_x: int = 0,
+        padding_y: int = 0,
+    ) -> None:
+        self._title = title
+        self._padding_x = padding_x
+        self._padding_y = padding_y
+        self._columns: list[tuple[str, str | None]] = []
+        self._rows: list[tuple[str, ...]] = []
+        self._cache: tuple[int, list[str]] | None = None
+
+    def add_column(
+        self,
+        name: str,
+        style: str | None = None,
+        justify: str = "left",
+    ) -> None:
+        """Add a column."""
+        self._columns.append((name, style, justify))  # type: ignore
+        self._cache = None
+
+    def add_row(self, *values: str) -> None:
+        """Add a row."""
+        self._rows.append(values)
+        self._cache = None
+
+    def clear_rows(self) -> None:
+        """Clear all rows."""
+        self._rows.clear()
+        self._cache = None
+
+    def invalidate(self) -> None:
+        """Clear cache."""
+        self._cache = None
+
+    def render(self, width: int) -> list[str]:
+        """Render to lines."""
+        if self._cache and self._cache[0] == width:
+            return self._cache[1]
+
+        try:
+            from rich.console import Console
+            from rich.table import Table
+        except ImportError as e:
+            raise ImportError(
+                "RichTable component requires 'rich' package. "
+                "Install with: pip install pypitui[rich]"
+            ) from e
+
+        content_width = width - self._padding_x * 2
+        if content_width <= 0:
+            return []
+
+        lines: list[str] = []
+
+        # Top padding
+        for _ in range(self._padding_y):
+            lines.append(" " * width)
+
+        # Build table
+        table = Table(title=self._title if self._title else None)
+
+        for col in self._columns:
+            name, style, justify = col
+            table.add_column(name, style=style, justify=justify)
+
+        for row in self._rows:
+            table.add_row(*row)
+
+        # Render
+        console = Console(
+            width=content_width,
+            no_color=False,
+            force_terminal=True,
+        )
+
+        with console.capture() as capture:
+            console.print(table)
+
+        output = capture.get()
+        for line in output.split('\n'):
+            if line:
+                padded = " " * self._padding_x + line
+                lines.append(padded)
+
+        # Bottom padding
+        for _ in range(self._padding_y):
+            lines.append(" " * width)
+
+        self._cache = (width, lines)
+        return lines
