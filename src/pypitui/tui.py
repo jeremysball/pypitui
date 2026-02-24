@@ -247,6 +247,9 @@ class TUI(Container):
         # Overlay stack
         self._overlay_stack: list[_OverlayEntry] = []
 
+        # Terminal size tracking for resize detection
+        self._last_terminal_size: tuple[int, int] = (0, 0)
+
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
 
@@ -654,6 +657,13 @@ class TUI(Container):
 
         # Get terminal size
         term_width, term_height = self.terminal.get_size()
+
+        # Check for terminal resize
+        current_size = (term_width, term_height)
+        if current_size != self._last_terminal_size:
+            self._last_terminal_size = current_size
+            self._previous_lines = []  # Force full redraw
+            self.invalidate()  # Invalidate all children
 
         # Render base content
         base_lines = self.render(term_width)
