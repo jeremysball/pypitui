@@ -1,7 +1,7 @@
 """Tests for utility functions - ported from pi-tui."""
 
 import pytest
-from pypitui import visible_width, truncate_to_width, wrap_text_with_ansi
+from pypitui import visible_width, truncate_to_width, wrap_text_with_ansi, slice_by_column
 
 
 class TestVisibleWidth:
@@ -124,3 +124,64 @@ class TestWrapTextWithAnsi:
         """Trailing whitespace that exceeds width is truncated."""
         result = wrap_text_with_ansi("  ", 1)
         assert visible_width(result[0]) <= 1
+
+
+class TestSliceByColumn:
+    """Tests for slice_by_column function."""
+
+    def test_basic_slicing(self):
+        """Basic slicing works correctly."""
+        result = slice_by_column("hello world", 0, 5)
+        assert result == "hello"
+        assert visible_width(result) == 5
+
+    def test_slicing_with_offset(self):
+        """Slicing with start offset works."""
+        result = slice_by_column("hello world", 6, 5)
+        assert result == "world"
+        assert visible_width(result) == 5
+
+    def test_preserves_ansi_codes(self):
+        """ANSI codes are preserved in sliced output."""
+        red = "\x1b[31m"
+        reset = "\x1b[0m"
+        text = f"{red}hello{reset} world"
+
+        result = slice_by_column(text, 0, 5)
+        assert red in result
+        assert "hello" in result
+        assert visible_width(result) == 5
+
+    def test_ansi_codes_across_start_boundary(self):
+        """ANSI codes active at start boundary are preserved."""
+        red = "\x1b[31m"
+        reset = "\x1b[0m"
+        text = f"{red}hello{reset} world"
+
+        # Slice starting in the middle of red text
+        result = slice_by_column(text, 3, 5)
+        assert red in result
+        assert "lo" in result
+        assert visible_width(result) == 5
+
+    def test_ansi_reset_handled(self):
+        """ANSI reset codes properly deactivate styling."""
+        red = "\x1b[31m"
+        reset = "\x1b[0m"
+        text = f"{red}hi{reset} there"
+
+        # Slice after reset
+        result = slice_by_column(text, 3, 5)
+        assert red not in result
+        assert "there" in result
+        assert visible_width(result) == 5
+
+    def test_empty_slice(self):
+        """Zero length returns empty string."""
+        result = slice_by_column("hello", 0, 0)
+        assert result == ""
+
+    def test_slice_beyond_end(self):
+        """Slicing beyond text end returns available content."""
+        result = slice_by_column("hi", 0, 10)
+        assert visible_width(result) == 2

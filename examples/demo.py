@@ -6,6 +6,7 @@ from pypitui import (
     Container,
     Text,
     Box,
+    BorderedBox,
     Spacer,
     SelectList,
     SelectItem,
@@ -203,15 +204,14 @@ class DemoApp:
         if self.overlay_handle:
             self.overlay_handle.hide()
 
-        content = Container()
-        content.add_child(Text("┌─────────────────────────────────┐", 0, 0))
-        content.add_child(Text("│  Overlay Panel                  │", 0, 0))
-        content.add_child(Text("├─────────────────────────────────┤", 0, 0))
-        content.add_child(Text("│ Press ESC to close this overlay │", 0, 0))
-        content.add_child(Text("└─────────────────────────────────┘", 0, 0))
+        # Use BorderedBox for automatic content wrapping
+        box = BorderedBox(padding_x=1, padding_y=0)
+        box.add_child(Text("Overlay Panel", 0, 0))
+        box.add_child(Text("", 0, 0))
+        box.add_child(Text("Press ESC to close this overlay", 0, 0))
 
         options = OverlayOptions(width=width, anchor=anchor)
-        self.overlay_handle = self.tui.show_overlay(content, options)
+        self.overlay_handle = self.tui.show_overlay(box, options)
 
     def handle_input(self, data: str):
         """Handle input based on current mode."""

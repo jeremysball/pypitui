@@ -7,6 +7,7 @@ from pypitui import (
     Container,
     OverlayOptions,
     MockTerminal,
+    Input,
 )
 from pypitui.utils import visible_width
 
@@ -328,6 +329,74 @@ class TestOverlayWidthRendering:
         # Cursor position would be row 1, col 61 (1-indexed)
         assert "\x1b[" in output
         
+        handle.hide()
+
+
+class TestOverlayFocus:
+    """Tests for overlay focus management."""
+
+    def test_overlay_shows_focus_to_focusable_component(self):
+        """When overlay with focusable component is shown, it gets focus."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        # Add a focusable component to base and focus it
+        base_input = Input(placeholder="Base input")
+        tui.add_child(base_input)
+        tui.set_focus(base_input)
+
+        assert tui._focused_component == base_input
+
+        # Show overlay with focusable component
+        overlay_input = Input(placeholder="Overlay input")
+        handle = tui.show_overlay(overlay_input, OverlayOptions(width=40))
+
+        # Focus should move to overlay component
+        assert tui._focused_component == overlay_input
+
+        handle.hide()
+
+    def test_focus_restored_when_overlay_hidden(self):
+        """When overlay is hidden, focus returns to previous component."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        # Add and focus base component
+        base_input = Input(placeholder="Base input")
+        tui.add_child(base_input)
+        tui.set_focus(base_input)
+
+        # Show overlay
+        overlay_input = Input(placeholder="Overlay input")
+        handle = tui.show_overlay(overlay_input, OverlayOptions(width=40))
+
+        # Hide overlay using hide_overlay() which pops and restores focus
+        tui.hide_overlay()
+
+        # Focus should return to base component
+        assert tui._focused_component == base_input
+
+    def test_overlay_with_container_finds_focusable_child(self):
+        """When overlay container is shown, first focusable child gets focus."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        # Add base component
+        base_input = Input(placeholder="Base input")
+        tui.add_child(base_input)
+        tui.set_focus(base_input)
+
+        # Create overlay container with focusable child
+        overlay_container = Container()
+        overlay_container.add_child(Text("Label", padding_x=0, padding_y=0))
+        overlay_input = Input(placeholder="Overlay input")
+        overlay_container.add_child(overlay_input)
+
+        handle = tui.show_overlay(overlay_container, OverlayOptions(width=40))
+
+        # Focus should move to the Input in the container
+        assert tui._focused_component == overlay_input
+
         handle.hide()
 
 
