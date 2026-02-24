@@ -217,6 +217,7 @@ class BorderedBox(Component):
         padding_x: int = 1,
         padding_y: int = 0,
         min_width: int = 10,
+        max_width: int | None = None,
         title: str | None = None,
     ) -> None:
         """Initialize bordered box.
@@ -225,12 +226,14 @@ class BorderedBox(Component):
             padding_x: Horizontal padding inside the box (default 1)
             padding_y: Vertical padding inside the box (default 0)
             min_width: Minimum width for the box (default 10)
+            max_width: Maximum width for the box (default None = use render width)
             title: Optional title to display in the top border
         """
         self.children: list[Component] = []
         self._padding_x = padding_x
         self._padding_y = padding_y
         self._min_width = min_width
+        self._max_width = max_width
         self._title = title
         self._cache: tuple[int, list[str]] | None = None
 
@@ -270,6 +273,10 @@ class BorderedBox(Component):
         if self._cache and self._cache[0] == width:
             return self._cache[1]
 
+        # Apply max_width constraint if set
+        if self._max_width is not None:
+            width = min(width, self._max_width)
+        
         # Ensure minimum width
         width = max(width, self._min_width)
         

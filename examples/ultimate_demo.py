@@ -262,8 +262,8 @@ class UltimateDemoApp:
         self.current_screen = "menu"
         self.animation_active = False
 
-        # Logo header using BorderedBox
-        logo_box = BorderedBox(padding_x=2, padding_y=1, title="🐍 PyPiTUI 🖥️")
+        # Logo header using BorderedBox with constrained width
+        logo_box = BorderedBox(padding_x=2, padding_y=0, max_width=50, title="🐍 PyPiTUI 🖥️")
         logo_box.add_child(Text("Terminal UI Framework", 0, 0))
         self.tui.add_child(logo_box)
 
@@ -321,8 +321,8 @@ class UltimateDemoApp:
 
         self.tui.add_child(Spacer(3))
 
-        # Title using BorderedBox instead of hardcoded ASCII art
-        self.splash_box = BorderedBox(padding_x=2, padding_y=1, title="🐍 PyPiTUI 🖥️")
+        # Title using BorderedBox with constrained width
+        self.splash_box = BorderedBox(padding_x=2, padding_y=0, max_width=50, title="🐍 PyPiTUI 🖥️")
         self.splash_box.add_child(Text("Terminal UI Framework", 0, 0))
         self.tui.add_child(self.splash_box)
 
@@ -607,7 +607,7 @@ class UltimateDemoApp:
 
     def create_overlay_content(self, title: str) -> BorderedBox:
         """Create overlay content using BorderedBox."""
-        box = BorderedBox(padding_x=1, padding_y=0, title=title)
+        box = BorderedBox(padding_x=1, padding_y=0, max_width=40, title=title)
         box.add_child(Text("This overlay is positioned", 0, 0))
         box.add_child(Text("using OverlayOptions.", 0, 0))
         box.add_child(Text("", 0, 0))
