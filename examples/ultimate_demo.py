@@ -98,7 +98,7 @@ def header(title: str, subtitle: str = "", theme: Theme | None = None) -> list[C
     else:
         title_styled = title
     
-    box = BorderedBox(padding_x=2, padding_y=1, max_width=45, title=title_styled)
+    box = BorderedBox(padding_x=2, padding_y=0, max_width=45, title=title_styled)
     if subtitle:
         box.add_child(Text(subtitle, 0, 0))
     components.append(box)
