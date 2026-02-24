@@ -281,6 +281,11 @@ rich = [
     { name = "rich" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
@@ -292,6 +297,9 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2" },
 ]
 provides-extras = ["rich", "dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "mypy", specifier = ">=1.19.1" }]
 
 [[package]]
 name = "pytest"
