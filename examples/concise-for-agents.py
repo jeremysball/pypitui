@@ -1,350 +1,297 @@
 #!/usr/bin/env python3
-"""PyPiTUI Ultimate Demo - Complete Feature Showcase & LLM Learning Guide
+"""PyPiTUI Educational Demo - LLM Learning Guide
 
-This demo serves as:
-1. A comprehensive feature showcase for humans
-2. A learning resource for AI agents understanding PyPiTUI patterns
+This demo teaches agents how to build PyPiTUI applications correctly.
+Focuses on patterns, not visual effects.
 
-Key Patterns Demonstrated:
-- TUI lifecycle (start/stop/render loop)
-- Component hierarchy (Container -> children)
-- State management (screen switching, form data)
-- Event handling (keyboard input, callbacks)
-- Differential rendering (automatic via TUI class)
+KEY PATTERNS DEMONSTRATED:
+1. TUI lifecycle (start/stop/render loop)
+2. Screen management (clear/build pattern)
+3. Full Rich theme integration (not just ANSI colors)
+4. Component hierarchy and composition
+5. Event handling and routing
+6. State management
+
+CRITICAL LESSONS:
+- Always reuse TUI instance (use tui.clear(), not new TUI())
+- Use Rich markup [color] instead of ANSI codes \x1b[32m
+- Rich themes affect the ENTIRE UI, not just one component
+- Form state persists across screens via instance variables
 """
 
 import time
+from dataclasses import dataclass
+
 from pypitui import (
     TUI, Container, Text, Box, BorderedBox, Spacer,
     SelectList, SelectItem, SelectListTheme, Input,
     OverlayOptions, ProcessTerminal, matches_key, Key,
 )
 
-# Optional: Rich integration for markdown/tables
 try:
-    from pypitui.rich_components import Markdown, RichText, RichTable
+    from pypitui.rich_components import RichText, RichTable
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
 
 
 # =============================================================================
-# ANSI COLOR UTILITIES
+# THEME SYSTEM - Rich markup (not ANSI codes)
 # =============================================================================
-class Colors:
-    """ANSI color codes for terminal styling."""
-    RESET = "\x1b[0m"
-    BOLD = "\x1b[1m"
-    DIM = "\x1b[2m"
-    CYAN = "\x1b[36m"
-    GREEN = "\x1b[32m"
-    YELLOW = "\x1b[33m"
-    MAGENTA = "\x1b[35m"
-    WHITE = "\x1b[37m"
-    BRIGHT_CYAN = "\x1b[96m"
 
-
-# =============================================================================
-# DEMO APPLICATION
-# =============================================================================
-class UltimateDemoApp:
-    """
-    Main demo application demonstrating PyPiTUI patterns.
+@dataclass
+class Theme:
+    """Theme using Rich color names, not ANSI codes.
     
-    ARCHITECTURE:
-    - TUI manages terminal state and differential rendering
-    - Screens built dynamically via _clear_screen() + add_child()
-    - State stored in instance variables (self.current_screen, self.form_data)
-    - Input handled centrally in handle_input(), dispatched to components
+    WHY: Rich markup [bright_cyan]text[/bright_cyan] is:
+    - More readable than \x1b[96m
+    - Portable across terminals
+    - Composable (can nest styles)
     """
+    name: str
+    primary: str      # e.g., "bright_cyan"
+    secondary: str    # e.g., "bright_magenta"
+    muted: str        # e.g., "dim"
+
+
+THEMES = {
+    "neon": Theme("Cyberpunk", "bright_cyan", "bright_magenta", "dim"),
+    "warm": Theme("Sunset", "yellow", "red", "dim"),
+}
+
+
+# =============================================================================
+# RICH UI HELPERS - Theme everything
+# =============================================================================
+
+def themed_header(title: str, subtitle: str, theme: Theme) -> list:
+    """Create header with Rich theming.
+    
+    PATTERN: Use RichText with markup [color]text[/color]
+    instead of f"{theme.primary}text{theme.reset}".
+    """
+    components = [Spacer(1)]
+    
+    box = BorderedBox(padding_x=2, max_width=40, title=title)
+    if subtitle:
+        # RichText gets theme styling
+        box.add_child(RichText(f"[{theme.muted}]{subtitle}[/{theme.muted}]"))
+    components.append(box)
+    components.append(Spacer(1))
+    
+    return components
+
+
+def themed_label(text: str, theme: Theme) -> RichText:
+    """Bold label using Rich markup."""
+    return RichText(f"[bold {theme.primary}]{text}[/bold {theme.primary}]")
+
+
+def themed_list_theme(theme: Theme) -> SelectListTheme:
+    """Create SelectList theme using Rich colors.
+    
+    PATTERN: Even list items use Rich markup for consistency.
+    """
+    return SelectListTheme(
+        selected_prefix=lambda s: "▶ ",
+        selected_text=lambda s: f"[bold {theme.primary}]{s}[/bold {theme.primary}]",
+        description=lambda s: f"[{theme.muted}]{s}[/{theme.muted}]",
+    )
+
+
+# =============================================================================
+# MAIN APPLICATION
+# =============================================================================
+
+class DemoApp:
+    """Educational demo showing proper PyPiTUI patterns."""
 
     def __init__(self):
         self.terminal = ProcessTerminal()
         self.tui = TUI(self.terminal, show_hardware_cursor=True)
         self.running = True
         self.current_screen = "menu"
+        self.theme_name = "neon"
         self.form_data = {"name": "", "email": ""}
-        self.wizard_step = 0
-        self.overlay_handle = None
-        
-        # Theme for SelectList components
-        self.theme = SelectListTheme(
-            selected_prefix=lambda s: f"{Colors.BRIGHT_CYAN}▶{Colors.RESET} ",
-            selected_text=lambda s: f"{Colors.BOLD}{s}{Colors.RESET}",
-            description=lambda s: f"{Colors.DIM}{s}{Colors.RESET}",
-        )
         
         self.build_menu()
 
-    def _clear_screen(self):
-        """Clear all children while preserving TUI state for differential rendering."""
+    def _theme(self) -> Theme:
+        """Get current theme."""
+        return THEMES[self.theme_name]
+
+    def _clear(self) -> None:
+        """Clear screen preserving TUI state.
+        
+        CRITICAL: Use tui.clear(), NOT 'self.tui = TUI(terminal)'
+        Creating new TUI instances breaks differential rendering.
+        """
         self.tui.clear()
 
-    def build_menu(self):
-        """Main menu - demonstrates SelectList for navigation."""
-        self._clear_screen()
+    def build_menu(self) -> None:
+        """Main menu with full Rich theming."""
+        self._clear()
         self.current_screen = "menu"
-        self.wizard_step = 0
-
-        # Header using BorderedBox (preferred over manual box drawing)
-        # NOTE: Uses default padding_y=0 for tight vertical alignment
-        header = BorderedBox(padding_x=2, max_width=45, title="🐍 PyPiTUI")
-        header.add_child(Text("Terminal UI Framework", 0, 0))
-        self.tui.add_child(header)
-        self.tui.add_child(Spacer(1))
-
-        # Menu using SelectList (keyboard-navigable list)
+        
+        t = self._theme()
+        
+        # Header with Rich subtitle
+        for comp in themed_header("🐍 PyPiTUI", "Rich Theme Demo", t):
+            self.tui.add_child(comp)
+        
+        # Menu with themed items
         items = [
-            SelectItem("components", "🧩 Components", "Text, Box, BorderedBox, Input"),
-            SelectItem("wizard", "🧙 Form Wizard", "Multi-step form with validation"),
-            SelectItem("overlays", "🪟 Overlays", "Floating panels & dialogs"),
-            SelectItem("rich", "✨ Rich Integration", "Markdown & formatted text"),
+            SelectItem("rich", "Rich Integration", f"All UI uses {t.primary} theme"),
+            SelectItem("form", "Form Example", "Multi-step with validation"),
         ]
-        menu = SelectList(items, 4, self.theme)
-        menu.on_select = self.on_menu_select
+        
+        menu = SelectList(items, 2, themed_list_theme(t))
+        menu.on_select = self.on_select
         self.tui.add_child(menu)
         self.tui.set_focus(menu)
-
+        
         self.tui.add_child(Spacer(1))
-        self.tui.add_child(Text(f"{Colors.DIM}↑↓ Navigate • Enter Select • Q Quit{Colors.RESET}", 0, 0))
+        self.tui.add_child(RichText(f"[{t.muted}]Q to quit[/{t.muted}]"))
 
-    def on_menu_select(self, item: SelectItem):
-        """Route menu selection to appropriate screen."""
-        handlers = {
-            "components": self.show_components,
-            "wizard": self.show_wizard,
-            "overlays": self.show_overlays,
-            "rich": self.show_rich,
-        }
-        handlers.get(item.value, self.build_menu)()
+    def on_select(self, item: SelectItem) -> None:
+        """Route menu selection."""
+        if item.value == "rich":
+            self.show_rich()
+        elif item.value == "form":
+            self.show_form()
 
-    def show_components(self):
-        """Demonstrates core components: Text, Box, BorderedBox, Input."""
-        self._clear_screen()
-        self.current_screen = "components"
-
-        self.tui.add_child(Text(f"{Colors.BOLD}Component Showcase{Colors.RESET}", 0, 0))
-        self.tui.add_child(Spacer(1))
-
-        # Text component with word wrapping
-        self.tui.add_child(Text(
-            "Text component automatically wraps long content to fit the terminal width. "
-            "This demonstrates word wrapping in action.",
-            padding_x=2, padding_y=1
-        ))
-        self.tui.add_child(Spacer(1))
-
-        # Box with padding (basic container)
-        self.tui.add_child(Text(f"{Colors.BOLD}Box (padding container):{Colors.RESET}", 0, 0))
-        box = Box(padding_x=2, padding_y=1)
-        box.add_child(Text("Content inside Box with padding"))
-        self.tui.add_child(box)
-        self.tui.add_child(Spacer(1))
-
-        # BorderedBox (recommended for panels)
-        self.tui.add_child(Text(f"{Colors.BOLD}BorderedBox (preferred):{Colors.RESET}", 0, 0))
-        bordered = BorderedBox(padding_x=2, max_width=35, title="Panel Title")
-        bordered.add_child(Text("BorderedBox draws borders and wraps content"))
-        self.tui.add_child(bordered)
-        self.tui.add_child(Spacer(1))
-
-        # Input component
-        self.tui.add_child(Text(f"{Colors.BOLD}Input:{Colors.RESET}", 0, 0))
-        inp = Input(placeholder="Type something...")
-        inp.on_submit = lambda v: self.show_result(f"You typed: {v}")
-        self.tui.add_child(inp)
-        self.tui.set_focus(inp)
-
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(Text(f"{Colors.DIM}ESC to return{Colors.RESET}", 0, 0))
-
-    def show_wizard(self):
-        """Multi-step form demonstrating state management across screens."""
-        self._clear_screen()
-        self.current_screen = "wizard"
-
-        steps = [("Profile", "Enter details"), ("Confirm", "Review")]
-        step_name, step_desc = steps[self.wizard_step]
-
-        self.tui.add_child(Text(f"{Colors.BOLD}Wizard: {step_name}{Colors.RESET}", 0, 0))
-        self.tui.add_child(Text(step_desc, 0, 0))
-        self.tui.add_child(Spacer(1))
-
-        if self.wizard_step == 0:
-            # Form fields
-            self.tui.add_child(Text("Name:", 0, 0))
-            name_inp = Input(placeholder="Your name")
-            name_inp.set_value(self.form_data["name"])
-            self.tui.add_child(name_inp)
-            self.name_input = name_inp
-
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(Text("Email:", 0, 0))
-            email_inp = Input(placeholder="Your email")
-            email_inp.set_value(self.form_data["email"])
-            self.tui.add_child(email_inp)
-            self.email_input = email_inp
-
-            self.tui.set_focus(name_inp)
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(Text(f"{Colors.DIM}Tab: switch fields • Enter: continue{Colors.RESET}", 0, 0))
-
-        else:  # Confirmation step
-            self.tui.add_child(Text(f"Name: {self.form_data['name'] or '(empty)'}", 0, 0))
-            self.tui.add_child(Text(f"Email: {self.form_data['email'] or '(empty)'}", 0, 0))
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(Text(f"{Colors.GREEN}✓ Form complete!{Colors.RESET}", 0, 0))
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(Text(f"{Colors.DIM}ESC to return to menu{Colors.RESET}", 0, 0))
-
-    def show_overlays(self):
-        """Demonstrates overlay system with positioning options."""
-        self._clear_screen()
-        self.current_screen = "overlays"
-
-        self.tui.add_child(Text(f"{Colors.BOLD}Overlay System{Colors.RESET}", 0, 0))
-        self.tui.add_child(Spacer(1))
-
-        items = [
-            SelectItem("center", "Center", "Centered overlay"),
-            SelectItem("top", "Top", "Top of screen"),
-            SelectItem("bottom", "Bottom", "Bottom of screen"),
-        ]
-        lst = SelectList(items, 3, self.theme)
-        lst.on_select = self.show_overlay_example
-        self.tui.add_child(lst)
-        self.tui.set_focus(lst)
-
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(Text(f"{Colors.DIM}ESC to return{Colors.RESET}", 0, 0))
-
-    def show_overlay_example(self, item: SelectItem):
-        """Show overlay at specified anchor position."""
-        anchors = {"center": "center", "top": "top", "bottom": "bottom"}
-        anchor = anchors.get(item.value, "center")
-
-        content = BorderedBox(padding_x=2, padding_y=1, max_width=35, title=f"{anchor.title()} Overlay")
-        content.add_child(Text(f"This overlay is anchored to {anchor}"))
-        content.add_child(Text("Press ESC to close"))
-
-        self.overlay_handle = self.tui.show_overlay(
-            content, OverlayOptions(width=35, anchor=anchor)
-        )
-
-    def show_rich(self):
-        """Rich integration demo (markdown, formatted text, tables)."""
-        self._clear_screen()
+    def show_rich(self) -> None:
+        """Demonstrate full Rich theme integration.
+        
+        KEY INSIGHT: Rich themes affect EVERYTHING:
+        - Headers use RichText for subtitles
+        - Labels use Rich markup
+        - List items use Rich colors
+        - Even static text uses theme colors
+        """
+        self._clear()
         self.current_screen = "rich"
-
-        self.tui.add_child(Text(f"{Colors.BOLD}Rich Integration{Colors.RESET}", 0, 0))
-        self.tui.add_child(Spacer(1))
-
+        t = self._theme()
+        
+        for comp in themed_header("Rich Demo", f"Theme: {t.name}", t):
+            self.tui.add_child(comp)
+        
         if not RICH_AVAILABLE:
-            self.tui.add_child(Text(f"{Colors.YELLOW}Rich not installed. Run: pip install pypitui[rich]{Colors.RESET}", 0, 0))
+            self.tui.add_child(Text("pip install pypitui[rich]"))
         else:
+            # Everything uses Rich markup with theme colors
+            self.tui.add_child(themed_label("Themed Labels:", t))
+            self.tui.add_child(RichText(f"  Primary: [{t.primary}]This is primary[/{t.primary}]"))
+            self.tui.add_child(RichText(f"  Secondary: [{t.secondary}]This is secondary[/{t.secondary}]"))
+            self.tui.add_child(Spacer(1))
+            
+            # Theme switcher
+            self.tui.add_child(themed_label("Switch Theme:", t))
             items = [
-                SelectItem("markdown", "Markdown", "Render markdown"),
-                SelectItem("richtext", "RichText", "Styled text"),
-                SelectItem("table", "Table", "Formatted table"),
+                SelectItem("neon", "Cyberpunk", f"[{THEMES['neon'].primary}]Cyan/Magenta[/{THEMES['neon'].primary}]"),
+                SelectItem("warm", "Sunset", f"[{THEMES['warm'].primary}]Yellow/Red[/{THEMES['warm'].primary}]"),
             ]
-            lst = SelectList(items, 3, self.theme)
-            lst.on_select = self.show_rich_overlay
+            lst = SelectList(items, 2, themed_list_theme(t))
+            lst.on_select = lambda i: self.set_theme(i.value)
             self.tui.add_child(lst)
             self.tui.set_focus(lst)
-
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(Text(f"{Colors.DIM}ESC to return{Colors.RESET}", 0, 0))
-
-    def show_rich_overlay(self, item: SelectItem):
-        """Show Rich component in an overlay."""
-        if self.overlay_handle:
-            self.overlay_handle.hide()
-
-        content = Container()
-
-        if item.value == "markdown":
-            md_text = "# Markdown\n\n**Bold** and *italic* text.\n\n```python\nprint('Hello')\n```"
-            content.add_child(Markdown(md_text, padding_x=1, padding_y=1))
-        elif item.value == "richtext":
-            content.add_child(RichText("[bold cyan]Styled[/bold cyan] [red]Text[/red]!", padding_x=1, padding_y=1))
-        elif item.value == "table":
-            table = RichTable(title="Demo", padding_x=1, padding_y=1)
-            table.add_column("Name")
-            table.add_column("Status")
-            table.add_row("Feature 1", "✓")
-            table.add_row("Feature 2", "✓")
-            content.add_child(table)
-
-        self.overlay_handle = self.tui.show_overlay(
-            content, OverlayOptions(width="70%", anchor="center")
-        )
-
-    def show_result(self, message: str):
-        """Show a temporary result message."""
-        self._clear_screen()
-        self.current_screen = "result"
-        self.tui.add_child(Text(message, 0, 0))
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(Text(f"{Colors.DIM}Press any key...{Colors.RESET}", 0, 0))
-
-    def handle_input(self, data: str):
-        """
-        Central input handler - dispatches to appropriate handler based on state.
         
-        PATTERN: Check global keys first (quit, back), then route to screen-specific
-        handling, finally pass to focused component via tui.handle_input().
+        self.tui.add_child(Spacer(1))
+        self.tui.add_child(RichText(f"[{t.muted}]ESC to return[/{t.muted}]"))
+
+    def set_theme(self, name: str) -> None:
+        """Change theme and refresh."""
+        self.theme_name = name
+        self.build_menu()
+
+    def show_form(self) -> None:
+        """Form with validation and state persistence."""
+        self._clear()
+        self.current_screen = "form"
+        t = self._theme()
+        
+        for comp in themed_header("Form Demo", "Enter your details", t):
+            self.tui.add_child(comp)
+        
+        # Form fields with themed labels
+        self.tui.add_child(themed_label("Name:", t))
+        name = Input(placeholder="Your name")
+        name.set_value(self.form_data["name"])
+        self.tui.add_child(name)
+        self.name_input = name
+        
+        self.tui.add_child(Spacer(1))
+        self.tui.add_child(themed_label("Email:", t))
+        email = Input(placeholder="Your email")
+        email.set_value(self.form_data["email"])
+        self.tui.add_child(email)
+        self.email_input = email
+        
+        # Submit button pattern
+        def on_submit(value: str):
+            self.form_data["name"] = self.name_input.get_value()
+            self.form_data["email"] = self.email_input.get_value()
+            self.show_result(f"Hello, {self.form_data['name']}!")
+        
+        name.on_submit = on_submit
+        email.on_submit = on_submit
+        
+        self.tui.set_focus(name)
+        self.tui.add_child(Spacer(1))
+        self.tui.add_child(RichText(f"[{t.muted}]Tab: switch • Enter: submit[/{t.muted}]"))
+
+    def show_result(self, message: str) -> None:
+        """Show result with themed styling."""
+        self._clear()
+        self.current_screen = "result"
+        t = self._theme()
+        
+        self.tui.add_child(RichText(f"[bold {t.primary}]{message}[/bold {t.primary}]"))
+        self.tui.add_child(Spacer(1))
+        self.tui.add_child(RichText(f"[{t.muted}]Press any key[/{t.muted}]"))
+
+    def handle_input(self, data: str) -> None:
+        """Central input handler.
+        
+        PATTERN: Check global keys first, then route to screen-specific,
+        finally pass to focused component.
         """
-        # Global: Quit from menu
+        # Global: Quit
         if data.lower() == "q" and self.current_screen == "menu":
             self.running = False
             return
-
-        # Global: ESC returns to menu or closes overlay
+        
+        # Global: ESC returns to menu
         if matches_key(data, Key.escape):
-            if self.tui.has_overlay():
-                self.tui.hide_overlay()
-                self.overlay_handle = None
-            else:
-                self.build_menu()
+            self.build_menu()
             return
-
-        # Wizard: Tab navigation and Enter submission
-        if self.current_screen == "wizard" and self.wizard_step == 0:
-            if matches_key(data, Key.tab) and hasattr(self, 'name_input'):
-                # Toggle focus between name and email
+        
+        # Global: Tab navigation in forms
+        if self.current_screen == "form" and matches_key(data, Key.tab):
+            if hasattr(self, 'name_input'):
                 new_focus = self.email_input if self.tui._focused_component == self.name_input else self.name_input
                 self.tui.set_focus(new_focus)
                 return
-            elif matches_key(data, Key.enter):
-                # Submit form
-                self.form_data["name"] = self.name_input.get_value()
-                self.form_data["email"] = self.email_input.get_value()
-                self.wizard_step = 1
-                self.show_wizard()
-                return
-
-        # Default: Pass to TUI for component handling
+        
+        # Pass to TUI for component handling
         self.tui.handle_input(data)
 
-    def run(self):
-        """Main loop at 60 FPS with non-blocking input."""
+    def run(self) -> None:
+        """Main loop at 60 FPS."""
         self.tui.start()
         frame_duration = 1.0 / 60.0
-
+        
         try:
             while self.running:
                 frame_start = time.time()
-
-                # Non-blocking input read
+                
                 data = self.terminal.read_sequence(timeout=0.001)
                 if data:
                     self.handle_input(data)
-
-                # Render
+                
                 self.tui.request_render()
                 self.tui.render_frame()
-
-                # Frame timing for 60 FPS
+                
                 elapsed = time.time() - frame_start
                 if elapsed < frame_duration:
                     time.sleep(frame_duration - elapsed)
@@ -352,12 +299,12 @@ class UltimateDemoApp:
             self.tui.stop()
 
 
-def main():
+def main() -> None:
     """Entry point."""
-    print("PyPiTUI Ultimate Demo")
+    print("PyPiTUI Educational Demo")
     print("")
-    UltimateDemoApp().run()
-    print("\nGoodbye!")
+    DemoApp().run()
+    print("\nDone!")
 
 
 if __name__ == "__main__":
