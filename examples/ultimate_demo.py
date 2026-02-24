@@ -463,17 +463,29 @@ class UltimateDemoApp:
 
             name_input = Input(placeholder="Enter your name...")
             name_input.set_value(self.form_data["name"])
-            name_input.on_submit = lambda v: self.advance_wizard(name=v)
             self.tui.add_child(name_input)
-            self.tui.set_focus(name_input)
 
             self.tui.add_child(Spacer(1))
             self.tui.add_child(Text(f"{Colors.BOLD}Email:{Colors.RESET}", 0, 0))
 
             email_input = Input(placeholder="Enter your email...")
             email_input.set_value(self.form_data["email"])
-            email_input.on_submit = lambda v: self.advance_wizard(email=v)
             self.tui.add_child(email_input)
+            
+            self.tui.add_child(Spacer(1))
+            self.tui.add_child(Text(f"{Colors.DIM}Press Enter to continue{Colors.RESET}", 0, 0))
+            
+            # Store inputs for Tab navigation
+            self.name_input = name_input
+            self.email_input = email_input
+            
+            # Focus the first empty input
+            if not self.form_data["name"]:
+                self.tui.set_focus(name_input)
+            elif not self.form_data["email"]:
+                self.tui.set_focus(email_input)
+            else:
+                self.tui.set_focus(name_input)
 
         elif self.wizard_step == 2:
             # Theme step
@@ -841,6 +853,21 @@ Key Features:
                 self.wizard_step -= 1
                 self.show_inputs()
                 return
+            elif matches_key(data, Key.tab):
+                # Tab between inputs in step 1
+                if self.wizard_step == 1 and hasattr(self, 'name_input') and hasattr(self, 'email_input'):
+                    if self.tui._focused_component == self.name_input:
+                        self.tui.set_focus(self.email_input)
+                    else:
+                        self.tui.set_focus(self.name_input)
+                    return
+            elif matches_key(data, Key.enter):
+                # Handle form submission in step 1
+                if self.wizard_step == 1 and hasattr(self, 'name_input') and hasattr(self, 'email_input'):
+                    name_val = self.name_input.get_value()
+                    email_val = self.email_input.get_value()
+                    self.advance_wizard(name=name_val, email=email_val)
+                    return
 
         # Pass to TUI for component handling
         self.tui.handle_input(data)
