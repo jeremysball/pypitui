@@ -217,6 +217,7 @@ class BorderedBox(Component):
         padding_x: int = 1,
         padding_y: int = 0,
         min_width: int = 10,
+        title: str | None = None,
     ) -> None:
         """Initialize bordered box.
         
@@ -224,11 +225,13 @@ class BorderedBox(Component):
             padding_x: Horizontal padding inside the box (default 1)
             padding_y: Vertical padding inside the box (default 0)
             min_width: Minimum width for the box (default 10)
+            title: Optional title to display in the top border
         """
         self.children: list[Component] = []
         self._padding_x = padding_x
         self._padding_y = padding_y
         self._min_width = min_width
+        self._title = title
         self._cache: tuple[int, list[str]] | None = None
 
     def add_child(self, component: Component) -> None:
@@ -283,8 +286,22 @@ class BorderedBox(Component):
         # Build the box
         lines: list[str] = []
         
-        # Top border
-        top_border = self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
+        # Top border with optional title
+        if self._title:
+            title_text = f" {self._title} "
+            title_width = visible_width(title_text)
+            remaining = width - 2 - title_width
+            if remaining >= 0:
+                left_chars = remaining // 2
+                right_chars = remaining - left_chars
+                top_border = self.TOP_LEFT + self.HORIZONTAL * left_chars + title_text + self.HORIZONTAL * right_chars + self.TOP_RIGHT
+            else:
+                # Title too long, truncate it
+                truncated = truncate_to_width(title_text, width - 2, pad=False)
+                padding = width - 2 - visible_width(truncated)
+                top_border = self.TOP_LEFT + truncated + " " * padding + self.TOP_RIGHT
+        else:
+            top_border = self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
         lines.append(top_border)
         
         # Top padding (if any)
