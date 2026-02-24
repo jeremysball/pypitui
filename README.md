@@ -168,6 +168,32 @@ box = Box(padding_x=2, padding_y=1)
 box.add_child(Text("Content"))
 ```
 
+### BorderedBox
+
+**Recommended** for panels and overlays with borders. Automatically wraps content and maintains proper box shape:
+
+```python
+from pypitui import BorderedBox, Text
+
+# BorderedBox draws borders and wraps content automatically
+box = BorderedBox(
+    padding_x=1,      # Horizontal padding inside borders
+    padding_y=0,      # Vertical padding inside borders  
+    title="My Panel"  # Optional title with separator
+)
+box.add_child(Text("Long content that will wrap automatically"))
+
+# Renders as:
+# ┌─────────────────────────────┐
+# │ My Panel                    │
+# ├─────────────────────────────┤
+# │ Long content that will wrap │
+# │ automatically               │
+# └─────────────────────────────┘
+```
+
+> **Note:** Do not create your own box borders using Text components. Use `BorderedBox` instead - it handles content wrapping, maintains proper box shape at any width, and provides consistent styling.
+
 ## Keyboard Input
 
 ```python

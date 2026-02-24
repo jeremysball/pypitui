@@ -7,6 +7,8 @@ import re
 import shutil
 from collections.abc import Callable
 
+import wcwidth
+
 # ANSI escape sequence pattern
 ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
@@ -36,23 +38,20 @@ def strip_ansi(text: str) -> str:
 def visible_width(text: str) -> int:
     """Calculate the visible width of a string in terminal columns.
 
-    Ignores ANSI escape codes and handles wide characters.
+    Ignores ANSI escape codes and handles wide characters (emojis, CJK, etc.)
+    using wcwidth for accurate terminal column counting.
     """
     text = strip_ansi(text)
     width = 0
     for char in text:
-        # Check for wide characters (CJK, etc.)
-        if ord(char) > 127:
-            import unicodedata
-
-            cat = unicodedata.category(char)
-            # CJK characters are typically 2 columns wide
-            if cat.startswith("C") or cat in ("Lo", "Ll", "Lu", "Lt", "Lm"):
-                width += 2
-            else:
-                width += 1
-        else:
-            width += 1
+        w = wcwidth.wcwidth(char)
+        if w is None:
+            # Control character or non-printable
+            w = 0
+        elif w < 0:
+            # Combining character (overlaps previous)
+            w = 0
+        width += w
     return width
 
 
@@ -127,6 +126,9 @@ def wrap_text_with_ansi(text: str, width: int) -> list[str]:
 
         if current_line:
             lines.append(current_line + "\x1b[0m")
+        elif not lines:
+            # Handle whitespace-only input - return empty line
+            lines.append("")
 
     return lines
 
@@ -228,7 +230,7 @@ def truncate_to_width(text: str, max_width: int, ellipsis: str = "...", pad: boo
 def slice_by_column(line: str, start_col: int, length: int, strict: bool = False) -> str:
     """Extract a range of visible columns from a line.
 
-    Handles ANSI codes and wide characters.
+    Handles ANSI codes and wide characters properly.
 
     Args:
         line: Input line
@@ -239,35 +241,32 @@ def slice_by_column(line: str, start_col: int, length: int, strict: bool = False
     Returns:
         Extracted text with ANSI codes preserved
     """
+    if length <= 0:
+        return ""
+
     result = []
     col = 0
     i = 0
+    active_ansi = ""
 
-    # Skip to start_col
+    # Skip to start_col, tracking active ANSI codes
     while i < len(line) and col < start_col:
         code_info = extract_ansi_code(line, i)
         if code_info:
-            _, code_len = code_info
+            code, code_len = code_info
+            if code == "\x1b[0m":
+                active_ansi = ""
+            else:
+                active_ansi += code
             i += code_len
             continue
 
         char = line[i]
-        char_width = visible_width(char)
+        char_width = 2 if ord(char) > 127 and visible_width(char) > 1 else 1
         col += char_width
         i += 1
 
-    # Include any active ANSI codes at this position
-    active_ansi = ""
-    temp_i = 0
-    while temp_i < i:
-        code_info = extract_ansi_code(line, temp_i)
-        if code_info:
-            code, code_len = code_info
-            active_ansi += code
-            temp_i += code_len
-        else:
-            temp_i += 1
-
+    # Add active ANSI codes at start position
     result.append(active_ansi)
 
     # Extract length columns
@@ -281,7 +280,7 @@ def slice_by_column(line: str, start_col: int, length: int, strict: bool = False
             continue
 
         char = line[i]
-        char_width = visible_width(char)
+        char_width = 2 if ord(char) > 127 and visible_width(char) > 1 else 1
 
         if strict and extracted_width + char_width > length:
             break
