@@ -72,6 +72,34 @@ THEMES: dict[str, RichTheme] = {
     ),
 }
 
+# =============================================================================
+# RENDER HELPERS - Convert Rich markup to ANSI for SelectList compatibility
+# =============================================================================
+
+from rich.console import Console
+from io import StringIO
+
+def rich_to_ansi(markup: str) -> str:
+    """Convert Rich markup to ANSI codes for SelectList compatibility.
+    
+    This is the KEY to theming ALL of PyPiTUI with Rich:
+    - Use RichText for components (Text, BorderedBox children, etc.)
+    - Use rich_to_ansi() for SelectList items that need ANSI strings
+    
+    Example:
+        # Rich markup for regular components
+        tui.add_child(RichText("[bold cyan]Hello[/bold cyan]"))
+        
+        # Convert to ANSI for SelectList
+        label = rich_to_ansi("[bold cyan]Menu Item[/bold cyan]")
+        items = [SelectItem("key", label, rich_to_ansi("[dim]Description[/dim]"))]
+    """
+    buf = StringIO()
+    console = Console(file=buf, force_terminal=True, width=200, legacy_windows=False)
+    console.print(markup, end="")
+    return buf.getvalue()
+
+
 
 # =============================================================================
 # RICH UI HELPERS - Everything uses Rich markup
@@ -124,15 +152,27 @@ def rich_footer(text: str = "ESC to go back", theme: RichTheme | None = None) ->
 
 
 def create_rich_theme(theme: RichTheme) -> SelectListTheme:
-    """Create SelectList theme using Rich markup.
+    """Create SelectList theme using ANSI colors.
     
-    PATTERN: Even SelectList items can use Rich colors!
-    The ▶ prefix and selected text get theme colors.
+    GOTCHA: SelectList displays raw strings, not Rich-rendered markup.
+    Use ANSI codes for SelectList, RichText for everything else.
     """
+    # Map Rich color names to ANSI codes for SelectList
+    ansi_colors = {
+        "bright_cyan": "\x1b[96m", "bright_magenta": "\x1b[95m", 
+        "yellow": "\x1b[33m", "red": "\x1b[31m",
+        "blue": "\x1b[34m", "cyan": "\x1b[36m",
+        "dim": "\x1b[2m", "bright_green": "\x1b[92m",
+        "bright_red": "\x1b[91m",
+    }
+    primary = ansi_colors.get(theme.primary, "\x1b[0m")
+    muted = ansi_colors.get(theme.muted, "\x1b[2m")
+    reset = "\x1b[0m"
+    
     return SelectListTheme(
-        selected_prefix=lambda s: f"▶ ",
-        selected_text=lambda s: f"[bold {theme.primary}]{s}[/bold {theme.primary}]",
-        description=lambda s: f"[{theme.muted}]{s}[/{theme.muted}]",
+        selected_prefix=lambda s: f"{primary}▶{reset} ",
+        selected_text=lambda s: f"\x1b[1m{primary}{s}{reset}",
+        description=lambda s: f"{muted}{s}{reset}",
     )
 
 
@@ -633,3 +673,31 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# =============================================================================
+# RENDER HELPERS - Convert Rich markup to ANSI for SelectList compatibility
+# =============================================================================
+
+from rich.console import Console
+from io import StringIO
+
+def rich_to_ansi(markup: str) -> str:
+    """Convert Rich markup to ANSI codes for SelectList compatibility.
+    
+    This is the KEY to theming ALL of PyPiTUI with Rich:
+    - Use RichText for components (Text, BorderedBox children, etc.)
+    - Use rich_to_ansi() for SelectList items that need ANSI strings
+    
+    Example:
+        # Rich markup for regular components
+        tui.add_child(RichText("[bold cyan]Hello[/bold cyan]"))
+        
+        # Convert to ANSI for SelectList
+        label = rich_to_ansi("[bold cyan]Menu Item[/bold cyan]")
+        items = [SelectItem("key", label, rich_to_ansi("[dim]Description[/dim]"))]
+    """
+    buf = StringIO()
+    console = Console(file=buf, force_terminal=True, width=200, legacy_windows=False)
+    console.print(markup, end="")
+    return buf.getvalue()
