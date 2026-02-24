@@ -192,10 +192,25 @@ class TUI(Container):
 
     The TUI manages the terminal state, handles input, and renders components
     efficiently by only updating changed lines.
+
+    IMPORTANT: Reuse TUI instances when switching screens. Creating new TUI
+    instances loses the _previous_lines state needed for differential rendering,
+    causing ghost content from previous screens. Instead, call tui.clear() to
+    remove children, then add new children - the existing _previous_lines will
+    ensure old content is properly cleared.
+
+    Example:
+        # WRONG - loses differential rendering state
+        self.tui = TUI(terminal)
+        self.tui.add_child(...)
+
+        # RIGHT - reuse TUI, preserves _previous_lines
+        self.tui.clear()  # Remove old children
+        self.tui.add_child(...)  # Add new content
     """
 
-    # ANSI reset sequence
-    _SEGMENT_RESET = "\x1b[0m\x1b]8;;\x07"
+    # ANSI reset sequence: reset attributes, clear to end of line, end hyperlink
+    _SEGMENT_RESET = "\x1b[0m\x1b[K\x1b]8;;\x07"
 
     def __init__(
         self,
@@ -314,8 +329,8 @@ class TUI(Container):
         else:
             # Save cursor position and clear screen for main buffer mode
             self.terminal.write("\x1b[s")  # Save cursor
+            self.terminal.write("\x1b[H")  # Move to home first
             self.terminal.write("\x1b[2J")  # Clear screen
-            self.terminal.write("\x1b[H")  # Move to home
 
         self.terminal.hide_cursor()
         self.terminal.set_raw_mode()
@@ -328,8 +343,8 @@ class TUI(Container):
 
         if not self._use_alternate_buffer:
             # Clear our content and restore cursor in main buffer mode
+            self.terminal.write("\x1b[H")  # Move to home first
             self.terminal.write("\x1b[2J")  # Clear screen
-            self.terminal.write("\x1b[H")  # Move to home
             self.terminal.write("\x1b[u")  # Restore cursor
 
         self.terminal.show_cursor()
@@ -498,12 +513,33 @@ class TUI(Container):
             if entry.options.visible and not entry.options.visible(term_width, term_height):
                 continue
 
-            # Render overlay content
-            content = entry.component.render(term_width)
+            # Calculate margins first
+            margin = entry.options.margin
+            if isinstance(margin, int):
+                margin_left = margin_right = margin
+            elif margin:
+                margin_left = margin.left
+                margin_right = margin.right
+            else:
+                margin_left = margin_right = 0
+
+            avail_width = term_width - margin_left - margin_right
+
+            # Resolve width (same logic as _resolve_overlay_layout)
+            width = self._resolve_size_value(entry.options.width, term_width)
+            if entry.options.min_width and width < entry.options.min_width:
+                width = entry.options.min_width
+            if width > term_width:
+                width = term_width
+            if width > avail_width:
+                width = avail_width
+
+            # Render overlay content at the resolved width
+            content = entry.component.render(width)
             content_height = len(content)
 
-            # Resolve layout
-            width, row, col, max_height = self._resolve_overlay_layout(
+            # Now resolve full layout (row, col, max_height) with actual content height
+            _, row, col, max_height = self._resolve_overlay_layout(
                 entry.options, term_width, term_height, content_height
             )
 
@@ -533,6 +569,12 @@ class TUI(Container):
         """Splice overlay content into a base line at a specific column."""
         # Get before, overlay, and after segments
         before = slice_by_column(base_line, 0, col)
+        
+        # Pad before if it's shorter than col (base line was shorter)
+        before_width = visible_width(before)
+        if before_width < col:
+            before += " " * (col - before_width)
+        
         overlay = slice_by_column(overlay_line, 0, width)
 
         # Calculate where overlay ends

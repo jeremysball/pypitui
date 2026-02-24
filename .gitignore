@@ -68,5 +68,7 @@ node_modules/
 .pi/extensions/*/package-lock.json
 .pi/extensions/*/.vite/
 
+.pi/
+AGENTS.md
 # Screenshots from interactive terminal testing
 screenshots/

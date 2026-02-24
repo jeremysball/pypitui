@@ -42,14 +42,13 @@ class DemoApp:
         # Build initial UI
         self.build_menu()
 
-    def _switch_screen(self) -> TUI:
-        """Clear terminal and create a fresh TUI for a new screen."""
-        self.terminal.clear()
-        return TUI(self.terminal)
+    def _clear_screen(self):
+        """Clear TUI content for a new screen, preserving differential rendering state."""
+        self.tui.clear()  # Remove all children (but keep _previous_lines for diff rendering)
 
     def build_menu(self):
         """Build the main menu UI."""
-        self.tui = self._switch_screen()
+        self._clear_screen()
         self.mode = "menu"
         self.result_text = None
 
@@ -93,7 +92,7 @@ class DemoApp:
 
     def show_text_demo(self):
         """Show text wrapping demo."""
-        self.tui = self._switch_screen()
+        self._clear_screen()
         self.mode = "text"
 
         self.tui.add_child(Text("═══ Text Demo ═══", 0, 0))
@@ -119,7 +118,7 @@ class DemoApp:
 
     def show_input_demo(self):
         """Show input field demo."""
-        self.tui = self._switch_screen()
+        self._clear_screen()
         self.mode = "input"
 
         self.tui.add_child(Text("═══ Input Demo ═══", 0, 0))
@@ -149,7 +148,7 @@ class DemoApp:
 
     def show_select_demo(self):
         """Show select list demo."""
-        self.tui = self._switch_screen()
+        self._clear_screen()
         self.mode = "select"
 
         self.tui.add_child(Text("═══ Select Demo ═══", 0, 0))
@@ -185,7 +184,7 @@ class DemoApp:
 
     def show_overlay_demo(self):
         """Show overlay demo."""
-        self.tui = self._switch_screen()
+        self._clear_screen()
         self.mode = "overlay"
         self.overlay_handle = None
 

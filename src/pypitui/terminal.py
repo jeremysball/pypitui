@@ -181,7 +181,10 @@ class ProcessTerminal(Terminal):
 
     def clear(self) -> None:
         """Clear the terminal screen."""
-        self.write("\x1b[2J\x1b[H")
+        # Move to home first, then clear - more reliable than clear then move
+        # \x1b[H = move cursor to home (1,1)
+        # \x1b[2J = erase entire display
+        self.write("\x1b[H\x1b[2J")
 
     def move_cursor(self, row: int, col: int) -> None:
         """Move cursor to position (row, col)."""

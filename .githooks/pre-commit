@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+echo "Running pre-commit hooks..."
+
+# Run ruff check
+echo "Running ruff check..."
+uv run ruff check src/
+
+# Run mypy
+echo "Running mypy..."
+uv run mypy src/
+
+# Run tests
+echo "Running tests..."
+uv run pytest
+
+echo "Pre-commit hooks passed!"

@@ -326,8 +326,19 @@ class SelectList(Component):
         elif matches_key(data, Key.enter):
             if self._filtered_items and self.on_select:
                 self.on_select(self._filtered_items[self._selected_index])
-        elif matches_key(data, Key.escape) and self.on_cancel:
-            self.on_cancel()
+        elif matches_key(data, Key.escape):
+            if self._filter:
+                # Clear filter on first escape
+                self.set_filter("")
+            elif self.on_cancel:
+                self.on_cancel()
+        elif matches_key(data, Key.backspace):
+            # Remove last character from filter
+            if self._filter:
+                self.set_filter(self._filter[:-1])
+        elif len(data) == 1 and ord(data[0]) >= 32:
+            # Printable character - add to filter
+            self.set_filter(self._filter + data.lower())
 
 
 class Input(Component, Focusable):
