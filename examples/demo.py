@@ -206,6 +206,7 @@ class DemoApp:
 
         # Use BorderedBox for automatic content wrapping
         box = BorderedBox(padding_x=1, padding_y=0, title="Overlay Panel")
+        box.add_child(Text("", 0, 0))
         box.add_child(Text("Press ESC to close this overlay", 0, 0))
 
         options = OverlayOptions(width=width, anchor=anchor)

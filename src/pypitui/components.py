@@ -286,27 +286,26 @@ class BorderedBox(Component):
         # Build the box
         lines: list[str] = []
         
-        # Top border with optional title
-        if self._title:
-            title_text = f" {self._title} "
-            title_width = visible_width(title_text)
-            remaining = width - 2 - title_width
-            if remaining >= 0:
-                left_chars = remaining // 2
-                right_chars = remaining - left_chars
-                top_border = self.TOP_LEFT + self.HORIZONTAL * left_chars + title_text + self.HORIZONTAL * right_chars + self.TOP_RIGHT
-            else:
-                # Title too long, truncate it
-                truncated = truncate_to_width(title_text, width - 2, pad=False)
-                padding = width - 2 - visible_width(truncated)
-                top_border = self.TOP_LEFT + truncated + " " * padding + self.TOP_RIGHT
-        else:
-            top_border = self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
+        # Top border
+        top_border = self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
         lines.append(top_border)
         
         # Top padding (if any)
         for _ in range(self._padding_y):
             lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
+        
+        # Title (if provided) - appears as first content line with separator after
+        if self._title:
+            # Title line with padding
+            title_padded = " " * self._padding_x + self._title + " " * self._padding_x
+            inner_width = width - 2
+            if visible_width(title_padded) < inner_width:
+                title_padded += " " * (inner_width - visible_width(title_padded))
+            lines.append(self.VERTICAL + title_padded + self.VERTICAL)
+            
+            # Separator line (├─┤)
+            sep_inner = self.HORIZONTAL * (width - 2)
+            lines.append(self.T_LEFT + sep_inner + self.T_RIGHT)
         
         # Content lines with wrapping and padding
         for line in content_lines:
