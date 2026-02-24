@@ -104,94 +104,109 @@ def build_table_demo(width: int) -> Container:
     return container
 
 
+class RichDemoApp:
+    """Rich integration demo application."""
+
+    def __init__(self):
+        self.terminal = ProcessTerminal()
+        self.tui = TUI(self.terminal)
+        self.running = True
+        self.mode = "menu"
+
+        # Menu items
+        self.menu_items = [
+            SelectItem("1", "Rich Text", "Text markup with colors"),
+            SelectItem("2", "Markdown", "Render markdown content"),
+            SelectItem("3", "Tables", "Formatted tables"),
+            SelectItem("q", "Quit", "Exit the demo"),
+        ]
+
+        self.build_menu()
+
+    def _clear_screen(self):
+        """Clear TUI content for a new screen, preserving differential rendering state."""
+        self.tui.clear()  # Remove old children (but keep _previous_lines for diff rendering)
+
+    def build_menu(self):
+        """Build the main menu UI."""
+        self._clear_screen()
+        self.mode = "menu"
+
+        self.tui.add_child(Text("╔══════════════════════════════════════════╗", 0, 0))
+        self.tui.add_child(Text("║   Rich + PyPiTUI Integration Demo        ║", 0, 0))
+        self.tui.add_child(Text("╚══════════════════════════════════════════╝", 0, 0))
+        self.tui.add_child(Spacer(1))
+
+        menu = SelectList(self.menu_items, 10, create_theme())
+        menu.on_select = self.on_menu_select
+        self.tui.add_child(menu)
+        self.tui.add_child(Spacer(1))
+        self.tui.add_child(Text("ESC to return to menu", 0, 0))
+        self.tui.set_focus(menu)
+
+    def on_menu_select(self, item: SelectItem):
+        """Handle menu selection."""
+        if item.value == "q":
+            self.running = False
+        else:
+            self.show_demo(item.value)
+
+    def show_demo(self, demo_id: str):
+        """Show a Rich demo."""
+        self._clear_screen()
+        self.mode = "demo"
+
+        width, _ = self.terminal.get_size()
+
+        demo_names = {"1": "Rich Text", "2": "Markdown", "3": "Tables"}
+        self.tui.add_child(Text(f"═══ {demo_names.get(demo_id, 'Demo')} ═══", 0, 0))
+        self.tui.add_child(Spacer(1))
+
+        if demo_id == "1":
+            self.tui.add_child(build_rich_text_demo(width))
+        elif demo_id == "2":
+            self.tui.add_child(build_markdown_demo(width))
+        elif demo_id == "3":
+            self.tui.add_child(build_table_demo(width))
+
+        self.tui.add_child(Spacer(1))
+        self.tui.add_child(Text("Press ESC to return", 0, 0))
+
+    def handle_input(self, data: str):
+        """Handle input based on current mode."""
+        if self.mode == "menu":
+            if matches_key(data, Key.escape):
+                self.running = False
+            else:
+                self.tui.handle_input(data)
+        elif self.mode == "demo":
+            if matches_key(data, Key.escape):
+                self.build_menu()
+
+    def run(self):
+        """Main run loop."""
+        self.tui.start()
+
+        try:
+            while self.running:
+                data = self.terminal.read_sequence(timeout=0.05)
+                if data:
+                    self.handle_input(data)
+
+                self.tui.request_render()
+                self.tui.render_frame()
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self.tui.stop()
+            print("Goodbye!")
+
+
 def main():
     """Run the interactive demo."""
-    terminal = ProcessTerminal()
-    tui = TUI(terminal)
-    running = True
-    current_demo = None
-
-    # Build menu
-    tui.add_child(Text("╔══════════════════════════════════════════╗", 0, 0))
-    tui.add_child(Text("║   Rich + PyPiTUI Integration Demo        ║", 0, 0))
-    tui.add_child(Text("╚══════════════════════════════════════════╝", 0, 0))
-    tui.add_child(Spacer(1))
-
-    items = [
-        SelectItem("1", "Rich Text", "Text markup with colors"),
-        SelectItem("2", "Markdown", "Render markdown content"),
-        SelectItem("3", "Tables", "Formatted tables"),
-        SelectItem("q", "Quit", "Exit the demo"),
-    ]
-
-    menu = SelectList(items, 10, create_theme())
-    tui.add_child(menu)
-    tui.add_child(Spacer(1))
-    tui.add_child(Text("ESC to return to menu", 0, 0))
-    tui.set_focus(menu)
-
-    def on_select(item: SelectItem):
-        nonlocal current_demo
-        if item.value == "q":
-            nonlocal running
-            running = False
-        else:
-            current_demo = item.value
-
-    menu.on_select = on_select
-
-    tui.start()
-
-    try:
-        while running:
-            data = terminal.read_sequence(timeout=0.05)
-            if data:
-                if current_demo and matches_key(data, Key.escape):
-                    # Return to menu
-                    current_demo = None
-                    tui = TUI(terminal)
-                    tui.add_child(Text("╔══════════════════════════════════════════╗", 0, 0))
-                    tui.add_child(Text("║   Rich + PyPiTUI Integration Demo        ║", 0, 0))
-                    tui.add_child(Text("╚══════════════════════════════════════════╝", 0, 0))
-                    tui.add_child(Spacer(1))
-                    menu = SelectList(items, 10, create_theme())
-                    menu.on_select = on_select
-                    tui.add_child(menu)
-                    tui.add_child(Spacer(1))
-                    tui.add_child(Text("ESC to return to menu", 0, 0))
-                    tui.set_focus(menu)
-                elif current_demo:
-                    tui.handle_input(data)
-                else:
-                    tui.handle_input(data)
-
-            # Render based on current state
-            if current_demo:
-                width, _ = terminal.get_size()
-                demo_tui = TUI(terminal)
-                demo_tui.add_child(Text(f"═══ {current_demo.title()} Demo ═══", 0, 0))
-                demo_tui.add_child(Spacer(1))
-
-                if current_demo == "1":
-                    demo_tui.add_child(build_rich_text_demo(width))
-                elif current_demo == "2":
-                    demo_tui.add_child(build_markdown_demo(width))
-                elif current_demo == "3":
-                    demo_tui.add_child(build_table_demo(width))
-
-                demo_tui.add_child(Spacer(1))
-                demo_tui.add_child(Text("Press ESC to return", 0, 0))
-                demo_tui.request_render(force=True)
-                demo_tui.render_frame()
-            else:
-                tui.request_render()
-                tui.render_frame()
-
-    except KeyboardInterrupt:
-        pass
-    finally:
-        tui.stop()
-        print("Goodbye!")
+    app = RichDemoApp()
+    app.run()
 
 
 if __name__ == "__main__":
