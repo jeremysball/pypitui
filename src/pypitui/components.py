@@ -529,11 +529,17 @@ class SelectList(Component):
         if matches_key(data, Key.up):
             if self._selected_index > 0:
                 self._selected_index -= 1
-                self._notify_selection_change()
+            else:
+                # Wrap around to bottom
+                self._selected_index = len(self._filtered_items) - 1
+            self._notify_selection_change()
         elif matches_key(data, Key.down):
             if self._selected_index < len(self._filtered_items) - 1:
                 self._selected_index += 1
-                self._notify_selection_change()
+            else:
+                # Wrap around to top
+                self._selected_index = 0
+            self._notify_selection_change()
         elif matches_key(data, Key.enter):
             if self._filtered_items and self.on_select:
                 self.on_select(self._filtered_items[self._selected_index])

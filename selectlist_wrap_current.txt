@@ -1,0 +1,169 @@
+# SelectList Navigation Wrap-Around & Ultimate Demo Improvements
+
+## Task 1: SelectList Navigation Wrap-Around
+
+**Current Behavior:**
+- Pressing UP at the top of the list does nothing
+- Pressing DOWN at the bottom of the list does nothing
+
+**Desired Behavior:**
+- Pressing UP at the top should wrap to the bottom item
+- Pressing DOWN at the bottom should wrap to the top item
+- This creates a circular navigation experience
+
+**Implementation:**
+Modify `src/pypitui/components.py` in the `SelectList.handle_input()` method:
+
+```python
+if matches_key(data, Key.up):
+    if self._selected_index > 0:
+        self._selected_index -= 1
+    else:
+        # Wrap around to bottom
+        self._selected_index = len(self._filtered_items) - 1
+    self._notify_selection_change()
+elif matches_key(data, Key.down):
+    if self._selected_index < len(self._filtered_items) - 1:
+        self._selected_index += 1
+    else:
+        # Wrap around to top
+        self._selected_index = 0
+    self._notify_selection_change()
+```
+
+**Testing:**
+- Test with filtered list (when search is active)
+- Test with empty list (should not crash)
+- Test with single item (should stay on that item)
+
+## Task 2: Fix ASCII Art in Ultimate Demo
+
+**Current Issue:**
+The ASCII art logo in `examples/ultimate_demo.py` says "VP3L" instead of "PyPiTUI"
+
+**Current Art (lines 223-261):**
+```
+    ╔═══════════════════════════════════════╗
+    ║                                       ║
+    ║     ██╗   ██╗██████╗ ██████╗ ██╗      ║
+    ║     ██║   ██║██╔══██╗╚════██╗██║      ║
+    ║     ██║   ██║██████╔╝ █████╔╝██║      ║
+    ║     ╚██╗ ██╔╝██╔═══╝  ╚═══██╗██║      ║
+    ║      ╚████╔╝ ██║     ██████╔╝███████╗ ║
+    ║       ╚═══╝  ╚═╝     ╚═════╝ ╚══════╝ ║
+```
+
+This looks like "VP3L" because:
+- The first character block looks like V
+- The second looks like P  
+- The third looks like 3
+- The fourth looks like L
+
+**Fix Required:**
+Create new ASCII art that clearly spells "PyPiTUI" using box-drawing characters.
+
+Options:
+1. Use a smaller, more readable font that fits in the box
+2. Use the letters P-y-P-i-T-U-I with clear spacing
+3. Or use a simpler design with just "PyPiTUI" in block letters
+
+Example fix:
+```
+    ╔═══════════════════════════════════════╗
+    ║                                       ║
+    ║   ██████╗ ██╗   ██╗██████╗ ██╗TUI    ║
+    ║   ██╔══██╗╚██╗ ██╔╝██╔══██╗██║        ║
+    ║   ██████╔╝ ╚████╔╝ ██████╔╝██║        ║
+    ║   ██╔═══╝   ╚██╔╝  ██╔══██╗██║        ║
+    ║   ██║        ██║   ██████╔╝███████╗   ║
+    ║   ╚═╝        ╚═╝   ╚═════╝ ╚══════╝   ║
+    ║                                       ║
+```
+
+Or simpler:
+```
+    ╔═══════════════════════════════════════╗
+    ║                                       ║
+    ║           P y P i T U I               ║
+    ║                                       ║
+    ║        Terminal UI Framework          ║
+    ╚═══════════════════════════════════════╝
+```
+
+## Task 3: Impressive Animation for Ultimate Demo
+
+**Current Animation:**
+- Simple text cycling with sparkle emojis
+- Three frames that alternate
+- Not very impressive
+
+**Goal:**
+Create an animation that "blows you away" - something visually striking that showcases PyPiTUI's capabilities.
+
+**Ideas:**
+
+### Option A: Matrix-style Rain Effect
+- Characters falling from top like the Matrix
+- Green-on-black color scheme
+- Random characters that change
+- Requires: Text components that update rapidly
+
+### Option B: Wave/Gradient Animation  
+- Color gradient that flows across the screen
+- Could be a sine wave pattern using box characters
+- Rainbow or cool-blue gradient
+
+### Option C: Bouncing PyPiTUI Logo
+- Logo that bounces around the screen
+- Leaves a trail effect
+- Changes colors as it moves
+
+### Option D: Particle System
+- Simple particle explosion from center
+- Particles fade out as they move
+- Could use • · ∙ characters for particles
+
+### Option E: Loading Animation Deluxe
+- Multi-segment progress bar with sparkles
+- Percentage counter that rolls up
+- "Loading modules..." text that cycles through different messages
+- Color transitions from red → yellow → green
+
+### Option F: Kaleidoscope/Pattern Generator
+- Symmetrical patterns that evolve
+- Uses Unicode block characters (█ ▓ ▒ ░)
+- Creates mesmerizing geometric patterns
+
+**Recommended Approach:**
+Implement Option E (Loading Animation Deluxe) combined with Option B (Wave effect) because:
+1. It fits the "demo loading screen" context
+2. Shows off color capabilities
+3. Shows off rapid text updates
+4. Looks professional and polished
+
+**Implementation Sketch:**
+```python
+# Animated loading sequence
+frames = []
+for i in range(0, 101, 2):
+    # Create progress bar
+    filled = i // 2
+    bar = "█" * filled + "░" * (50 - filled)
+    # Gradient color based on progress
+    color = gradient(i / 100)  # red → yellow → green
+    # Loading message that cycles
+    msg = messages[i % len(messages)]
+    frame = f"{color} {bar} {i}%{RESET} {msg}"
+    frames.append(frame)
+```
+
+**Requirements:**
+- Must run at 60 FPS (or appear smooth)
+- Must not block input (user can press key to skip)
+- Should use ANSI colors for visual appeal
+- Should be in `examples/ultimate_demo.py` replacing the current SPLASH_FRAMES
+
+## Priority Order:
+1. Task 1 (SelectList wrap) - Quick win, improves UX
+2. Task 2 (Fix ASCII art) - Important for branding
+3. Task 3 (Impressive animation) - Nice to have, highest impact
