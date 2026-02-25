@@ -322,3 +322,79 @@ class RichTable(Component):
 
         self._cache = (width, lines)
         return lines
+
+
+# =============================================================================
+# Rich <-> ANSI Conversion Utilities
+# =============================================================================
+
+
+def rich_to_ansi(markup: str) -> str:
+    """Convert Rich markup to ANSI codes.
+
+    Use this to convert Rich markup strings for components that expect
+    plain ANSI strings (like SelectList items).
+
+    Args:
+        markup: Rich markup string (e.g., "[bold cyan]Hello[/bold cyan]")
+
+    Returns:
+        ANSI-escaped string ready for display
+
+    Example:
+        from pypitui.rich_components import rich_to_ansi
+
+        # Rich markup for regular components
+        tui.add_child(RichText("[bold cyan]Hello[/bold cyan]"))
+
+        # Convert to ANSI for SelectList
+        label = rich_to_ansi("[bold cyan]Menu Item[/bold cyan]")
+        items = [SelectItem("key", label, rich_to_ansi("[dim]Description[/dim]"))]
+    """
+    from io import StringIO
+
+    from rich.console import Console
+
+    buf = StringIO()
+    console = Console(file=buf, force_terminal=True, width=200, legacy_windows=False)
+    console.print(markup, end="")
+    return buf.getvalue()
+
+
+def rich_color_to_ansi(color: str) -> str:
+    """Convert a Rich color name to its ANSI escape code.
+
+    Args:
+        color: Rich color name (e.g., "bright_cyan", "red", "bold magenta")
+
+    Returns:
+        ANSI escape code string, or empty string if color is empty
+
+    Example:
+        from pypitui.rich_components import rich_color_to_ansi
+
+        cyan = rich_color_to_ansi("bright_cyan")  # "\\x1b[96m"
+        bold_red = rich_color_to_ansi("bold red")  # "\\x1b[1;31m"
+    """
+    if not color:
+        return ""
+
+    from rich.console import Console
+    from rich.text import Text
+
+    # Create a Console to render the color
+    console = Console(force_terminal=True, legacy_windows=False)
+
+    # Render text with the color and extract the ANSI code
+    text = Text("X", style=color)
+    with console.capture() as capture:
+        console.print(text, end="")
+
+    result = capture.get()
+    # Remove the "X" character, leaving only the ANSI codes
+    # Result may be "\x1b[1;31mX\x1b[0m" or "\x1b[1;31mX" depending on Rich version
+    if "X" in result:
+        # Find the position of X and take everything before it
+        x_pos = result.index("X")
+        return result[:x_pos]
+    return result

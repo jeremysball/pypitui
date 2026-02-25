@@ -8,6 +8,8 @@ the entire interface themeable through Rich's style system.
 
 from __future__ import annotations
 
+import math
+import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -20,7 +22,7 @@ from pypitui import (
 from pypitui.tui import Component
 
 try:
-    from pypitui.rich_components import Markdown, RichText, RichTable
+    from pypitui.rich_components import Markdown, RichText, RichTable, rich_to_ansi, rich_color_to_ansi
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -76,48 +78,20 @@ THEMES: dict[str, RichTheme] = {
 # RENDER HELPERS - Convert Rich markup to ANSI for SelectList compatibility
 # =============================================================================
 
-from rich.console import Console
-from io import StringIO
-
-def rich_to_ansi(markup: str) -> str:
-    """Convert Rich markup to ANSI codes for SelectList compatibility.
-    
-    This is the KEY to theming ALL of PyPiTUI with Rich:
-    - Use RichText for components (Text, BorderedBox children, etc.)
-    - Use rich_to_ansi() for SelectList items that need ANSI strings
-    
-    Example:
-        # Rich markup for regular components
-        tui.add_child(RichText("[bold cyan]Hello[/bold cyan]"))
-        
-        # Convert to ANSI for SelectList
-        label = rich_to_ansi("[bold cyan]Menu Item[/bold cyan]")
-        items = [SelectItem("key", label, rich_to_ansi("[dim]Description[/dim]"))]
-    """
-    buf = StringIO()
-    console = Console(file=buf, force_terminal=True, width=200, legacy_windows=False)
-    console.print(markup, end="")
-    return buf.getvalue()
-
-
 
 # =============================================================================
 # RICH UI HELPERS - Everything uses Rich markup
 # =============================================================================
 
 def rich_header(title: str, subtitle: str = "", theme: RichTheme | None = None) -> list[Component]:
-    """Create header using RichText for full theme integration.
-    
-    GOTCHA: BorderedBox title can't use Rich markup directly,
-    so we use RichText for the subtitle inside the box.
-    """
+    """Create header using RichText for full theme integration."""
     components: list[Component] = [Spacer(1)]
     
     t = theme or THEMES["neon"]
     
-    # Title goes in BorderedBox title (uses plain text with ANSI fallback)
-    # Subtitle uses RichText inside for full theming
-    box = BorderedBox(padding_x=2, max_width=45, title=title)
+    # Title uses Rich markup via set_rich_title
+    box = BorderedBox(padding_x=2, max_width=45)
+    box.set_rich_title(f"[bold {t.primary}]{title}[/bold {t.primary}]")
     
     if subtitle:
         # RichText gets the theme styling
@@ -157,16 +131,8 @@ def create_rich_theme(theme: RichTheme) -> SelectListTheme:
     GOTCHA: SelectList displays raw strings, not Rich-rendered markup.
     Use ANSI codes for SelectList, RichText for everything else.
     """
-    # Map Rich color names to ANSI codes for SelectList
-    ansi_colors = {
-        "bright_cyan": "\x1b[96m", "bright_magenta": "\x1b[95m", 
-        "yellow": "\x1b[33m", "red": "\x1b[31m",
-        "blue": "\x1b[34m", "cyan": "\x1b[36m",
-        "dim": "\x1b[2m", "bright_green": "\x1b[92m",
-        "bright_red": "\x1b[91m",
-    }
-    primary = ansi_colors.get(theme.primary, "\x1b[0m")
-    muted = ansi_colors.get(theme.muted, "\x1b[2m")
+    primary = rich_color_to_ansi(theme.primary)
+    muted = rich_color_to_ansi(theme.muted)
     reset = "\x1b[0m"
     
     return SelectListTheme(
@@ -182,6 +148,7 @@ def create_rich_theme(theme: RichTheme) -> SelectListTheme:
 
 DEMO_ITEMS = [
     ("splash", "🎨 Splash", "Animated intro"),
+    ("demoscene", "🔥 Demo Scene", "ANSI art animations"),
     ("components", "🧩 Components", "UI building blocks"),
     ("wizard", "🧙 Form Wizard", "Multi-step input"),
     ("overlays", "🪟 Overlays", "Floating panels"),
@@ -258,6 +225,7 @@ class UltimateDemoApp:
         """Route menu selection."""
         handlers: dict[str, Callable] = {
             "splash": self.show_splash,
+            "demoscene": self.show_demoscene,
             "components": self.show_components,
             "wizard": self.show_wizard,
             "overlays": self.show_overlays,
@@ -314,6 +282,172 @@ class UltimateDemoApp:
         self.tui.request_render()
         
         self.splash_frame += 1
+
+    # =============================================================================
+    # DEMO SCENE - MATRIX RAIN EFFECT (Proper Implementation)
+    # Based on unimatrix/cmatrix techniques:
+    # - Column-based state with moving heads
+    # - White head character, green trail
+    # - Random character mutations
+    # - Smooth asynchronous scrolling
+    # =============================================================================
+
+    # ANSI codes
+    A = {
+        'rs': '\x1b[0m', 'bd': '\x1b[1m',
+        'g': '\x1b[32m', 'G': '\x1b[92m', 'w': '\x1b[97m',
+        'k': '\x1b[30m', 'K': '\x1b[90m',
+    }
+
+    # ASCII only - universally supported
+    CHARS = '0123456789ABCDEF' + \
+            'abcdefghijklmnopqrstuvwxyz' + \
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ' + \
+            '@#$%&*+-=<>~'
+
+    def show_demoscene(self) -> None:
+        """Matrix rain animation based on cmatrix/unimatrix."""
+        self._clear()
+        self.current_screen = "demoscene"
+        self.animation_active = True
+        self.demoscene_frame = 0
+        
+        # Terminal dimensions - reserve bottom 3 rows for scroller
+        self.demo_width = 100
+        self.demo_height = 28  # Animation area only (28 + 3 UI rows = 31 total)
+        self.total_height = 31
+        
+        # Initialize columns - each has:
+        # - head position (y coordinate)
+        # - speed (how fast it falls)
+        # - length (how long the trail is)
+        # - timer (when to respawn)
+        self.columns = []
+        for x in range(self.demo_width):
+            self.columns.append({
+                'head_y': random.randint(-20, 0),
+                'speed': random.uniform(0.3, 1.2),
+                'length': random.randint(5, 15),
+                'timer': random.randint(0, 30),
+                'active': True,
+            })
+        
+        # Grid stores (char, brightness, age) for each cell
+        # brightness: 0=dark, 1=green, 2=bright green, 3=white
+        self.grid = [[(' ', 0, 0) for _ in range(self.demo_height)] 
+                     for _ in range(self.demo_width)]
+        
+        self.demoscene_text = Text("", 0, 0)
+        self.tui.add_child(self.demoscene_text)
+        
+        self.update_demoscene()
+
+    def _get_char(self) -> str:
+        """Get random Matrix character."""
+        return random.choice(self.CHARS)
+
+    def update_demoscene(self) -> None:
+        """Update Matrix rain at 60 FPS."""
+        if not self.animation_active or self.current_screen != "demoscene":
+            return
+        
+        now = time.time()
+        if not hasattr(self, '_last_demo_update'):
+            self._last_demo_update = 0
+        if now - self._last_demo_update < 0.016:  # ~60 FPS
+            return
+        self._last_demo_update = now
+        
+        w, h = self.demo_width, self.demo_height
+        
+        # Update each column
+        for x, col in enumerate(self.columns):
+            if not col['active']:
+                col['timer'] -= 1
+                if col['timer'] <= 0:
+                    # Respawn
+                    col['head_y'] = random.randint(-10, -2)
+                    col['speed'] = random.uniform(0.3, 1.2)
+                    col['length'] = random.randint(5, 15)
+                    col['active'] = True
+                continue
+            
+            # Move head down
+            col['head_y'] += col['speed']
+            head_int = int(col['head_y'])
+            
+            # Mark trail in grid - only in animation area (not bottom UI)
+            for dy in range(col['length']):
+                y = head_int - dy
+                if 0 <= y < h:  # Stay within animation bounds
+                    if dy == 0:
+                        # Head is white
+                        self.grid[x][y] = (self._get_char(), 3, 0)
+                    elif dy < 3:
+                        # Near head is bright green
+                        if random.random() < 0.3:  # Random mutation
+                            self.grid[x][y] = (self._get_char(), 2, dy)
+                        else:
+                            old_char = self.grid[x][y][0] if self.grid[x][y][0] != ' ' else self._get_char()
+                            self.grid[x][y] = (old_char, 2, dy)
+                    else:
+                        # Trail fades to dark
+                        if random.random() < 0.05:  # Occasional mutation
+                            old_char = self.grid[x][y][0] if self.grid[x][y][0] != ' ' else self._get_char()
+                            self.grid[x][y] = (old_char, 1, dy)
+            
+            # Deactivate if trail goes off bottom of animation area
+            if head_int - col['length'] > h:
+                col['active'] = False
+                col['timer'] = random.randint(10, 60)
+        
+        # Age all cells and fade them
+        for x in range(w):
+            for y in range(h):
+                char, brightness, age = self.grid[x][y]
+                if brightness > 0:
+                    age += 1
+                    # Fade over time
+                    if age > 4 and brightness == 2:
+                        brightness = 1
+                    elif age > 8 and brightness == 1:
+                        brightness = 0
+                        char = ' '
+                    self.grid[x][y] = (char, brightness, age)
+        
+        # Render animation area
+        lines = []
+        for y in range(h):
+            line = ""
+            for x in range(w):
+                char, brightness, _ = self.grid[x][y]
+                if brightness == 3:
+                    # White head
+                    line += f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}"
+                elif brightness == 2:
+                    # Bright green
+                    line += f"{self.A['G']}{char}{self.A['rs']}"
+                elif brightness == 1:
+                    # Dark green
+                    line += f"{self.A['g']}{char}{self.A['rs']}"
+                else:
+                    line += char
+            lines.append(line)
+        
+        # Add UI at bottom (separate from animation area - no overlap)
+        self.scroll_text = " PYPITUI - TERMINAL UI FRAMEWORK - GITHUB.COM/JEREMYSBALL/PYPITUI - "
+        self.scroll_pos = getattr(self, 'scroll_pos', 0) + 1
+        visible = ""
+        for i in range(min(w, len(self.scroll_text))):
+            idx = (self.scroll_pos + i) % len(self.scroll_text)
+            visible += self.scroll_text[idx]
+        
+        lines.append(f"{self.A['K']}{'═' * w}{self.A['rs']}")
+        lines.append(f"{self.A['g']}{visible[:w]}{self.A['rs']}")
+        lines.append(f"{self.A['K']}Press any key to exit{self.A['rs']}")
+        
+        self.demoscene_text.set_text('\n'.join(lines))
+        self.tui.request_render()
 
     def show_components(self) -> None:
         """Component showcase with Rich theming."""
@@ -573,7 +707,7 @@ class UltimateDemoApp:
         self.tui.add_child(RichText(f"  • [{t.primary}]Overlay system[/{t.primary}]"))
         self.tui.add_child(RichText(f"  • [{t.primary}]Rich integration[/{t.primary}]"))
         self.tui.add_child(Spacer(1))
-        self.tui.add_child(RichText(f"[{t.muted}]https://github.com/user/pypitui[/{t.muted}]"))
+        self.tui.add_child(RichText(f"[{t.muted}]https://github.com/jeremysball/pypitui[/{t.muted}]"))
         
         self.tui.add_child(Spacer(2))
         
@@ -611,6 +745,12 @@ class UltimateDemoApp:
             else:
                 self.wizard_step = 0
                 self.build_menu()
+            return
+        
+        # Demo scene - any key exits
+        if self.current_screen == "demoscene":
+            self.animation_active = False
+            self.build_menu()
             return
         
         # Wizard navigation
@@ -651,7 +791,10 @@ class UltimateDemoApp:
                     self.handle_input(data)
                 
                 if self.animation_active:
-                    self.update_splash()
+                    if self.current_screen == "splash":
+                        self.update_splash()
+                    elif self.current_screen == "demoscene":
+                        self.update_demoscene()
                 
                 self.tui.request_render()
                 self.tui.render_frame()
@@ -673,31 +816,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-# =============================================================================
-# RENDER HELPERS - Convert Rich markup to ANSI for SelectList compatibility
-# =============================================================================
-
-from rich.console import Console
-from io import StringIO
-
-def rich_to_ansi(markup: str) -> str:
-    """Convert Rich markup to ANSI codes for SelectList compatibility.
-    
-    This is the KEY to theming ALL of PyPiTUI with Rich:
-    - Use RichText for components (Text, BorderedBox children, etc.)
-    - Use rich_to_ansi() for SelectList items that need ANSI strings
-    
-    Example:
-        # Rich markup for regular components
-        tui.add_child(RichText("[bold cyan]Hello[/bold cyan]"))
-        
-        # Convert to ANSI for SelectList
-        label = rich_to_ansi("[bold cyan]Menu Item[/bold cyan]")
-        items = [SelectItem("key", label, rich_to_ansi("[dim]Description[/dim]"))]
-    """
-    buf = StringIO()
-    console = Console(file=buf, force_terminal=True, width=200, legacy_windows=False)
-    console.print(markup, end="")
-    return buf.getvalue()

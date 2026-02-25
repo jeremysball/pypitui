@@ -50,3 +50,32 @@ class RichTable(Component):
     def clear_rows(self) -> None: ...
     def invalidate(self) -> None: ...
     def render(self, width: int) -> list[str]: ...
+
+# =============================================================================
+# Rich <-> ANSI Conversion Utilities
+# =============================================================================
+
+def rich_to_ansi(markup: str) -> str:
+    """Convert Rich markup to ANSI codes.
+
+    Use this to convert Rich markup strings for components that expect
+    plain ANSI strings (like SelectList items).
+
+    Args:
+        markup: Rich markup string (e.g., "[bold cyan]Hello[/bold cyan]")
+
+    Returns:
+        ANSI-escaped string ready for display
+    """
+    ...
+
+def rich_color_to_ansi(color: str) -> str:
+    """Convert a Rich color name to its ANSI escape code.
+
+    Args:
+        color: Rich color name (e.g., "bright_cyan", "red", "bold magenta")
+
+    Returns:
+        ANSI escape code string, or empty string if color is empty
+    """
+    ...

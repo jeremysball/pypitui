@@ -237,6 +237,37 @@ class BorderedBox(Component):
         self._title = title
         self._cache: tuple[int, list[str]] | None = None
 
+    def set_title(self, title: str) -> None:
+        """Set the box title.
+
+        Args:
+            title: Plain text or ANSI-escaped string
+        """
+        self._title = title
+        self._invalidate_cache()
+
+    def set_rich_title(self, markup: str) -> None:
+        """Set the box title using Rich markup.
+
+        Requires the 'rich' extra: pip install pypitui[rich]
+
+        Args:
+            markup: Rich markup string (e.g., "[bold cyan]Title[/bold cyan]")
+
+        Example:
+            box = BorderedBox()
+            box.set_rich_title("[bold cyan]My Panel[/bold cyan]")
+        """
+        try:
+            from .rich_components import rich_to_ansi
+            self._title = rich_to_ansi(markup)
+            self._invalidate_cache()
+        except ImportError as e:
+            raise ImportError(
+                "set_rich_title() requires 'rich' package. "
+                "Install with: pip install pypitui[rich]"
+            ) from e
+
     def add_child(self, component: Component) -> None:
         """Add a child component."""
         self.children.append(component)
