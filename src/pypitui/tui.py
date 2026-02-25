@@ -644,7 +644,11 @@ class TUI(Container):
         return None
 
     def render_frame(self) -> None:
-        """Render a single frame."""
+        """Render a single frame using relative cursor positioning.
+
+        Uses synchronized output (DEC 2026) and relative cursor movement
+        to enable scrollback buffer support.
+        """
         if self._stopped:
             return
 
@@ -675,20 +679,69 @@ class TUI(Container):
         # Strip cursor markers from output
         lines = [line.replace(CURSOR_MARKER, "") for line in lines]
 
-        # Differential rendering
-        for i, line in enumerate(lines):
-            if i >= len(self._previous_lines) or self._previous_lines[i] != line:
-                self.terminal.move_cursor(i, 0)
-                self.terminal.write(line)
+        # Build output buffer with synchronized output
+        buffer = self._begin_sync()
+
+        # Initialize cursor position on first frame
+        if self._hardware_cursor_row < 0:
+            # Move to top of screen on first render
+            buffer += "\x1b[H"
+            self._hardware_cursor_row = 0
+
+        previous_count = len(self._previous_lines)
+        current_count = len(lines)
+
+        # Handle content growth - emit newlines to scroll old content into scrollback
+        if current_count > term_height and current_count > previous_count:
+            # New content exceeds terminal - need to scroll
+            new_lines = current_count - previous_count
+
+            # Move to the last line we previously rendered (or bottom of screen)
+            last_rendered = min(previous_count, term_height)
+            if last_rendered > 0:
+                buffer += self._move_cursor_relative(last_rendered - 1)
+            else:
+                buffer += self._move_cursor_relative(term_height - 1)
+
+            # Emit newlines to scroll terminal - each newline scrolls content up
+            for _ in range(new_lines):
+                buffer += "\r\n"
+
+            # After all the newlines, cursor is at bottom of screen
+            # Reset our tracking to match
+            self._hardware_cursor_row = term_height - 1
+
+            # Now render the new visible lines at the bottom
+            # The last new_lines lines are now visible at the bottom
+            for i in range(current_count - new_lines, current_count):
+                if i < len(lines):
+                    # Calculate screen row for this content
+                    first_visible = current_count - term_height
+                    screen_row = i - first_visible
+                    # Move to this screen row
+                    buffer += self._move_cursor_relative(screen_row)
+                    buffer += "\r"
+                    buffer += lines[i]
+        else:
+            # Content fits or shrank - use normal differential rendering
+            for i, line in enumerate(lines):
+                if i >= len(self._previous_lines) or self._previous_lines[i] != line:
+                    buffer += self._move_cursor_relative(i)
+                    buffer += "\r"  # CR to start of line
+                    buffer += line
 
         # Clear remaining lines if content shrank
-        if self._clear_on_shrink and len(lines) < len(self._previous_lines):
-            for i in range(len(lines), len(self._previous_lines)):
-                self.terminal.move_cursor(i, 0)
-                self.terminal.write(" " * term_width)
+        if self._clear_on_shrink and current_count < previous_count:
+            for i in range(current_count, previous_count):
+                buffer += self._move_cursor_relative(i)
+                buffer += "\r\x1b[2K"  # CR + clear line
+
+        # End synchronized output and flush
+        buffer += self._end_sync()
+        self.terminal.write(buffer)
 
         # Position hardware cursor if needed
-        self._position_hardware_cursor(cursor_pos, len(lines))
+        self._position_hardware_cursor_relative(cursor_pos, len(lines))
 
         self._previous_lines = lines
         self._previous_width = term_width
@@ -697,7 +750,7 @@ class TUI(Container):
     def _position_hardware_cursor(
         self, cursor_pos: tuple[int, int] | None, total_lines: int
     ) -> None:
-        """Position the hardware cursor for IME candidate window."""
+        """Position the hardware cursor for IME candidate window (absolute positioning)."""
         if not self._show_hardware_cursor:
             return
 
@@ -705,6 +758,27 @@ class TUI(Container):
             row, col = cursor_pos
             if row < total_lines:
                 self.terminal.move_cursor(row, col)
+                self.terminal.show_cursor()
+                self._hardware_cursor_row = row
+                return
+
+        self.terminal.hide_cursor()
+
+    def _position_hardware_cursor_relative(
+        self, cursor_pos: tuple[int, int] | None, total_lines: int
+    ) -> None:
+        """Position the hardware cursor for IME candidate window (relative positioning)."""
+        if not self._show_hardware_cursor:
+            self.terminal.hide_cursor()
+            return
+
+        if cursor_pos:
+            row, col = cursor_pos
+            if row < total_lines:
+                # Move to cursor row using relative positioning
+                self.terminal.write(self._move_cursor_relative(row))
+                # Move to column (absolute column, relative row)
+                self.terminal.write(f"\r\x1b[{col}C")
                 self.terminal.show_cursor()
                 self._hardware_cursor_row = row
                 return

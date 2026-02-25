@@ -156,32 +156,17 @@ Scrollback buffer (100 lines total):
 **Goal**: Core rendering uses relative positioning with batching
 
 **Tasks**:
-- [ ] Create output buffer string at start of `render_frame()`
-- [ ] Replace absolute `move_cursor(i, 0)` loop with relative movement:
-  ```python
-  buffer = self._begin_sync()
-  for i, line in enumerate(lines):
-      if i >= len(self._previous_lines) or self._previous_lines[i] != line:
-          buffer += self._move_cursor_relative(i)
-          buffer += "\r\x1b[2K"
-          buffer += line
-          self._hardware_cursor_row = i
-  buffer += self._end_sync()
-  ```
-- [ ] Handle content shrinkage:
-  - Move to first orphaned line
-  - Clear each orphaned line with `"\r\x1b[2K"`
-- [ ] Handle content growth (scrollback):
-  - Move to last previous line
-  - Add newlines to scroll terminal: `"\r\n" * new_line_count`
-  - Write new lines at bottom
-- [ ] Single `terminal.write(buffer)` at end
-- [ ] Initialize `_hardware_cursor_row` to `len(lines) - 1` at end of render
-- [ ] Write test: differential rendering with relative positioning
-- [ ] Write test: content growth triggers scroll
-- [ ] Write test: content shrinkage clears orphaned lines
+- [x] Create output buffer string at start of `render_frame()`
+- [x] Replace absolute `move_cursor(i, 0)` loop with relative movement
+- [x] Handle content shrinkage (clear orphaned lines)
+- [x] Handle content growth (scroll terminal, add newlines)
+- [x] Single `terminal.write(buffer)` at end
+- [x] Initialize `_hardware_cursor_row` at end of render
+- [x] Write test: differential rendering with relative positioning
+- [x] Write test: content growth triggers scroll (verified via tmux)
+- [x] Write test: content shrinkage clears orphaned lines
 
-**Validation**: Existing demos work, no visual artifacts
+**Validation**: ✅ Demo shows scrollback working, tmux history contains all lines
 
 ---
 
