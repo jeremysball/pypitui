@@ -123,12 +123,12 @@ Scrollback buffer (100 lines total):
 **Goal**: Prevent flickering during batched updates
 
 **Tasks**:
-- [ ] Add `_begin_sync(self) -> str` returning `"\x1b[?2026h"`
-- [ ] Add `_end_sync(self) -> str` returning `"\x1b[?2026l"`
-- [ ] Add sync constants to `Terminal` class (optional abstraction)
-- [ ] Write test: sync wrappers produce correct escape sequences
+- [x] Add `_begin_sync(self) -> str` returning `"\x1b[?2026h"`
+- [x] Add `_end_sync(self) -> str` returning `"\x1b[?2026l"`
+- [x] Add sync constants to `Terminal` class (optional abstraction)
+- [x] Write test: sync wrappers produce correct escape sequences
 
-**Validation**: Unit tests pass, sequences are correct
+**Validation**: ✅ Unit tests pass, sequences are correct
 
 ---
 
@@ -136,19 +136,19 @@ Scrollback buffer (100 lines total):
 **Goal**: Replace absolute positioning with relative movement
 
 **Tasks**:
-- [ ] Add `_move_cursor_relative(self, target_row: int) -> str`
+- [x] Add `_move_cursor_relative(self, target_row: int) -> str`
   - Calculate delta: `delta = target_row - self._hardware_cursor_row`
   - Return `""` if delta == 0
   - Return `f"\x1b[{delta}B"` if delta > 0 (down)
   - Return `f"\x1b[{-delta}A"` if delta < 0 (up)
-- [ ] Update `_hardware_cursor_row` after every movement
-- [ ] Add `move_cursor_up(n: int) -> str` to `Terminal` ABC
-- [ ] Add `move_cursor_down(n: int) -> str` to `Terminal` ABC
-- [ ] Implement in `ProcessTerminal` and `MockTerminal`
-- [ ] Write test: `_move_cursor_relative()` produces correct sequences
-- [ ] Write test: delta calculations for various start/end positions
+- [x] Update `_hardware_cursor_row` after every movement
+- [x] Add `move_cursor_up(n: int) -> str` to `Terminal` ABC
+- [x] Add `move_cursor_down(n: int) -> str` to `Terminal` ABC
+- [x] Implement in `ProcessTerminal` and `MockTerminal`
+- [x] Write test: `_move_cursor_relative()` produces correct sequences
+- [x] Write test: delta calculations for various start/end positions
 
-**Validation**: Unit tests pass, cursor tracking is accurate
+**Validation**: ✅ Unit tests pass, cursor tracking is accurate
 
 ---
 

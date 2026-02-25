@@ -170,3 +170,168 @@ class TestFirstVisibleRowPrevious:
         tui = TUI(terminal)
 
         assert tui._first_visible_row_previous == 0
+
+
+class TestSynchronizedOutput:
+    """Tests for DEC 2026 synchronized output mode."""
+
+    def test_begin_sync_returns_correct_sequence(self):
+        """_begin_sync() returns the DEC 2026 "set" sequence."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        assert tui._begin_sync() == "\x1b[?2026h"
+
+    def test_end_sync_returns_correct_sequence(self):
+        """_end_sync() returns the DEC 2026 "reset" sequence."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        assert tui._end_sync() == "\x1b[?2026l"
+
+    def test_sync_wrapper_produces_correct_sequence(self):
+        """Combining begin/end sync produces a valid wrapper."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        content = "Hello, World!"
+        wrapped = tui._begin_sync() + content + tui._end_sync()
+
+        expected = "\x1b[?2026hHello, World!\x1b[?2026l"
+        assert wrapped == expected
+
+    def test_begin_sync_idempotent(self):
+        """Multiple calls to _begin_sync() return the same sequence."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        assert tui._begin_sync() == tui._begin_sync()
+
+    def test_end_sync_idempotent(self):
+        """Multiple calls to _end_sync() return the same sequence."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        assert tui._end_sync() == tui._end_sync()
+
+    def test_sync_sequences_are_constant_length(self):
+        """Sync sequences have fixed lengths for buffer sizing."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        # Begin sync: ESC [ ? 2 0 2 6 h = 8 chars
+        assert len(tui._begin_sync()) == 8
+
+        # End sync: ESC [ ? 2 0 2 6 l = 8 chars
+        assert len(tui._end_sync()) == 8
+
+
+class TestRelativeCursorMovement:
+    """Tests for relative cursor movement."""
+
+    def test_move_cursor_down_positive_delta(self):
+        """Moving down produces correct escape sequence."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        # Start at row 0
+        tui._hardware_cursor_row = 0
+
+        # Move to row 5 (delta = +5)
+        result = tui._move_cursor_relative(5)
+
+        assert result == "\x1b[5B"
+        assert tui._hardware_cursor_row == 5
+
+    def test_move_cursor_up_negative_delta(self):
+        """Moving up produces correct escape sequence."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        # Start at row 10
+        tui._hardware_cursor_row = 10
+
+        # Move to row 3 (delta = -7)
+        result = tui._move_cursor_relative(3)
+
+        assert result == "\x1b[7A"
+        assert tui._hardware_cursor_row == 3
+
+    def test_move_cursor_zero_delta_returns_empty(self):
+        """No movement needed returns empty string."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        tui._hardware_cursor_row = 5
+
+        result = tui._move_cursor_relative(5)
+
+        assert result == ""
+        assert tui._hardware_cursor_row == 5
+
+    def test_move_cursor_updates_hardware_cursor_row(self):
+        """Each movement updates the tracked cursor position."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        tui._hardware_cursor_row = 0
+
+        # First movement
+        tui._move_cursor_relative(10)
+        assert tui._hardware_cursor_row == 10
+
+        # Second movement
+        tui._move_cursor_relative(3)
+        assert tui._hardware_cursor_row == 3
+
+    def test_terminal_move_cursor_up(self):
+        """Terminal.move_cursor_up returns correct sequence."""
+        terminal = MockTerminal(80, 24)
+
+        assert terminal.move_cursor_up(1) == "\x1b[1A"
+        assert terminal.move_cursor_up(5) == "\x1b[5A"
+        assert terminal.move_cursor_up(10) == "\x1b[10A"
+
+    def test_terminal_move_cursor_down(self):
+        """Terminal.move_cursor_down returns correct sequence."""
+        terminal = MockTerminal(80, 24)
+
+        assert terminal.move_cursor_down(1) == "\x1b[1B"
+        assert terminal.move_cursor_down(5) == "\x1b[5B"
+        assert terminal.move_cursor_down(10) == "\x1b[10B"
+
+    def test_terminal_move_cursor_zero_returns_empty(self):
+        """Moving 0 lines returns empty string."""
+        terminal = MockTerminal(80, 24)
+
+        assert terminal.move_cursor_up(0) == ""
+        assert terminal.move_cursor_down(0) == ""
+        assert terminal.move_cursor_up(-1) == ""
+        assert terminal.move_cursor_down(-1) == ""
+
+    def test_multiple_relative_movements(self):
+        """Series of relative movements produce correct sequences."""
+        terminal = MockTerminal(80, 24)
+        tui = TUI(terminal)
+
+        tui._hardware_cursor_row = 0
+
+        # Move down to row 10
+        result1 = tui._move_cursor_relative(10)
+        assert result1 == "\x1b[10B"
+        assert tui._hardware_cursor_row == 10
+
+        # Move down more to row 15
+        result2 = tui._move_cursor_relative(15)
+        assert result2 == "\x1b[5B"
+        assert tui._hardware_cursor_row == 15
+
+        # Move back up to row 5
+        result3 = tui._move_cursor_relative(5)
+        assert result3 == "\x1b[10A"
+        assert tui._hardware_cursor_row == 5
+
+        # Stay at row 5
+        result4 = tui._move_cursor_relative(5)
+        assert result4 == ""
+        assert tui._hardware_cursor_row == 5

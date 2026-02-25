@@ -731,6 +731,60 @@ class TUI(Container):
         """
         return max(0, self._max_lines_rendered - term_height)
 
+    def _begin_sync(self) -> str:
+        """Begin synchronized output mode (DEC 2026).
+
+        This tells the terminal to buffer all output until _end_sync() is called,
+        preventing flickering during partial screen updates. Terminals that don't
+        support this mode will simply ignore it (graceful degradation).
+
+        Returns:
+            Escape sequence to begin synchronized output: "\\x1b[?2026h"
+        """
+        return "\x1b[?2026h"
+
+    def _end_sync(self) -> str:
+        """End synchronized output mode (DEC 2026).
+
+        Flushes the buffered output to the screen as a single atomic update.
+        Must be called after _begin_sync() to make changes visible.
+
+        Returns:
+            Escape sequence to end synchronized output: "\\x1b[?2026l"
+        """
+        return "\x1b[?2026l"
+
+    def _move_cursor_relative(self, target_row: int) -> str:
+        """Generate escape sequence to move cursor relative to current position.
+
+        Uses relative cursor movement (\x1b[nA/B) instead of absolute positioning.
+        This allows content to flow into the terminal's scrollback buffer.
+
+        Args:
+            target_row: The row to move to (0-indexed in virtual canvas)
+
+        Returns:
+            Escape sequence to move cursor, or empty string if already at target.
+
+        Example:
+            If cursor is at row 5 and target is row 8:
+            - Returns "\\x1b[3B" (move down 3 lines)
+            - Updates _hardware_cursor_row to 8
+        """
+        delta = target_row - self._hardware_cursor_row
+
+        if delta == 0:
+            return ""
+
+        if delta > 0:
+            # Move cursor down
+            self._hardware_cursor_row = target_row
+            return self.terminal.move_cursor_down(delta)
+        else:
+            # Move cursor up (negative delta)
+            self._hardware_cursor_row = target_row
+            return self.terminal.move_cursor_up(-delta)
+
     def run_frame(self) -> bool:
         """Run a single frame - process input and render.
 

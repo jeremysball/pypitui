@@ -2,15 +2,20 @@
 
 > **PRD**: [prds/scrollback-and-streaming.md](prds/scrollback-and-streaming.md)
 
-## Current: Milestone 2 - Synchronized Output
+## Current: Milestone 4 - Refactor render_frame()
 
-**Concept**: DEC 2026 sync mode batches output to prevent flickering.
+**Concept**: Core rendering uses relative positioning with batched output.
 
 ### Tasks
-- [ ] Add `_begin_sync(self) -> str` returning `"\x1b[?2026h"`
-- [ ] Add `_end_sync(self) -> str` returning `"\x1b[?2026l"`
-- [ ] Add sync constants to `Terminal` class (optional abstraction)
-- [ ] Write test: sync wrappers produce correct escape sequences
+- [ ] Create output buffer string at start of `render_frame()`
+- [ ] Replace absolute `move_cursor(i, 0)` loop with relative movement
+- [ ] Handle content shrinkage (clear orphaned lines)
+- [ ] Handle content growth (scroll terminal, add newlines)
+- [ ] Single `terminal.write(buffer)` at end
+- [ ] Initialize `_hardware_cursor_row` at end of render
+- [ ] Write test: differential rendering with relative positioning
+- [ ] Write test: content growth triggers scroll
+- [ ] Write test: content shrinkage clears orphaned lines
 
 ---
 
@@ -19,9 +24,9 @@
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | 1 | Working Area Tracking | ✅ Complete |
-| 2 | Synchronized Output | 🔄 In Progress |
-| 3 | Relative Cursor Movement | 🔲 Not Started |
-| 4 | Refactor render_frame() | 🔲 Not Started |
+| 2 | Synchronized Output | ✅ Complete |
+| 3 | Relative Cursor Movement | ✅ Complete |
+| 4 | Refactor render_frame() | 🔄 In Progress |
 | 5 | Overlay Viewport Positioning | 🔲 Not Started |
 | 6 | Remove Height Limiting | 🔲 Not Started |
 | 7 | Integration Testing | 🔲 Not Started |
