@@ -1,6 +1,6 @@
 # Scrollback and Streaming Implementation TODO
 
-> **PRD**: [prds/scrollback-and-streaming.md](prds/scrollback-and-streaming.md)
+> **PRD**: [prds/done/scrollback-and-streaming.md](prds/done/scrollback-and-streaming.md)
 
 ## ✅ Complete!
 
@@ -42,4 +42,4 @@ All milestones have been implemented and tested.
 | `\x1b[?2026l` | End synchronized output |
 | `\r\x1b[2K` | CR + clear line |
 
-See [PRD](prds/scrollback-and-streaming.md) for detailed tasks per milestone.
+See [PRD](prds/done/scrollback-and-streaming.md) for detailed tasks per milestone.
