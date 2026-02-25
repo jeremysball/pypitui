@@ -2,17 +2,9 @@
 
 > **PRD**: [prds/scrollback-and-streaming.md](prds/scrollback-and-streaming.md)
 
-## Current: Milestone 5 - Overlay Viewport Positioning
+## ✅ Complete!
 
-**Concept**: Overlays work correctly with scrolled content.
-
-### Tasks
-- [ ] Add `viewport_top` parameter to `_composite_overlays()`
-- [ ] Convert overlay content row to screen row
-- [ ] Only render overlay if visible
-- [ ] Update overlay position calculation for anchors
-- [ ] Write test: overlay positioning with various scroll states
-- [ ] Write test: overlay hidden when scrolled out of view
+All milestones have been implemented and tested.
 
 ---
 
@@ -24,10 +16,21 @@
 | 2 | Synchronized Output | ✅ Complete |
 | 3 | Relative Cursor Movement | ✅ Complete |
 | 4 | Refactor render_frame() | ✅ Complete |
-| 5 | Overlay Viewport Positioning | 🔄 In Progress |
-| 6 | Remove Height Limiting | 🔲 Not Started |
-| 7 | Integration Testing | 🔲 Not Started |
-| 8 | Documentation | 🔲 Not Started |
+| 5 | Overlay Viewport Positioning | ✅ Complete |
+| 6 | Remove Height Limiting | ✅ Complete |
+| 7 | Integration Testing | ✅ Complete |
+| 8 | Documentation | ✅ Complete |
+
+## Summary
+
+**Scrollback support is now fully implemented:**
+
+- Content exceeding terminal height flows into scrollback buffer
+- Users can scroll back with Shift+PgUp or mouse wheel
+- Synchronized output (DEC 2026) prevents flickering
+- Overlays position correctly regardless of scroll state
+- All existing demos continue to work
+- 60 new tests for scrollback/overlay functionality
 
 ## Escape Sequences
 

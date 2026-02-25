@@ -59,6 +59,7 @@ uv run python examples/demo.py
 ## Features
 
 - **Differential Rendering** - Only updates changed lines for flicker-free UI
+- **Scrollback Support** - Content flows into terminal's native scrollback buffer (use Shift+PgUp to view history)
 - **Component-based** - Simple Component interface similar to React
 - **Built-in Components** - Text, Box, Input, SelectList, Spacer, Container
 - **Overlay System** - Modal dialogs and overlays with flexible positioning
@@ -99,6 +100,25 @@ try:
 finally:
     tui.stop()
 ```
+
+## Scrollback Support
+
+PyPiTUI supports terminal scrollback by default. When content exceeds the terminal height, it flows into the terminal's native scrollback buffer instead of being clipped.
+
+```python
+# Default: main buffer mode - content stays in scrollback
+tui = TUI(terminal)
+
+# Use Shift+PgUp or mouse wheel to scroll back through history
+```
+
+**How it works:**
+- Uses relative cursor movement (`\x1b[nA/B`) instead of absolute positioning
+- Content that scrolls off-screen remains accessible via terminal scrollback
+- Synchronized output (DEC 2026) prevents flickering during updates
+- Overlays position correctly relative to the visible viewport
+
+**Note:** For traditional full-screen apps where content should NOT persist after exit, use `use_alternate_buffer=True`.
 
 ## Components
 

@@ -69,7 +69,9 @@ class TestSelectList:
     def test_description_display(self, theme):
         """Shows description if present."""
         items = [
-            SelectItem(value="a", label="Option A", description="First option"),
+            SelectItem(
+                value="a", label="Option A", description="First option"
+            ),
         ]
         select_list = SelectList(items, 5, theme)
         lines = select_list.render(80)
@@ -157,7 +159,9 @@ class TestSelectList:
 
     def test_scroll_info(self, theme):
         """Shows scroll info when items exceed max visible."""
-        items = [SelectItem(value=str(i), label=f"Item {i}") for i in range(10)]
+        items = [
+            SelectItem(value=str(i), label=f"Item {i}") for i in range(10)
+        ]
         select_list = SelectList(items, 3, theme)
 
         lines = select_list.render(50)

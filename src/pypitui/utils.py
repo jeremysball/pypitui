@@ -146,7 +146,9 @@ def is_punctuation(char: str) -> bool:
     return cat.startswith("P")
 
 
-def apply_background_to_line(line: str, width: int, bg_fn: Callable[[str], str]) -> str:
+def apply_background_to_line(
+    line: str, width: int, bg_fn: Callable[[str], str]
+) -> str:
     """Apply background color to a line, padding to full width.
 
     Args:
@@ -164,7 +166,9 @@ def apply_background_to_line(line: str, width: int, bg_fn: Callable[[str], str])
     return bg_fn(line)
 
 
-def truncate_to_width(text: str, max_width: int, ellipsis: str = "...", pad: bool = False) -> str:
+def truncate_to_width(
+    text: str, max_width: int, ellipsis: str = "...", pad: bool = False
+) -> str:
     """Truncate text to fit within a maximum visible width.
 
     Properly handles ANSI escape codes (they don't count toward width).
@@ -226,7 +230,9 @@ def truncate_to_width(text: str, max_width: int, ellipsis: str = "...", pad: boo
     return "".join(result)
 
 
-def slice_by_column(line: str, start_col: int, length: int, strict: bool = False) -> str:
+def slice_by_column(
+    line: str, start_col: int, length: int, strict: bool = False
+) -> str:
     """Extract a range of visible columns from a line.
 
     Handles ANSI codes and wide characters properly.

@@ -38,6 +38,7 @@ def main():
 
                 # Use write to avoid line buffering issues in raw mode
                 import sys
+
                 sys.stdout.write(f"\r\x1b[KGot: {repr(data)}")
                 if key_name:
                     sys.stdout.write(f" -> {key_name}")

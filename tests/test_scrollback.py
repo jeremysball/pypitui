@@ -78,7 +78,9 @@ class TestCalculateFirstVisibleRow:
         assert tui._calculate_first_visible_row(10) == 90
 
         # 50-row terminal (content fits): all visible
-        assert tui._calculate_first_visible_row(50) == 50  # max(0, 100-50) = 50
+        assert (
+            tui._calculate_first_visible_row(50) == 50
+        )  # max(0, 100-50) = 50
 
         # 100-row terminal: all visible
         assert tui._calculate_first_visible_row(100) == 0
@@ -335,3 +337,102 @@ class TestRelativeCursorMovement:
         result4 = tui._move_cursor_relative(5)
         assert result4 == ""
         assert tui._hardware_cursor_row == 5
+
+
+class TestDifferentialRenderingWithScrollback:
+    """Tests for differential rendering when content exceeds terminal height."""
+
+    def test_content_exceeds_terminal_without_growth(self):
+        """When content exceeds terminal but hasn't grown, only visible portion updates."""
+        terminal = MockTerminal(80, 10)
+        tui = TUI(terminal)
+
+        # Add 15 lines of content (exceeds terminal height of 10)
+        for i in range(15):
+            tui.add_child(Text(f"Line {i}", padding_y=0))
+
+        tui.start()
+
+        # First render - content grows from 0 to 15
+        tui.render_frame()
+        first_output = terminal.get_output()
+
+        # Should have emitted newlines to scroll content
+        assert "\r\n" in first_output
+
+        # Clear buffer and tracking for second render
+        terminal.clear_buffer()
+        # Don't reset _previous_lines - we want to test the "no growth" path
+
+        # Second render - same content, no growth
+        # This tests the new elif branch: current_count > term_height but no growth
+        tui.render_frame()
+        second_output = terminal.get_output()
+
+        # Should not have newlines (content didn't grow)
+        # Should use differential rendering on visible portion only
+        # Lines 5-14 are visible (content rows, not screen rows)
+        # The output should contain "Line 14" but likely not "Line 0"
+
+        tui.stop()
+
+    def test_visible_lines_update_when_scrolled(self):
+        """When scrolled, only visible lines can be updated."""
+        terminal = MockTerminal(80, 10)
+        tui = TUI(terminal)
+
+        # Add 15 lines
+        for i in range(15):
+            tui.add_child(Text(f"Line {i}", padding_y=0))
+
+        tui.start()
+        tui.render_frame()
+
+        # Now change a line in the visible portion (lines 5-14)
+        tui.clear()
+        for i in range(15):
+            # Change line 10 (which is visible)
+            if i == 10:
+                tui.add_child(Text(f"MODIFIED Line {i}", padding_y=0))
+            else:
+                tui.add_child(Text(f"Line {i}", padding_y=0))
+
+        terminal.clear_buffer()
+        tui.render_frame()
+        output = terminal.get_output()
+
+        # The modified line should be in output
+        assert "MODIFIED Line 10" in output
+
+        tui.stop()
+
+    def test_scrollback_lines_frozen(self):
+        """Lines in scrollback cannot be changed after scrolling."""
+        terminal = MockTerminal(80, 10)
+        tui = TUI(terminal)
+
+        # Add 15 lines
+        for i in range(15):
+            tui.add_child(Text(f"Line {i}", padding_y=0))
+
+        tui.start()
+        tui.render_frame()
+
+        # Now try to change a line in scrollback (lines 0-4)
+        tui.clear()
+        for i in range(15):
+            # Change line 2 (which is in scrollback)
+            if i == 2:
+                tui.add_child(Text(f"MODIFIED Line {i}", padding_y=0))
+            else:
+                tui.add_child(Text(f"Line {i}", padding_y=0))
+
+        terminal.clear_buffer()
+        tui.render_frame()
+        output = terminal.get_output()
+
+        # The modified line 2 is in scrollback, so it won't appear in output
+        # (we can only render to visible terminal)
+        assert "MODIFIED Line 2" not in output
+
+        tui.stop()

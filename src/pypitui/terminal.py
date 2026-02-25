@@ -240,7 +240,9 @@ class ProcessTerminal(Terminal):
             return
 
         try:
-            termios.tcsetattr(self._fd, termios.TCSADRAIN, self._original_settings)
+            termios.tcsetattr(
+                self._fd, termios.TCSADRAIN, self._original_settings
+            )
             self._is_raw = False
         except termios.error:
             pass

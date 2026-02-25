@@ -274,7 +274,9 @@ def _parse_kitty_csi_u(data: str) -> tuple[str, str] | None:
     event_type_num = int(event_type_str) if event_type_str else 1
 
     # Event types: 1 = press, 2 = repeat, 3 = release
-    event_type = {1: "press", 2: "repeat", 3: "release"}.get(event_type_num, "press")
+    event_type = {1: "press", 2: "repeat", 3: "release"}.get(
+        event_type_num, "press"
+    )
 
     # Get base key
     if 97 <= code <= 122:  # a-z
