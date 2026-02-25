@@ -242,6 +242,7 @@ class TUI(Container):
         self._hardware_cursor_row: int = -1
         self._input_buffer: str = ""
         self._max_lines_rendered: int = 0
+        self._first_visible_row_previous: int = 0  # First visible row in scrollback from last frame
         self._stopped = False
 
         # Overlay stack
@@ -472,8 +473,7 @@ class TUI(Container):
         width = self._resolve_size_value(options.width, term_width)
         if options.min_width and width < options.min_width:
             width = options.min_width
-        if width > term_width:
-            width = term_width
+        width = min(width, term_width)
 
         # Resolve max height
         max_height = self._resolve_size_value(options.max_height, term_height)
@@ -496,10 +496,8 @@ class TUI(Container):
         avail_width = term_width - margin_left - margin_right
         avail_height = term_height - margin_top - margin_bottom
 
-        if width > avail_width:
-            width = avail_width
-        if max_height > avail_height:
-            max_height = avail_height
+        width = min(width, avail_width)
+        max_height = min(max_height, avail_height)
 
         # Resolve position
         if options.row is not None:
@@ -549,10 +547,8 @@ class TUI(Container):
             width = self._resolve_size_value(entry.options.width, term_width)
             if entry.options.min_width and width < entry.options.min_width:
                 width = entry.options.min_width
-            if width > term_width:
-                width = term_width
-            if width > avail_width:
-                width = avail_width
+            width = min(width, term_width)
+            width = min(width, avail_width)
 
             # Render overlay content at the resolved width
             content = entry.component.render(width)
@@ -589,30 +585,29 @@ class TUI(Container):
         """Splice overlay content into a base line at a specific column."""
         # Get before segment (everything up to col)
         before = slice_by_column(base_line, 0, col)
-        
+
         # Pad before if it's shorter than col (base line was shorter)
         before_width = visible_width(before)
         if before_width < col:
             before += " " * (col - before_width)
-        
+
         # Get overlay content, limited to its width
         overlay = slice_by_column(overlay_line, 0, width)
         # Preserve trailing reset code if original had one (prevents color bleeding)
         if overlay_line.rstrip().endswith("\x1b[0m") and not overlay.endswith("\x1b[0m"):
             overlay += "\x1b[0m"
         overlay_visible_width = visible_width(overlay)
-        
+
         # Calculate where overlay ends and after segment begins
         after_start = col + overlay_visible_width
-        
+
         # Calculate remaining width for after segment
         remaining_width = total_width - after_start
-        if remaining_width < 0:
-            remaining_width = 0
-        
+        remaining_width = max(remaining_width, 0)
+
         # Get after segment
         after = slice_by_column(base_line, after_start, remaining_width)
-        
+
         # Pad after if needed to fill total_width
         after_width = visible_width(after)
         if after_start + after_width < total_width:
@@ -715,6 +710,26 @@ class TUI(Container):
                 return
 
         self.terminal.hide_cursor()
+
+    def _calculate_first_visible_row(self, term_height: int) -> int:
+        """Calculate which line in the scrollback buffer is at the top of the terminal.
+
+        When content exceeds terminal height, this tells us the first line
+        of the scrollback that's currently visible. Lines before this are
+        in the terminal's native scrollback history (accessible via Shift+PgUp).
+
+        Args:
+            term_height: Current terminal height in rows
+
+        Returns:
+            The line number (0-indexed) in the virtual canvas that appears
+            at the top of the terminal screen.
+
+        Example:
+            If max_lines_rendered=100 and term_height=24:
+            - Returns 76 (lines 0-75 are in scrollback, lines 76-99 are visible)
+        """
+        return max(0, self._max_lines_rendered - term_height)
 
     def run_frame(self) -> bool:
         """Run a single frame - process input and render.

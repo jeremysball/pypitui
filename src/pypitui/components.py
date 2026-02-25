@@ -307,14 +307,14 @@ class BorderedBox(Component):
         # Apply max_width constraint if set
         if self._max_width is not None:
             width = min(width, self._max_width)
-        
+
         # Ensure minimum width
         width = max(width, self._min_width)
-        
+
         # Calculate content width (inside borders and padding)
         # width = border (1) + padding + content + padding + border (1)
         content_width = max(1, width - 2 - self._padding_x * 2)
-        
+
         # Build content lines from children
         content_lines: list[str] = []
         for child in self.children:
@@ -323,15 +323,15 @@ class BorderedBox(Component):
 
         # Build the box
         lines: list[str] = []
-        
+
         # Top border
         top_border = self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
         lines.append(top_border)
-        
+
         # Top padding (if any)
         for _ in range(self._padding_y):
             lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
-        
+
         # Title (if provided) - appears as first content line with separator after
         if self._title:
             # Title line with padding
@@ -340,11 +340,11 @@ class BorderedBox(Component):
             if visible_width(title_padded) < inner_width:
                 title_padded += " " * (inner_width - visible_width(title_padded))
             lines.append(self.VERTICAL + title_padded + self.VERTICAL)
-            
+
             # Separator line (├─┤)
             sep_inner = self.HORIZONTAL * (width - 2)
             lines.append(self.T_LEFT + sep_inner + self.T_RIGHT)
-        
+
         # Content lines with wrapping and padding
         for line in content_lines:
             # Wrap line to fit content width
@@ -357,11 +357,11 @@ class BorderedBox(Component):
                 if visible_width(padded_content) < inner_width:
                     padded_content += " " * (inner_width - visible_width(padded_content))
                 lines.append(self.VERTICAL + padded_content + self.VERTICAL)
-        
+
         # Bottom padding (if any)
         for _ in range(self._padding_y):
             lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
-        
+
         # Bottom border
         bottom_border = self.BOTTOM_LEFT + self.HORIZONTAL * (width - 2) + self.BOTTOM_RIGHT
         lines.append(bottom_border)
@@ -379,20 +379,20 @@ class BorderedBox(Component):
         """
         if not line:
             return [""]
-        
+
         visible = visible_width(line)
         if visible <= max_width:
             return [line]
-        
+
         # Need to wrap - use word wrapping
         words = line.split(" ")
         result: list[str] = []
         current_line = ""
         current_width = 0
-        
+
         for word in words:
             word_visible = visible_width(word)
-            
+
             # Check if word alone exceeds max_width
             if word_visible > max_width:
                 # Flush current line if any
@@ -403,7 +403,7 @@ class BorderedBox(Component):
                 # Truncate the long word
                 result.append(truncate_to_width(word, max_width, pad=False))
                 continue
-            
+
             # Check if adding this word would exceed width
             space_needed = 1 if current_line else 0
             if current_width + space_needed + word_visible > max_width:
@@ -418,11 +418,11 @@ class BorderedBox(Component):
                     current_width += 1
                 current_line += word
                 current_width += word_visible
-        
+
         # Don't forget the last line
         if current_line:
             result.append(current_line)
-        
+
         return result if result else [""]
 
 

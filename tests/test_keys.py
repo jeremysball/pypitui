@@ -1,6 +1,5 @@
 """Tests for keyboard input handling - ported from pi-tui."""
 
-import pytest
 from pypitui.keys import matches_key, parse_key, set_kitty_protocol_active
 
 

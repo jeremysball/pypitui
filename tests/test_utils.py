@@ -1,7 +1,11 @@
 """Tests for utility functions - ported from pi-tui."""
 
-import pytest
-from pypitui import visible_width, truncate_to_width, wrap_text_with_ansi, slice_by_column
+from pypitui import (
+    slice_by_column,
+    truncate_to_width,
+    visible_width,
+    wrap_text_with_ansi,
+)
 
 
 class TestVisibleWidth:
@@ -81,7 +85,7 @@ class TestWrapTextWithAnsi:
         """Plain text is wrapped correctly."""
         text = "hello world this is a test"
         wrapped = wrap_text_with_ansi(text, 10)
-        
+
         assert len(wrapped) > 1
         for line in wrapped:
             assert visible_width(line) <= 10
@@ -91,9 +95,9 @@ class TestWrapTextWithAnsi:
         red = "\x1b[31m"
         reset = "\x1b[0m"
         text = f"{red}hello world this is red{reset}"
-        
+
         wrapped = wrap_text_with_ansi(text, 10)
-        
+
         # Each wrapped line should contain red code
         for line in wrapped:
             if line.strip():
@@ -108,7 +112,7 @@ class TestWrapTextWithAnsi:
         """Paragraphs are preserved."""
         text = "first paragraph\n\nsecond paragraph"
         wrapped = wrap_text_with_ansi(text, 50)
-        
+
         # Should have empty line between paragraphs
         assert "" in wrapped
 
@@ -116,7 +120,7 @@ class TestWrapTextWithAnsi:
         """Long words stay on single line."""
         text = "supercalifragilisticexpialidocious"
         wrapped = wrap_text_with_ansi(text, 10)
-        
+
         # Word is longer than width, stays on one line
         assert len(wrapped) == 1
 

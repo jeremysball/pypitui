@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .keys import Key
 from .tui import Component, Focusable
 
 class Text(Component):

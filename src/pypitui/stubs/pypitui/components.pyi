@@ -1,7 +1,9 @@
-from .keys import Key as Key
-from .tui import Component as Component, Focusable as Focusable
 from collections.abc import Callable as Callable
 from dataclasses import dataclass
+
+from .keys import Key as Key
+from .tui import Component as Component
+from .tui import Focusable as Focusable
 
 class Text(Component):
     def __init__(self, text: str = ..., padding_x: int = ..., padding_y: int = ..., custom_bg_fn: Callable[[str], str] | None = ...) -> None: ...

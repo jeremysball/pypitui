@@ -1,9 +1,10 @@
 import abc
-from .terminal import Terminal as Terminal
 from abc import ABC, abstractmethod
 from collections.abc import Callable as Callable
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any
+
+from .terminal import Terminal as Terminal
 
 CURSOR_MARKER: str
 
@@ -25,8 +26,8 @@ class Focusable(ABC, metaclass=abc.ABCMeta):
     def focused(self, value: bool) -> None: ...
 
 def is_focusable(component: Component | None) -> bool: ...
-SizeValue: TypeAlias = int | str
-OverlayAnchor: TypeAlias = str
+type SizeValue = int | str
+type OverlayAnchor = str
 
 @dataclass
 class OverlayMargin:

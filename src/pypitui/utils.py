@@ -191,8 +191,7 @@ def truncate_to_width(text: str, max_width: int, ellipsis: str = "...", pad: boo
     ellipsis_width = 0 if not ellipsis else visible_width(ellipsis)
 
     target_width = max_width - ellipsis_width
-    if target_width < 0:
-        target_width = 0
+    target_width = max(target_width, 0)
 
     result = []
     current_width = 0

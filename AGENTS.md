@@ -1,5 +1,15 @@
 # PyPiTUI Agent Guidelines
 
+## Always Load Writing Skill
+
+Load the `writing-clearly-and-concisely` skill at the start of every conversation:
+
+```
+/skill:writing-clearly-and-concisely
+```
+
+This applies Strunk's rules for clear, concise writing and helps avoid AI-generated puffery in all output.
+
 ## Check `.agents/` Folders for Utilities
 
 Always check for `.agents/` folders in the project root. These contain:
@@ -42,3 +52,8 @@ The TUI uses `_previous_lines` for differential rendering. Creating a new TUI lo
 
 ### Reference
 See `examples/demo.py` for the correct implementation using `_clear_screen()`.
+
+## Decompose Your Tasks Into a GRANULAR, TOPICAL TODO.md 
+- Ensure:
+  - TODO.md is kept up to date via checkboxes \[ \]
+  - Ensure TODO.md is kept UP TO DATE with ANY new design decisions

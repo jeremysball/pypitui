@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any
 
 from .terminal import Terminal
 
@@ -32,8 +32,8 @@ class Focusable(ABC):
 
 def is_focusable(component: Component | None) -> bool: ...
 
-SizeValue: TypeAlias = int | str
-OverlayAnchor: TypeAlias = str
+type SizeValue = int | str
+type OverlayAnchor = str
 
 @dataclass
 class OverlayMargin:

@@ -6,13 +6,8 @@ This is an optional component that requires the 'rich' extra:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from .tui import Component
 from .utils import visible_width
-
-if TYPE_CHECKING:
-    pass
 
 
 class Markdown(Component):

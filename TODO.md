@@ -2,12 +2,24 @@
 
 > **PRD**: [prds/scrollback-and-streaming.md](prds/scrollback-and-streaming.md)
 
-## Quick Reference
+## Current: Milestone 2 - Synchronized Output
+
+**Concept**: DEC 2026 sync mode batches output to prevent flickering.
+
+### Tasks
+- [ ] Add `_begin_sync(self) -> str` returning `"\x1b[?2026h"`
+- [ ] Add `_end_sync(self) -> str` returning `"\x1b[?2026l"`
+- [ ] Add sync constants to `Terminal` class (optional abstraction)
+- [ ] Write test: sync wrappers produce correct escape sequences
+
+---
+
+## Progress
 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
-| 1 | Working Area Tracking | 🔲 Not Started |
-| 2 | Synchronized Output | 🔲 Not Started |
+| 1 | Working Area Tracking | ✅ Complete |
+| 2 | Synchronized Output | 🔄 In Progress |
 | 3 | Relative Cursor Movement | 🔲 Not Started |
 | 4 | Refactor render_frame() | 🔲 Not Started |
 | 5 | Overlay Viewport Positioning | 🔲 Not Started |

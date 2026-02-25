@@ -88,16 +88,34 @@ Working Area (maxLinesRendered = 100):
 ### Milestone 1: Working Area Tracking
 **Goal**: Track virtual canvas height and cursor position for relative movement
 
-**Tasks**:
-- [ ] Add `_max_lines_rendered: int = 0` to TUI class
-- [ ] Add `_hardware_cursor_row: int = 0` to TUI class
-- [ ] Add `_previous_viewport_top: int = 0` to TUI class
-- [ ] Add `_calculate_viewport_top(self, content_lines: int, term_height: int) -> int`
-  - Returns `max(0, self._max_lines_rendered - term_height)`
-- [ ] Update `_max_lines_rendered` in `render_frame()` after rendering
-- [ ] Write test: `_calculate_viewport_top()` with various content/terminal sizes
+**Key Concept**: The "first visible row" is the line number in the entire scrollback buffer that currently appears at the top of the terminal viewport. When content exceeds terminal height, this tells us which slice of content is visible.
 
-**Validation**: Unit tests pass, state variables update correctly during render
+```
+Scrollback buffer (100 lines total):
+┌─────────────────────┐
+│ Line 0              │
+│ Line 1              │
+│ ...                 │
+│ Line 75             │
+├─────────────────────┤ ← first_visible_row = 76 (top of terminal)
+│ Line 76  (row 0)    │ ← Visible in terminal
+│ Line 77  (row 1)    │
+│ ...                 │
+│ Line 99  (row 23)   │ ← Bottom of terminal
+└─────────────────────┘
+```
+
+**Tasks**:
+- [x] Add `_max_lines_rendered: int = 0` to TUI class (total lines in virtual canvas)
+- [x] Add `_hardware_cursor_row: int = 0` to TUI class (current cursor position in scrollback)
+- [x] Add `_first_visible_row_previous: int = 0` to TUI class (first visible row from last frame)
+- [x] Add `_calculate_first_visible_row(self, term_height: int) -> int`
+  - Returns `max(0, self._max_lines_rendered - term_height)`
+  - This tells us which line in the scrollback is at the top of the screen
+- [x] Update `_max_lines_rendered` in `render_frame()` after rendering
+- [x] Write test: `_calculate_first_visible_row()` with various content/terminal sizes
+
+**Validation**: ✅ Unit tests pass, state variables update correctly during render
 
 ---
 

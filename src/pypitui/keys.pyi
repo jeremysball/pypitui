@@ -1,8 +1,8 @@
 """Keyboard input handling for terminal applications."""
 
-from typing import Final, TypeAlias
+from typing import Final
 
-KeyId: TypeAlias = str
+type KeyId = str
 
 def set_kitty_protocol_active(active: bool) -> None: ...
 def is_kitty_protocol_active() -> bool: ...
