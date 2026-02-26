@@ -95,7 +95,7 @@ def create_select_theme(theme: Theme) -> SelectListTheme:
 
 MENU_ITEMS = [
     ("streaming", "📊 Streaming", "Proper scrollback demo"),
-    ("matrix", "🌧️ Matrix Rain", "Efficient animation"),
+    ("matrix", "🌈 Matrix Rain", "Rainbow animation"),
     ("components", "🧩 Components", "UI building blocks"),
     ("wizard", "🧙 Form Wizard", "Multi-step input"),
     ("overlays", "🪟 Overlays", "Floating panels"),
@@ -238,14 +238,25 @@ class DemoApp:
             self.animation_active = False
 
     # =========================================================================
-    # MATRIX DEMO - Efficient animation with state update
+    # MATRIX DEMO - Rainbow animation with delta time
     # =========================================================================
 
-    A = {"rs": "\x1b[0m", "bd": "\x1b[1m", "g": "\x1b[32m", "G": "\x1b[92m", "w": "\x1b[97m", "K": "\x1b[90m"}
+    # Rainbow colors (ANSI 256 color codes)
+    RAINBOW = [
+        "\x1b[38;5;196m",  # Red
+        "\x1b[38;5;208m",  # Orange
+        "\x1b[38;5;226m",  # Yellow
+        "\x1b[38;5;46m",   # Green
+        "\x1b[38;5;51m",   # Cyan
+        "\x1b[38;5;21m",   # Blue
+        "\x1b[38;5;129m",  # Purple
+        "\x1b[38;5;201m",  # Magenta
+    ]
+    A = {"rs": "\x1b[0m", "bd": "\x1b[1m", "w": "\x1b[97m", "K": "\x1b[90m"}
     CHARS = "0123456789ABCDEFabcdefghijklmnopqrstuvwxyz@#$%&*+-="
 
     def show_matrix(self) -> None:
-        """Matrix rain - efficient animation pattern."""
+        """Matrix rain - rainbow animation with delta time."""
         self.switch_screen(self._build_matrix)
 
     def _build_matrix(self) -> None:
@@ -254,80 +265,121 @@ class DemoApp:
 
         w, h = self.terminal.get_size()
         self.matrix_w = max(40, w)
-        self.matrix_h = max(10, h - 4)
+        self.matrix_h = max(10, h - 5)  # Reserve 5 lines for UI
 
-        # Initialize columns
+        # Initialize columns with slower speeds
         self.matrix_columns = [
-            {"y": random.randint(-20, 0), "speed": random.uniform(0.3, 1.0), "len": random.randint(5, 15)}
+            {
+                "y": random.randint(-30, 0),
+                "speed": random.uniform(0.15, 0.4),  # Slower
+                "len": random.randint(8, 20),
+                "color_idx": random.randint(0, len(self.RAINBOW) - 1),
+            }
             for _ in range(self.matrix_w)
         ]
 
-        # Initialize grid
-        self.matrix_grid = [[(" ", 0) for _ in range(self.matrix_h)] for _ in range(self.matrix_w)]
+        # Initialize grid: (char, brightness, color_idx)
+        self.matrix_grid = [[(" ", 0, 0) for _ in range(self.matrix_h)] for _ in range(self.matrix_w)]
+
+        # Scrolling banner
+        self.scroll_text = " PYPITUI - RAINBOW MATRIX - TERMINAL UI FRAMEWORK - GITHUB.COM/JEREMYSBALL/PYPITUI - "
+        self.scroll_pos = 0
+        self._scroll_accumulator = 0.0
 
         # Single text component we update in place
         self.matrix_text = Text("", 0, 0)
         self.root.add_child(self.matrix_text)
-        self.root.add_child(Spacer(1))
-        self.root.add_child(RichText(f"[{t.muted}]Press any key to exit[/{t.muted}]"))
 
         self.animation_active = True
         self._last_matrix = 0
 
     def update_matrix(self) -> None:
-        """Update matrix - modify state, rebuild only output string."""
+        """Update matrix with delta time for smooth animation."""
         if not self.animation_active or self.current_screen != "matrix":
             return
 
         now = time.time()
-        if now - self._last_matrix < 0.03:
-            return
+        dt = now - self._last_matrix if self._last_matrix > 0 else 0.016
         self._last_matrix = now
+
+        # Target ~30 FPS for matrix (smoother but not too fast)
+        if dt < 0.033:
+            return
 
         w, h = self.matrix_w, self.matrix_h
 
-        # Update columns
+        # Update columns with delta time
         for x, col in enumerate(self.matrix_columns):
-            col["y"] += col["speed"]
+            col["y"] += col["speed"] * dt * 30  # Scaled by dt
 
             # Draw head and trail
             for dy in range(col["len"]):
                 y = int(col["y"]) - dy
                 if 0 <= y < h:
+                    # Fade brightness along trail
                     if dy == 0:
-                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 3)
-                    elif dy < 3:
-                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 2)
+                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 4, col["color_idx"])
+                    elif dy < 2:
+                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 3, col["color_idx"])
+                    elif dy < 5:
+                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 2, col["color_idx"])
                     else:
-                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 1)
+                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 1, col["color_idx"])
 
-            # Reset if off screen
+            # Reset if off screen, pick new color
             if int(col["y"]) - col["len"] > h:
-                col["y"] = random.randint(-10, -2)
-                col["speed"] = random.uniform(0.3, 1.0)
+                col["y"] = random.randint(-15, -3)
+                col["speed"] = random.uniform(0.15, 0.4)
+                col["len"] = random.randint(8, 20)
+                col["color_idx"] = random.randint(0, len(self.RAINBOW) - 1)
 
-        # Fade grid
+        # Slowly fade grid
         for x in range(w):
             for y in range(h):
-                char, bright = self.matrix_grid[x][y]
-                if bright > 0:
-                    self.matrix_grid[x][y] = (char, max(0, bright - 1)) if random.random() < 0.1 else (char, bright)
+                char, bright, color = self.matrix_grid[x][y]
+                if bright > 0 and random.random() < 0.08:
+                    self.matrix_grid[x][y] = (char, bright - 1, color)
 
-        # Build output - single string update
+        # Build output - rainbow colored
         lines = []
         for y in range(h):
             row = []
             for x in range(w):
-                char, bright = self.matrix_grid[x][y]
-                if bright == 3:
+                char, bright, color_idx = self.matrix_grid[x][y]
+                if bright >= 4:
+                    # White head
                     row.append(f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}")
-                elif bright == 2:
-                    row.append(f"{self.A['G']}{char}{self.A['rs']}")
-                elif bright == 1:
-                    row.append(f"{self.A['g']}{char}{self.A['rs']}")
+                elif bright >= 3:
+                    # Bright rainbow
+                    color = self.RAINBOW[color_idx]
+                    row.append(f"{self.A['bd']}{color}{char}{self.A['rs']}")
+                elif bright >= 2:
+                    # Normal rainbow
+                    color = self.RAINBOW[color_idx]
+                    row.append(f"{color}{char}{self.A['rs']}")
+                elif bright >= 1:
+                    # Dim rainbow
+                    color = self.RAINBOW[color_idx]
+                    row.append(f"{color}\x1b[2m{char}{self.A['rs']}")
                 else:
                     row.append(" ")
             lines.append("".join(row).replace(" ", "\xa0"))
+
+        # Scrolling banner at bottom
+        self._scroll_accumulator += dt * 12  # Scroll speed
+        if self._scroll_accumulator >= 1.0:
+            self.scroll_pos = (self.scroll_pos + int(self._scroll_accumulator)) % len(self.scroll_text)
+            self._scroll_accumulator -= int(self._scroll_accumulator)
+
+        visible_banner = ""
+        for i in range(w):
+            idx = (self.scroll_pos + i) % len(self.scroll_text)
+            visible_banner += self.scroll_text[idx]
+
+        # Add UI lines
+        lines.append(f"{self.A['K']}{'─' * w}{self.A['rs']}")
+        lines.append(f"{self.RAINBOW[2]}{visible_banner}{self.A['rs']}")
+        lines.append(f"{self.A['K']}{'─' * w}{self.A['rs']}")
 
         # Update in place - efficient
         self.matrix_text.set_text("\n".join(lines))
@@ -546,7 +598,7 @@ class DemoApp:
 
         self.root.add_child(RichText(f"[{t.success}]{message}[/{t.success}]"))
         self.root.add_child(Spacer(1))
-        self.root.add_child(RichText(f"[{t.muted}]Press any key[/{t.muted}]"))
+        self.root.add_child(RichText(f"[{t.muted}]Press Enter or ESC to go back[/{t.muted}]"))
 
     # =========================================================================
     # INPUT HANDLING
@@ -574,6 +626,12 @@ class DemoApp:
         # Exit animation screens
         if self.current_screen in ("streaming", "matrix"):
             self.switch_screen(self.show_menu)
+            return
+
+        # Result screen - any key goes back
+        if self.current_screen == "result":
+            if matches_key(data, Key.escape) or matches_key(data, Key.enter):
+                self.switch_screen(self.show_menu)
             return
 
         # Wizard
