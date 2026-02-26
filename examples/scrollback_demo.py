@@ -11,9 +11,8 @@ Run this and use Shift+PgUp to scroll back through history.
 """
 
 import asyncio
-import time
 
-from pypitui import ProcessTerminal, TUI, Text
+from pypitui import TUI, ProcessTerminal, Text
 
 
 async def main():
@@ -41,7 +40,9 @@ async def main():
 
         # Add final message
         tui.add_child(Text("", padding_y=0))
-        tui.add_child(Text("=== Done! Use Shift+PgUp to scroll ===", padding_y=0))
+        tui.add_child(
+            Text("=== Done! Use Shift+PgUp to scroll ===", padding_y=0)
+        )
 
         tui.request_render()
         tui.render_frame()

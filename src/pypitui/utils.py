@@ -5,6 +5,7 @@ Handles ANSI escape codes, text width calculations, and text wrapping.
 
 import re
 import shutil
+import unicodedata
 from collections.abc import Callable
 
 import wcwidth
@@ -18,10 +19,10 @@ _segmenter: object | None = None
 
 def get_segmenter() -> object:
     """Get the shared grapheme segmenter instance."""
-    global _segmenter
+    global _segmenter  # noqa: PLW0603
     if _segmenter is None:
         try:
-            import unicodedatapkg  # type: ignore
+            import unicodedatapkg  # type: ignore  # noqa: PLC0415
 
             _segmenter = unicodedatapkg.grapheme_cluster_break
         except ImportError:
@@ -69,6 +70,23 @@ def extract_ansi_code(text: str, pos: int) -> tuple[str, int] | None:
     return None
 
 
+def _update_active_ansi(active_ansi: str, word: str) -> str:
+    """Update active ANSI codes from a word."""
+    pos = 0
+    while pos < len(word):
+        code_info = extract_ansi_code(word, pos)
+        if code_info:
+            code, length = code_info
+            if code == "\x1b[0m":
+                active_ansi = ""
+            else:
+                active_ansi += code
+            pos += length
+        else:
+            pos += 1
+    return active_ansi
+
+
 def wrap_text_with_ansi(text: str, width: int) -> list[str]:
     """Wrap text preserving ANSI codes.
 
@@ -94,11 +112,12 @@ def wrap_text_with_ansi(text: str, width: int) -> list[str]:
 
         for word in words:
             word_width = visible_width(word)
+            separator = 1 if current_line else 0
 
-            if current_width + word_width + (1 if current_line else 0) > width:
+            if current_width + word_width + separator > width:
                 # Line would exceed width, flush current line
                 if current_line:
-                    lines.append(current_line + "\x1b[0m")  # Reset at end
+                    lines.append(current_line + "\x1b[0m")
                 # Start new line with active ANSI codes
                 current_line = active_ansi + word if active_ansi else word
                 current_width = word_width
@@ -111,23 +130,11 @@ def wrap_text_with_ansi(text: str, width: int) -> list[str]:
                 current_width += word_width
 
             # Update active ANSI codes from word
-            pos = 0
-            while pos < len(word):
-                code_info = extract_ansi_code(word, pos)
-                if code_info:
-                    code, length = code_info
-                    if code == "\x1b[0m":
-                        active_ansi = ""
-                    else:
-                        active_ansi += code
-                    pos += length
-                else:
-                    pos += 1
+            active_ansi = _update_active_ansi(active_ansi, word)
 
         if current_line:
             lines.append(current_line + "\x1b[0m")
         elif not lines:
-            # Handle whitespace-only input - return empty line
             lines.append("")
 
     return lines
@@ -140,8 +147,6 @@ def is_whitespace(char: str) -> bool:
 
 def is_punctuation(char: str) -> bool:
     """Check if a character is punctuation."""
-    import unicodedata
-
     cat = unicodedata.category(char)
     return cat.startswith("P")
 
@@ -241,7 +246,8 @@ def slice_by_column(
         line: Input line
         start_col: Starting column (0-indexed)
         length: Number of columns to extract
-        strict: If True, exclude wide chars at boundary that would extend past range
+        strict: If True, exclude wide chars at boundary that would
+            extend past range
 
     Returns:
         Extracted text with ANSI codes preserved
@@ -301,6 +307,7 @@ def get_terminal_size() -> tuple[int, int]:
     """Get terminal size as (columns, rows)."""
     try:
         cols, rows = shutil.get_terminal_size()
-        return (cols, rows)
     except Exception:
         return (80, 24)
+    else:
+        return (cols, rows)

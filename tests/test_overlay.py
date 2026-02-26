@@ -24,7 +24,7 @@ class TestOverlays:
 
     def test_show_overlay(self, setup):
         """Can show an overlay."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         tui.add_child(Text("Base content"))
 
@@ -56,7 +56,7 @@ class TestOverlays:
 
     def test_overlay_top_left_anchor(self, setup):
         """Top-left anchor positions overlay at top-left."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions(
             width=20,
@@ -69,7 +69,7 @@ class TestOverlays:
 
     def test_overlay_bottom_right_anchor(self, setup):
         """Bottom-right anchor positions overlay at bottom-right."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions(
             width=20,
@@ -82,7 +82,7 @@ class TestOverlays:
 
     def test_overlay_percentage_width(self, setup):
         """Width can be percentage of terminal."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions(
             width="50%",
@@ -95,7 +95,7 @@ class TestOverlays:
 
     def test_overlay_min_width(self, setup):
         """Min width is applied as floor."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions(
             width=10,
@@ -109,7 +109,7 @@ class TestOverlays:
 
     def test_overlay_max_height(self, setup):
         """Max height limits overlay height."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         # Create overlay with many lines
         overlay = Container()
@@ -128,7 +128,7 @@ class TestOverlays:
 
     def test_overlay_offset(self, setup):
         """Offset moves overlay from anchor."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions(
             width=20,
@@ -143,7 +143,7 @@ class TestOverlays:
 
     def test_overlay_margin(self, setup):
         """Margin keeps overlay away from edges."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions(
             width=20,
@@ -157,7 +157,7 @@ class TestOverlays:
 
     def test_overlay_handle_hide(self, setup):
         """Handle.hide() permanently removes overlay."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions()
         handle = tui.show_overlay(Text("Overlay"), options)
@@ -169,7 +169,7 @@ class TestOverlays:
 
     def test_overlay_handle_set_hidden(self, setup):
         """Handle.setHidden() temporarily hides overlay."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         options = OverlayOptions()
         handle = tui.show_overlay(Text("Overlay"), options)
@@ -187,7 +187,7 @@ class TestOverlays:
 
     def test_multiple_overlays(self, setup):
         """Can stack multiple overlays."""
-        terminal, tui = setup
+        _terminal, tui = setup
 
         handle1 = tui.show_overlay(Text("Overlay 1"), OverlayOptions())
         handle2 = tui.show_overlay(Text("Overlay 2"), OverlayOptions())
@@ -212,7 +212,7 @@ class TestOverlayVisible:
 
         # Only visible when width >= 100
         options = OverlayOptions(
-            visible=lambda w, h: w >= 100,
+            visible=lambda w, _h: w >= 100,
         )
         handle = tui.show_overlay(Text("Overlay"), options)
 
@@ -227,7 +227,10 @@ class TestOverlayWidthRendering:
     """Tests for overlay content rendering at specified width."""
 
     def test_content_rendered_at_specified_width(self):
-        """Overlay content is rendered at the specified width, not terminal width."""
+        """Overlay content is rendered at the specified width.
+
+        Not terminal width.
+        """
         terminal = MockTerminal(80, 24)
         tui = TUI(terminal)
 
@@ -242,9 +245,9 @@ class TestOverlayWidthRendering:
         tui.render_frame()
         output = terminal.get_output()
 
-        # The text component should have been rendered with width=20
-        # Check that we're using the move_cursor command with reasonable positions
-        # (center of 80-col terminal for width 20 would be col 30)
+        # The text component should have been rendered with width=20.
+        # Check that we're using the move_cursor command with reasonable
+        # positions (center of 80-col terminal for width 20 would be col 30)
         assert (
             "\x1b[1;31H" in output or "\x1b[" in output
         )  # Some cursor movement
@@ -267,8 +270,10 @@ class TestOverlayWidthRendering:
         tui.render_frame()
         output = terminal.get_output()
 
-        # For a 20-wide overlay on 80-col terminal, centered means starting at col 30
-        # Cursor position should be row 11 (24/2 - 6/2), col 30 (80/2 - 20/2)
+        # For a 20-wide overlay on 80-col terminal, centered means
+        # starting at col 30.
+        # Cursor position should be row 11 (24/2 - 6/2), col 30
+        # (80/2 - 20/2).
         # Check that cursor moves to column 31 (1-indexed)
         assert "\x1b[" in output  # Has cursor positioning
 
@@ -370,7 +375,7 @@ class TestOverlayFocus:
 
         # Show overlay
         overlay_input = Input(placeholder="Overlay input")
-        handle = tui.show_overlay(overlay_input, OverlayOptions(width=40))
+        tui.show_overlay(overlay_input, OverlayOptions(width=40))
 
         # Hide overlay using hide_overlay() which pops and restores focus
         tui.hide_overlay()
@@ -379,7 +384,7 @@ class TestOverlayFocus:
         assert tui._focused_component == base_input
 
     def test_overlay_with_container_finds_focusable_child(self):
-        """When overlay container is shown, first focusable child gets focus."""
+        """When overlay container is shown, first focusable child gets focus."""  # noqa: E501
         terminal = MockTerminal(80, 24)
         tui = TUI(terminal)
 
@@ -478,11 +483,13 @@ class TestOverlayViewportPositioning:
         # With 20 lines and 10-row terminal, viewport starts at line 10
         assert viewport_top == 10
 
-        # The overlay at content row 0 should be at screen row -10 (not visible)
-        # When we composite with viewport_top=10, overlay row 0 becomes screen row -10
+        # The overlay at content row 0 should be at screen row -10
+        # (not visible).
+        # When we composite with viewport_top=10, overlay row 0 becomes
+        # screen row -10.
 
         tui.render_frame()
-        output = terminal.get_output()
+        terminal.get_output()
 
         # Since the overlay is at content row 0 and viewport starts at row 10,
         # the overlay should NOT be visible (it's in the scrollback)
@@ -537,9 +544,10 @@ class TestOverlayViewportPositioning:
         # Simulate 30 lines rendered
         tui._max_lines_rendered = 30
 
-        # viewport_top = 20, overlay at content row 5 -> screen row -15 (not visible)
+        # viewport_top = 20, overlay at content row 5 ->
+        # screen row -15 (not visible)
         tui.render_frame()
-        output = terminal.get_output()
+        terminal.get_output()
 
         # Overlay should NOT be in output (it's in scrollback)
         # The test passes if render completes without error
@@ -578,7 +586,8 @@ class TestOverlayViewportPositioning:
         # Create base content with 15 lines
         base_lines = [f"Base line {i}" for i in range(15)]
 
-        # Overlay at content row 12 (should be at screen row 2 when viewport_top=10)
+        # Overlay at content row 12 (should be at screen row 2
+        # when viewport_top=10)
         overlay = Container()
         overlay.add_child(Text("OVERLAY LINE", padding_y=0))
 
@@ -602,7 +611,8 @@ class TestOverlayViewportPositioning:
 
         base_lines = [f"Line {i}" for i in range(20)]
 
-        # Overlay at content row 10 (exactly at viewport top when viewport_top=10)
+        # Overlay at content row 10 (exactly at viewport top when
+        # viewport_top=10)
         overlay = Container()
         overlay.add_child(Text("BOUNDARY OVERLAY", padding_y=0))
 

@@ -5,7 +5,9 @@ Provides raw terminal mode, input handling, and screen manipulation.
 
 from __future__ import annotations
 
+import os
 import select
+import shutil
 import sys
 import termios
 import tty
@@ -115,6 +117,31 @@ class ProcessTerminal(Terminal):
             pass
         return None
 
+    def _is_sequence_complete(self, data: bytes) -> bool:
+        """Check if we have a complete escape sequence."""
+        if len(data) == 1:
+            # Single non-escape char is complete
+            return data[0] != 0x1B
+        if len(data) >= 2 and data[0] == 0x1B:
+            # Escape sequence
+            if data[1:2] == b"[":
+                # CSI - ends with byte in range 0x40-0x7E
+                return len(data) >= 3 and 0x40 <= data[-1] <= 0x7E
+            if data[1:2] == b"O":
+                # SS3 - ESC O + one char
+                return len(data) >= 3
+            # ESC + single char (meta key)
+            return True
+        return False
+
+    def _is_lone_escape(self, data: bytes, fd: int) -> bool:
+        """Check if we have a standalone escape key."""
+        return (
+            len(data) == 1
+            and data[0] == 0x1B
+            and not select.select([fd], [], [], 0.05)[0]
+        )
+
     def read_sequence(self, timeout: float = 0.1) -> str | None:
         """Read a complete input sequence (handles escape sequences).
 
@@ -131,10 +158,6 @@ class ProcessTerminal(Terminal):
             return None
 
         try:
-            import os
-
-            # Use file descriptor directly for both select and read
-            # Avoids buffering issues between sys.stdin and stdin.buffer
             fd = self._fd
 
             # Wait for initial data
@@ -145,37 +168,16 @@ class ProcessTerminal(Terminal):
 
             # Read bytes until we have a complete sequence
             while True:
-                # If we have a lone ESC, wait briefly for more bytes
-                # If nothing comes, it's a standalone escape key
-                if len(data) == 1 and data[0] == 0x1B:
-                    if not select.select([fd], [], [], 0.05)[0]:
-                        # No more data - standalone escape
-                        break
+                if self._is_lone_escape(data, fd):
+                    break
 
                 byte = os.read(fd, 1)
                 if not byte:
                     break
                 data += byte
 
-                # Check if we have a complete sequence
-                if len(data) == 1 and data[0] != 0x1B:
-                    # Single non-escape char is complete
+                if self._is_sequence_complete(data):
                     break
-                elif len(data) >= 2 and data[0] == 0x1B:
-                    # Escape sequence - check if complete
-                    # CSI sequences: ESC [ ... final byte (0x40-0x7E)
-                    # SS3 sequences: ESC O <one char>
-                    if data[1:2] == b"[":
-                        # CSI - ends with byte in range 0x40-0x7E
-                        if len(data) >= 3 and 0x40 <= data[-1] <= 0x7E:
-                            break
-                    elif data[1:2] == b"O":
-                        # SS3 - ESC O + one char
-                        if len(data) >= 3:
-                            break
-                    elif len(data) == 2:
-                        # ESC + single char (meta key)
-                        break
 
             return data.decode("utf-8", errors="replace") if data else None
         except OSError:
@@ -184,13 +186,12 @@ class ProcessTerminal(Terminal):
 
     def get_size(self) -> tuple[int, int]:
         """Get terminal size as (columns, rows)."""
-        import shutil
-
         try:
             cols, rows = shutil.get_terminal_size()
-            return (cols, rows)
         except Exception:
             return (80, 24)
+        else:
+            return (cols, rows)
 
     def clear(self) -> None:
         """Clear the terminal screen."""
@@ -263,7 +264,7 @@ class MockTerminal(Terminal):
         """Write data to buffer."""
         self._buffer.append(data)
 
-    def read(self, timeout: float = 0.0) -> str | None:
+    def read(self, _timeout: float = 0.0) -> str | None:
         """Read from input buffer."""
         if self._input_buffer:
             return self._input_buffer.pop(0)

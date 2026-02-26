@@ -2,23 +2,45 @@
 
 ---
 
-## ⚠️ 🚨 🔔 LOAD THIS SKILL FIRST — EVERY CONVERSATION — NO EXCEPTIONS 🔔 🚨 ⚠️
+## ⛔ PRE-FLIGHT CHECK — DO THIS FIRST
 
-```
-/skill:writing-clearly-and-concisely
-```
+**STOP.** Before responding to any user message or command, you **MUST**:
+
+1. Read the **writing-clearly-and-concisely** skill (`.pi/skills/writing-clearly-and-concisely/SKILL.md`)
+2. Read the **ntfy** skill (`.pi/skills/ntfy/SKILL.md`)
+3. Confirm completion in your first response: "✅ Skills loaded"
+
+**No exceptions.** This applies to:
+- The first message of every conversation
+- Simple questions, complex tasks, everything
+
+If you skip this step, you have failed the pre-flight check.
 
 ### Why? 📝
-- Strunk's rules = clear, concise writing
-- Prevents AI fluff and corporate-speak
-- Better commit messages, docs, and explanations
-
-### When? 🕐
-- ✅ Start of EVERY conversation
-- ✅ Before writing ANY prose humans will read
-- ✅ BEFORE you start coding or planning
+- **Writing skill**: Strunk's rules = clear, concise writing, prevents AI fluff
+- **ntfy skill**: Push notifications for long-running tasks and input requests
 
 ### Don't skip this. Seriously. 👀
+
+---
+
+## 📱 Notify on Long-Running Tasks — MANDATORY
+
+**ALWAYS** send an ntfy notification when:
+- Long-running tasks complete
+- User input required
+- Workflow milestones (PR created/merged)
+- Errors needing attention
+
+```bash
+# Simple notification
+curl -s -d "Task complete" ntfy.sh/pi-agent-prometheus
+
+# High priority for input needed
+curl -s -H "Priority: high" -d "Input needed" ntfy.sh/pi-agent-prometheus
+```
+
+**Don't notify for:** simple file reads, intermediate steps, quick acknowledgments.
 
 ---
 
@@ -40,6 +62,39 @@ uv run stubgen src/pypitui -o src/pypitui/stubs
 ```
 
 Then refine the generated stubs as needed. Manual stub creation is error-prone and may miss edge cases that stubgen handles automatically.
+
+## Testing: DO NOT MOCK
+
+**Mocking is a last resort.** Prefer:
+- Real file systems (use temp directories)
+- Real network calls (use test servers/containers)
+- Real databases (use test instances)
+
+**Only mock when:**
+- External services you cannot control
+- Non-deterministic behavior (time, randomness)
+- Extremely slow operations
+
+## Use tmux for CLI/TUI Testing
+
+For E2E testing of interactive or visual CLI applications:
+
+```bash
+mkdir -p /tmp/pi-tmux && cp .pi/skills/tmux-tape/tmux_tool.py /tmp/pi-tmux/
+cd /tmp/pi-tmux && uv run python script.py
+```
+
+```python
+from tmux_tool import TerminalSession
+
+with TerminalSession("myapp", port=7681) as s:
+    s.send("myapp")
+    s.send_key("Enter")
+    s.sleep(3)  # Wait for startup
+
+    result = s.capture("screenshot.png")
+    assert "Expected text" in result["text"]
+```
 
 ## Critical: TUI Instance Reuse
 

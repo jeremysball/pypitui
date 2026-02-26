@@ -1,6 +1,6 @@
 """Tests for scrollback and streaming functionality."""
 
-from pypitui import MockTerminal, TUI, Text
+from pypitui import TUI, MockTerminal, Text
 
 
 class TestCalculateFirstVisibleRow:
@@ -104,8 +104,8 @@ class TestWorkingAreaTracking:
         terminal = MockTerminal(80, 24)
         tui = TUI(terminal)
 
-        # Add 5 lines of content (Text has padding_y=1 by default, so 3 lines each)
-        # Use padding_y=0 for predictable line count
+        # Add 5 lines of content (Text has padding_y=1 by default,
+        # so 3 lines each). Use padding_y=0 for predictable line count.
         for i in range(5):
             tui.add_child(Text(f"Line {i}", padding_y=0))
 
@@ -340,10 +340,13 @@ class TestRelativeCursorMovement:
 
 
 class TestDifferentialRenderingWithScrollback:
-    """Tests for differential rendering when content exceeds terminal height."""
+    """Tests for differential rendering when content exceeds terminal height."""  # noqa: E501
 
     def test_content_exceeds_terminal_without_growth(self):
-        """When content exceeds terminal but hasn't grown, only visible portion updates."""
+        """When content exceeds terminal but hasn't grown.
+
+        Only visible portion updates.
+        """
         terminal = MockTerminal(80, 10)
         tui = TUI(terminal)
 
@@ -364,10 +367,11 @@ class TestDifferentialRenderingWithScrollback:
         terminal.clear_buffer()
         # Don't reset _previous_lines - we want to test the "no growth" path
 
-        # Second render - same content, no growth
-        # This tests the new elif branch: current_count > term_height but no growth
+        # Second render - same content, no growth.
+        # This tests the new elif branch: current_count > term_height
+        # but no growth.
         tui.render_frame()
-        second_output = terminal.get_output()
+        terminal.get_output()
 
         # Should not have newlines (content didn't grow)
         # Should use differential rendering on visible portion only

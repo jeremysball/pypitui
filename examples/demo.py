@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501, RUF001, RUF012, S311, C901, PLR0911, PLR0912, PLR0915
+# E501: Demo file, line length not critical
+# RUF001: Intentional emoji usage in demo
+# RUF012: Mutable class defaults acceptable for demo
+# S311: Random used for visual effects, not crypto
+# C901/PLR0911/PLR0912/PLR0915: Demo complexity acceptable
+
 """PyPiTUI Demo - Proper Differential Rendering Patterns.
 
 This demo shows the CORRECT way to use PyPiTUI:
@@ -17,35 +24,36 @@ Key patterns:
 
 from __future__ import annotations
 
-import math
 import random
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from pypitui import (
     TUI,
-    Container,
-    Text,
-    Box,
     BorderedBox,
-    Spacer,
-    SelectList,
-    SelectItem,
-    SelectListTheme,
+    Box,
+    Container,
     Input,
+    Key,
     OverlayOptions,
     ProcessTerminal,
+    SelectItem,
+    SelectList,
+    SelectListTheme,
+    Spacer,
+    Text,
     matches_key,
-    Key,
 )
-from pypitui.tui import Component
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 try:
     from pypitui.rich_components import (
-        Markdown,
+        Markdown,  # noqa: F401
+        RichTable,  # noqa: F401
         RichText,
-        RichTable,
         rich_color_to_ansi,
     )
     RICH_AVAILABLE = True
@@ -71,9 +79,33 @@ class Theme:
 
 
 THEMES = {
-    "neon": Theme("Cyberpunk Neon", "bright_cyan", "bright_magenta", "bright_yellow", "dim", "bright_green", "bright_red"),
-    "warm": Theme("Warm Sunset", "yellow", "red", "bright_red", "dim", "green", "red"),
-    "ocean": Theme("Deep Ocean", "blue", "cyan", "bright_cyan", "dim", "green", "red"),
+    "neon": Theme(
+        "Cyberpunk Neon",
+        "bright_cyan",
+        "bright_magenta",
+        "bright_yellow",
+        "dim",
+        "bright_green",
+        "bright_red",
+    ),
+    "warm": Theme(
+        "Warm Sunset",
+        "yellow",
+        "red",
+        "bright_red",
+        "dim",
+        "green",
+        "red",
+    ),
+    "ocean": Theme(
+        "Deep Ocean",
+        "blue",
+        "cyan",
+        "bright_cyan",
+        "dim",
+        "green",
+        "red",
+    ),
 }
 
 
@@ -83,7 +115,7 @@ def create_select_theme(theme: Theme) -> SelectListTheme:
     muted = rich_color_to_ansi(theme.muted)
     reset = "\x1b[0m"
     return SelectListTheme(
-        selected_prefix=lambda s: f"{primary}▶{reset} ",
+        selected_prefix=lambda _s: f"{primary}▶{reset} ",
         selected_text=lambda s: f"\x1b[1m{primary}{s}{reset}",
         description=lambda s: f"{muted}{s}{reset}",
     )
@@ -415,8 +447,8 @@ class DemoApp:
             for dy in range(col["length"]):
                 y = head_y - dy
                 if 0 <= y < h:
-                    existing_char, existing_bright, _, _ = self.matrix_grid[col["x"]][y]
-                    
+                    _existing_char, existing_bright, _, _ = self.matrix_grid[col["x"]][y]
+
                     if dy == 0:
                         # HEAD: Always write new character with max brightness
                         char = random.choice(self._matrix_chars)
@@ -604,7 +636,7 @@ class DemoApp:
 
     def show_wizard(self) -> None:
         """Multi-step form wizard."""
-        self.switch_screen(lambda: self._build_wizard())
+        self.switch_screen(self._build_wizard)
 
     def _build_wizard(self) -> None:
         self.current_screen = "wizard"

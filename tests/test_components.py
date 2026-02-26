@@ -1,4 +1,7 @@
-"""Tests for Container, Box, Text, and Spacer components - ported from pi-tui."""
+"""Tests for Container, Box, Text, and Spacer components.
+
+Ported from pi-tui.
+"""
 
 from pypitui import Box, Container, Spacer, Text, visible_width
 
@@ -21,7 +24,8 @@ class TestText:
         lines = text.render(20)
 
         # With 5 padding on each side, content is padded to full width:
-        # 5 left + 2 content + 13 right = 20 (or close to it due to wrap_text_with_ansi)
+        # 5 left + 2 content + 13 right = 20 (or close to it
+        # due to wrap_text_with_ansi)
         for line in lines:
             if line.strip():
                 assert visible_width(line) <= 20

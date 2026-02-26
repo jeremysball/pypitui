@@ -4,6 +4,10 @@ Supports both legacy terminal sequences and Kitty keyboard protocol.
 See: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
 """
 
+# ruff: noqa: RUF002, RUF003
+# RUF002/RUF003: Intentional Cyrillic characters in documentation
+# about Kitty keyboard protocol handling for non-Latin keyboards
+
 from __future__ import annotations
 
 import re
@@ -11,13 +15,10 @@ import re
 # Global Kitty protocol state
 _kitty_protocol_active: bool = False
 
-# Last key event type for Kitty protocol
-_last_key_event_type: str = "press"
-
 
 def set_kitty_protocol_active(active: bool) -> None:
     """Set the global Kitty keyboard protocol state."""
-    global _kitty_protocol_active
+    global _kitty_protocol_active  # noqa: PLW0603
     _kitty_protocol_active = active
 
 
@@ -26,20 +27,10 @@ def is_kitty_protocol_active() -> bool:
     return _kitty_protocol_active
 
 
-def is_key_release(data: str) -> bool:
-    """Check if the last parsed key event was a key release.
-
-    Only meaningful when Kitty keyboard protocol with flag 2 is active.
-    """
-    return _last_key_event_type == "release"
-
-
-def is_key_repeat(data: str) -> bool:
-    """Check if the last parsed key event was a key repeat.
-
-    Only meaningful when Kitty keyboard protocol with flag 2 is active.
-    """
-    return _last_key_event_type == "repeat"
+# Event type constants for Kitty protocol
+EVENT_PRESS = "press"
+EVENT_REPEAT = "repeat"
+EVENT_RELEASE = "release"
 
 
 # Key type definitions
@@ -236,7 +227,8 @@ CTRL_CHARS: dict[str, str] = {
 #
 # Examples:
 #   ESC[97;2u           - shift+a (key=97, mods=2=1+1=shift)
-#   ESC[1089::99;5u     - Ctrl+Cyrillic-с with base Latin-c (key=1089, base=99, mods=5=1+4=ctrl)
+#   ESC[1089::99;5u     - Ctrl+Cyrillic-с with base Latin-c
+#                         (key=1089, base=99, mods=5=1+4=ctrl)
 #   ESC[99;5u           - Ctrl+c (key=99, mods=5=1+4=ctrl)
 KITTY_CSI_U_PATTERN = re.compile(
     r"\x1b\[(\d+)"          # key (mandatory)
@@ -286,15 +278,16 @@ def _parse_kitty_csi_u(data: str) -> tuple[str, str] | None:
     The Kitty protocol format is:
         ESC [ key[:shifted[:base]] ; modifiers[:event] u
 
-    When a base layout key is provided (for non-Latin keyboards), we use it
-    for shortcut matching. E.g., Ctrl+Cyrillic-с with base=99 matches ctrl+c.
+    When a base layout key is provided (for non-Latin keyboards),
+    we use it for shortcut matching. E.g., Ctrl+Cyrillic-с
+    (with base=99) matches ctrl+c.
     """
     match = KITTY_CSI_U_PATTERN.match(data)
     if not match:
         return None
 
     # Groups: key, shifted, base, modifiers, event
-    key_str, shifted_str, base_str, mods_str, event_str = match.groups()
+    key_str, _shifted_str, base_str, mods_str, event_str = match.groups()
 
     key_code = int(key_str)
     # Modifiers are encoded as 1 + actual_modifiers
@@ -336,43 +329,40 @@ def _parse_kitty_csi_u(data: str) -> tuple[str, str] | None:
     return (base_key, event_type)
 
 
-def parse_key(data: str) -> str | None:
-    """Parse input data and return the key identifier if recognized.
+def parse_key(data: str) -> tuple[str | None, str]:
+    """Parse input data and return the key identifier and event type.
 
     Args:
         data: Raw input data from terminal
 
     Returns:
-        Key identifier string (e.g., "ctrl+c", "escape") or None
+        Tuple of (key_id, event_type) where key_id is the key identifier
+        string (e.g., "ctrl+c", "escape") or None if unrecognized, and
+        event_type is "press", "repeat", or "release" (always "press"
+        for non-Kitty protocols).
     """
-    global _last_key_event_type
-
     if not data:
-        return None
+        return (None, EVENT_PRESS)
 
     # Try Kitty protocol first if active
     if _kitty_protocol_active:
         kitty_result = _parse_kitty_csi_u(data)
         if kitty_result:
-            key_id, event_type = kitty_result
-            _last_key_event_type = event_type
-            return key_id
-
-    _last_key_event_type = "press"
+            return kitty_result
 
     # Check legacy escape sequences
     if data in LEGACY_SEQUENCES:
-        return LEGACY_SEQUENCES[data]
+        return (LEGACY_SEQUENCES[data], EVENT_PRESS)
 
     # Check control characters
     if data in CTRL_CHARS:
-        return CTRL_CHARS[data]
+        return (CTRL_CHARS[data], EVENT_PRESS)
 
     # Single printable character
     if len(data) == 1 and ord(data[0]) >= 32 and ord(data[0]) < 127:
-        return data.lower()
+        return (data.lower(), EVENT_PRESS)
 
-    return None
+    return (None, EVENT_PRESS)
 
 
 def matches_key(data: str, key_id: KeyId) -> bool:
@@ -395,7 +385,7 @@ def matches_key(data: str, key_id: KeyId) -> bool:
     Returns:
         True if input matches the key identifier
     """
-    parsed = parse_key(data)
+    parsed, _event_type = parse_key(data)
     if parsed is None:
         return False
 

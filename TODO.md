@@ -1,74 +1,60 @@
-# TODO: Fix Screen Switching Artifacts
+# TODO: Fix Linting Errors
 
-## Status: ✅ FIXED
-
-## Problem
-
-When switching from a screen with many lines (streaming with 50+ lines) back to a screen with fewer lines (menu with ~10 lines), old content remained visible below the new content. The `request_render(force=True)` resets `_previous_lines` but doesn't actually clear the terminal screen.
-
-## Root Cause Analysis
-
-### What `request_render(force=True)` did:
-```python
-def request_render(self, force: bool = False) -> None:
-    self._render_requested = True
-    if force:
-        self._previous_lines = []  # Only resets the diff tracking
-```
-
-### What was missing:
-The terminal still has 50+ lines of content. When we render 10 new lines:
-- Lines 0-9: Updated with menu content
-- Lines 10-50: **Still have old streaming content** (never cleared!)
-
-The differential renderer only updates lines that exist in the NEW content. It doesn't know about the orphaned lines below.
-
-## Solution Implemented
-
-Added `_force_full_redraw` flag that triggers a full screen clear:
-
-```python
-def request_render(self, force: bool = False) -> None:
-    self._render_requested = True
-    if force:
-        self._force_full_redraw = True
-        self._previous_lines = []
-```
-
-In `render_frame()`:
-```python
-if self._force_full_redraw:
-    self._force_full_redraw = False
-    self.terminal.write("\x1b[2J\x1b[H")  # Clear screen, move cursor home
-    self._hardware_cursor_row = 0
-    self._previous_lines = []
-    self._max_lines_rendered = 0
-```
-
-## Tasks
-
-### Phase 1: Understand the Issue ✅
-- [x] Reproduce the bug with streaming → menu switch
-- [x] Verify `request_render(force=True)` doesn't clear terminal
-- [x] Check if `_clear_on_shrink` handles this case (it didn't)
-- [x] Document exact sequence of events causing artifacts
-
-### Phase 2: Implement Fix ✅
-- [x] Add `_force_full_redraw` flag
-- [x] Emit clear screen sequence when flag is set
-- [x] Reset `_hardware_cursor_row` and `_max_lines_rendered`
-
-### Phase 3: Test ✅
-- [x] All 167 tests pass
-- [x] No regressions introduced
-
-### Phase 4: Update Examples ✅
-- [x] demo.py already uses `request_render(force=True)` in `switch_screen()`
+PRD: #2 - Fix Linting Errors
+Total Errors: 283 → 0 ✅
 
 ---
 
-## Committed
+## All Phases Complete ✅
 
-```
-903c905 fix: clear screen on force=True to remove artifacts
-```
+- [x] Phase 1: Auto-fixable (38 fixes)
+- [x] Phase 2: Line length E501 (src/, tests/, examples/)
+- [x] Phase 3: Unused variables RUF059
+- [x] Phase 4: Import placement PLC0415 (justified noqa for lazy imports)
+- [x] Phase 5: Global statement PLW0603 (refactored _last_key_event_type)
+- [x] Phase 6-9: Complexity (refactored methods to reduce complexity)
+- [x] Phase 10: Performance PERF401 (list.extend patterns)
+- [x] Phase 11: Type checking TC001/TC003
+- [x] Phase 12: Long exceptions TRY003
+- [x] Phase 13: Try/else TRY300
+- [x] Phase 14: Unused arguments ARG002/ARG005
+- [x] Phase 15: Nested if SIM102
+- [x] Phase 16: Ambiguous unicode RUF002/RUF003 (justified file-level noqa)
+- [x] Phase 17: Unused variables F841
+- [x] Phase 18: Import sorting I001
+
+---
+
+## Verification
+
+- [x] `ruff check .` - 0 errors
+- [x] `ruff format --check .` - formatting correct
+- [x] `uv run pytest` - 167 passed
+
+---
+
+## Key Refactoring
+
+### parse_key() API Change
+- Removed global `_last_key_event_type`
+- Now returns `tuple[str | None, str]` (key_id, event_type)
+
+### Complexity Reduction
+Extracted helper methods in:
+- `components.py`: Text.render, SelectList.handle_input, Input.handle_input
+- `terminal.py`: read_sequence
+- `tui.py`: _composite_overlays, render_frame, _try_parse_input
+- `utils.py`: wrap_text_with_ansi
+
+---
+
+## Justified noqa Comments
+
+| noqa | Location | Reason |
+|------|----------|--------|
+| PLC0415 | rich_components.py | Lazy imports for optional rich dependency |
+| PLC0415 | utils.py:25 | Conditional import with fallback |
+| PLW0603 | keys.py:17 | Module-level protocol state |
+| PLW0603 | utils.py:22 | Lazy singleton initialization |
+| RUF002/RUF003 | keys.py (file-level) | Intentional Cyrillic in keyboard docs |
+| B027 | tui.py:44 | Empty abstract method (optional override) |

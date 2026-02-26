@@ -5,12 +5,20 @@ Ported from @mariozechner/pi-tui's component library.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .keys import Key, matches_key
 from .tui import CURSOR_MARKER, Component, Focusable
 from .utils import truncate_to_width, visible_width, wrap_text_with_ansi
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+_RICH_REQUIRED_MSG = (
+    "This feature requires 'rich' package. "
+    "Install with: pip install pypitui[rich]"
+)
 
 
 class Text(Component):
@@ -49,6 +57,25 @@ class Text(Component):
         self._cached_width = None
         self._cached_lines = None
 
+    def _strip_trailing_reset(self, line: str) -> str:
+        """Strip trailing ANSI reset codes from a line."""
+        while line.endswith("\x1b[0m"):
+            line = line[:-4]
+        return line
+
+    def _apply_background(self, lines: list[str], width: int) -> list[str]:
+        """Apply custom background function to all lines."""
+        if not self._custom_bg_fn:
+            return lines
+        bg_lines = []
+        for line in lines:
+            current = self._strip_trailing_reset(line)
+            visible = visible_width(current)
+            if visible < width:
+                current += " " * (width - visible)
+            bg_lines.append(self._custom_bg_fn(current))
+        return bg_lines
+
     def render(self, width: int) -> list[str]:
         """Render text with padding and wrapping."""
         # Check cache
@@ -69,36 +96,19 @@ class Text(Component):
 
             # Add horizontal padding
             lines = []
-            for _ in range(self._padding_y):
-                lines.append(" " * width)
+            lines.extend([" " * width for _ in range(self._padding_y)])
 
             for line in wrapped:
-                # Strip trailing reset codes from wrap_text_with_ansi
-                # They interfere with background color application
-                while line.endswith("\x1b[0m"):
-                    line = line[:-4]
-                visible = visible_width(line)
+                current = self._strip_trailing_reset(line)
+                visible = visible_width(current)
                 padding = " " * self._padding_x
                 right_padding = " " * (width - visible - self._padding_x * 2)
-                lines.append(padding + line + right_padding)
+                lines.append(padding + current + right_padding)
 
-            for _ in range(self._padding_y):
-                lines.append(" " * width)
+            lines.extend([" " * width for _ in range(self._padding_y)])
 
-        # Apply background - ensure full width padding first
-        if self._custom_bg_fn:
-            bg_lines = []
-            for line in lines:
-                # Remove trailing reset codes that would clear the background
-                # before we apply our background function (wrap_text_with_ansi adds these)
-                while line.endswith("\x1b[0m"):
-                    line = line[:-4]
-                # Pad to full width before applying background
-                visible = visible_width(line)
-                if visible < width:
-                    line += " " * (width - visible)
-                bg_lines.append(self._custom_bg_fn(line))
-            lines = bg_lines
+        # Apply background
+        lines = self._apply_background(lines, width)
 
         # Cache
         self._cached_lines = lines
@@ -165,8 +175,10 @@ class Box(Component):
         lines: list[str] = []
 
         # Top padding
-        for _ in range(self._padding_y):
-            lines.append(self._apply_bg(" " * width, width))
+        lines.extend(
+            self._apply_bg(" " * width, width)
+            for _ in range(self._padding_y)
+        )
 
         # Render children
         for child in self.children:
@@ -179,8 +191,10 @@ class Box(Component):
                 lines.append(self._apply_bg(padded, width))
 
         # Bottom padding
-        for _ in range(self._padding_y):
-            lines.append(self._apply_bg(" " * width, width))
+        lines.extend(
+            self._apply_bg(" " * width, width)
+            for _ in range(self._padding_y)
+        )
 
         # Cache
         self._cache = (width, lines)
@@ -231,7 +245,8 @@ class BorderedBox(Component):
             padding_x: Horizontal padding inside the box (default 1)
             padding_y: Vertical padding inside the box (default 0)
             min_width: Minimum width for the box (default 10)
-            max_width: Maximum width for the box (default None = use render width)
+            max_width: Maximum width for the box (default None =
+                use render width)
             title: Optional title to display in the top border
         """
         self.children: list[Component] = []
@@ -264,15 +279,12 @@ class BorderedBox(Component):
             box.set_rich_title("[bold cyan]My Panel[/bold cyan]")
         """
         try:
-            from .rich_components import rich_to_ansi
+            from .rich_components import rich_to_ansi  # noqa: PLC0415
 
             self._title = rich_to_ansi(markup)
             self._invalidate_cache()
         except ImportError as e:
-            raise ImportError(
-                "set_rich_title() requires 'rich' package. "
-                "Install with: pip install pypitui[rich]"
-            ) from e
+            raise ImportError(_RICH_REQUIRED_MSG) from e
 
     def add_child(self, component: Component) -> None:
         """Add a child component."""
@@ -337,10 +349,13 @@ class BorderedBox(Component):
         lines.append(top_border)
 
         # Top padding (if any)
-        for _ in range(self._padding_y):
-            lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
+        lines.extend(
+            self.VERTICAL + " " * (width - 2) + self.VERTICAL
+            for _ in range(self._padding_y)
+        )
 
-        # Title (if provided) - appears as first content line with separator after
+        # Title (if provided) - appears as first content line
+        # with separator after
         if self._title:
             # Title line with padding
             title_padded = (
@@ -377,8 +392,10 @@ class BorderedBox(Component):
                 lines.append(self.VERTICAL + padded_content + self.VERTICAL)
 
         # Bottom padding (if any)
-        for _ in range(self._padding_y):
-            lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
+        lines.extend(
+            self.VERTICAL + " " * (width - 2) + self.VERTICAL
+            for _ in range(self._padding_y)
+        )
 
         # Bottom border
         bottom_border = (
@@ -458,7 +475,7 @@ class Spacer(Component):
         """No cache to invalidate."""
         pass
 
-    def render(self, width: int) -> list[str]:
+    def render(self, _width: int) -> list[str]:
         """Render empty lines."""
         return [""] * self._height
 
@@ -594,38 +611,63 @@ class SelectList(Component):
 
         return lines
 
+    def _handle_up(self) -> bool:
+        """Handle up arrow key."""
+        if self._selected_index > 0:
+            self._selected_index -= 1
+        else:
+            self._selected_index = len(self._filtered_items) - 1
+        self._notify_selection_change()
+        return True
+
+    def _handle_down(self) -> bool:
+        """Handle down arrow key."""
+        if self._selected_index < len(self._filtered_items) - 1:
+            self._selected_index += 1
+        else:
+            self._selected_index = 0
+        self._notify_selection_change()
+        return True
+
+    def _handle_enter(self) -> bool:
+        """Handle enter key."""
+        if self._filtered_items and self.on_select:
+            self.on_select(self._filtered_items[self._selected_index])
+        return True
+
+    def _handle_escape(self) -> bool:
+        """Handle escape key."""
+        if self._filter:
+            self.set_filter("")
+        elif self.on_cancel:
+            self.on_cancel()
+        return True
+
+    def _handle_backspace(self) -> bool:
+        """Handle backspace key."""
+        if self._filter:
+            self.set_filter(self._filter[:-1])
+        return True
+
+    def _handle_char(self, char: str) -> bool:
+        """Handle printable character."""
+        self.set_filter(self._filter + char.lower())
+        return True
+
     def handle_input(self, data: str) -> None:
         """Handle keyboard input."""
         if matches_key(data, Key.up):
-            if self._selected_index > 0:
-                self._selected_index -= 1
-            else:
-                # Wrap around to bottom
-                self._selected_index = len(self._filtered_items) - 1
-            self._notify_selection_change()
+            self._handle_up()
         elif matches_key(data, Key.down):
-            if self._selected_index < len(self._filtered_items) - 1:
-                self._selected_index += 1
-            else:
-                # Wrap around to top
-                self._selected_index = 0
-            self._notify_selection_change()
+            self._handle_down()
         elif matches_key(data, Key.enter):
-            if self._filtered_items and self.on_select:
-                self.on_select(self._filtered_items[self._selected_index])
+            self._handle_enter()
         elif matches_key(data, Key.escape):
-            if self._filter:
-                # Clear filter on first escape
-                self.set_filter("")
-            elif self.on_cancel:
-                self.on_cancel()
+            self._handle_escape()
         elif matches_key(data, Key.backspace):
-            # Remove last character from filter
-            if self._filter:
-                self.set_filter(self._filter[:-1])
+            self._handle_backspace()
         elif len(data) == 1 and ord(data[0]) >= 32:
-            # Printable character - add to filter
-            self.set_filter(self._filter + data.lower())
+            self._handle_char(data)
 
 
 class Input(Component, Focusable):
@@ -688,55 +730,108 @@ class Input(Component, Focusable):
 
         if self._focused:
             # Use reverse video for cursor
-            line = f"{before_cursor}{CURSOR_MARKER}\x1b[7m{at_cursor}\x1b[27m{after_cursor}"
+            # Use reverse video for cursor
+            line = (
+                f"{before_cursor}{CURSOR_MARKER}"
+                f"\x1b[7m{at_cursor}\x1b[27m{after_cursor}"
+            )
         else:
             line = f"{before_cursor}{at_cursor}{after_cursor}"
 
         return [truncate_to_width(line, width)]
 
-    def handle_input(self, data: str) -> None:
-        """Handle keyboard input."""
+    def _move_cursor_left(self) -> None:
+        """Move cursor left."""
+        if self._cursor_pos > 0:
+            self._cursor_pos -= 1
+
+    def _move_cursor_right(self) -> None:
+        """Move cursor right."""
+        if self._cursor_pos < len(self._text):
+            self._cursor_pos += 1
+
+    def _delete_before_cursor(self) -> None:
+        """Delete character before cursor (backspace)."""
+        if self._cursor_pos > 0:
+            self._text = (
+                self._text[: self._cursor_pos - 1]
+                + self._text[self._cursor_pos :]
+            )
+            self._cursor_pos -= 1
+
+    def _delete_at_cursor(self) -> None:
+        """Delete character at cursor (delete key)."""
+        if self._cursor_pos < len(self._text):
+            self._text = (
+                self._text[: self._cursor_pos]
+                + self._text[self._cursor_pos + 1 :]
+            )
+
+    def _delete_to_start(self) -> None:
+        """Delete from cursor to start of line."""
+        self._text = self._text[self._cursor_pos :]
+        self._cursor_pos = 0
+
+    def _delete_to_end(self) -> None:
+        """Delete from cursor to end of line."""
+        self._text = self._text[: self._cursor_pos]
+
+    def _insert_char(self, char: str) -> None:
+        """Insert character at cursor position."""
+        self._text = (
+            self._text[: self._cursor_pos]
+            + char
+            + self._text[self._cursor_pos :]
+        )
+        self._cursor_pos += 1
+
+    def _handle_cursor_movement(self, data: str) -> bool:
+        """Handle cursor movement keys. Returns True if handled."""
         if matches_key(data, Key.left):
-            if self._cursor_pos > 0:
-                self._cursor_pos -= 1
+            self._move_cursor_left()
         elif matches_key(data, Key.right):
-            if self._cursor_pos < len(self._text):
-                self._cursor_pos += 1
+            self._move_cursor_right()
         elif matches_key(data, Key.home) or matches_key(data, Key.ctrl("a")):
             self._cursor_pos = 0
         elif matches_key(data, Key.end) or matches_key(data, Key.ctrl("e")):
             self._cursor_pos = len(self._text)
-        elif matches_key(data, Key.backspace):
-            if self._cursor_pos > 0:
-                self._text = (
-                    self._text[: self._cursor_pos - 1]
-                    + self._text[self._cursor_pos :]
-                )
-                self._cursor_pos -= 1
+        else:
+            return False
+        return True
+
+    def _handle_deletion(self, data: str) -> bool:
+        """Handle deletion keys. Returns True if handled."""
+        if matches_key(data, Key.backspace):
+            self._delete_before_cursor()
         elif matches_key(data, Key.delete):
-            if self._cursor_pos < len(self._text):
-                self._text = (
-                    self._text[: self._cursor_pos]
-                    + self._text[self._cursor_pos + 1 :]
-                )
+            self._delete_at_cursor()
         elif matches_key(data, Key.ctrl("u")):
-            # Delete to start of line
-            self._text = self._text[self._cursor_pos :]
-            self._cursor_pos = 0
+            self._delete_to_start()
         elif matches_key(data, Key.ctrl("k")):
-            # Delete to end of line
-            self._text = self._text[: self._cursor_pos]
-        elif matches_key(data, Key.escape):
+            self._delete_to_end()
+        else:
+            return False
+        return True
+
+    def _handle_action(self, data: str) -> bool:
+        """Handle action keys (escape, enter). Returns True if handled."""
+        if matches_key(data, Key.escape):
             if self.on_cancel:
                 self.on_cancel()
         elif matches_key(data, Key.enter):
             if self.on_submit:
                 self.on_submit(self._text)
-        elif len(data) == 1 and ord(data[0]) >= 32:
-            # Printable character
-            self._text = (
-                self._text[: self._cursor_pos]
-                + data
-                + self._text[self._cursor_pos :]
-            )
-            self._cursor_pos += 1
+        else:
+            return False
+        return True
+
+    def handle_input(self, data: str) -> None:
+        """Handle keyboard input."""
+        if self._handle_cursor_movement(data):
+            return
+        if self._handle_deletion(data):
+            return
+        if self._handle_action(data):
+            return
+        if len(data) == 1 and ord(data[0]) >= 32:
+            self._insert_char(data)

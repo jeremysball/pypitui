@@ -9,6 +9,11 @@ from __future__ import annotations
 from .tui import Component
 from .utils import visible_width
 
+_RICH_REQUIRED_MSG = (
+    "This component requires 'rich' package. "
+    "Install with: pip install pypitui[rich]"
+)
+
 
 class Markdown(Component):
     """Render markdown using Rich library.
@@ -63,13 +68,10 @@ class Markdown(Component):
     def _render_with_rich(self, width: int) -> list[str]:
         """Render markdown using Rich."""
         try:
-            from rich.console import Console
-            from rich.markdown import Markdown as RichMarkdown
+            from rich.console import Console  # noqa: PLC0415
+            from rich.markdown import Markdown as RichMarkdown  # noqa: PLC0415
         except ImportError as e:
-            raise ImportError(
-                "Markdown component requires 'rich' package. "
-                "Install with: pip install pypitui[rich]"
-            ) from e
+            raise ImportError(_RICH_REQUIRED_MSG) from e
 
         # Calculate content width
         content_width = width - self._padding_x * 2
@@ -109,8 +111,7 @@ class Markdown(Component):
         lines: list[str] = []
 
         # Top padding
-        for _ in range(self._padding_y):
-            lines.append(" " * width)
+        lines.extend(" " * width for _ in range(self._padding_y))
 
         # Render markdown
         md_lines = self._render_with_rich(width)
@@ -125,8 +126,7 @@ class Markdown(Component):
                 lines.append(padded)
 
         # Bottom padding
-        for _ in range(self._padding_y):
-            lines.append(" " * width)
+        lines.extend(" " * width for _ in range(self._padding_y))
 
         # Cache result
         self._cache = (width, lines)
@@ -168,13 +168,10 @@ class RichText(Component):
             return self._cache[1]
 
         try:
-            from rich.console import Console
-            from rich.text import Text as RichTextLib
+            from rich.console import Console  # noqa: PLC0415
+            from rich.text import Text as RichTextLib  # noqa: PLC0415
         except ImportError as e:
-            raise ImportError(
-                "RichText component requires 'rich' package. "
-                "Install with: pip install pypitui[rich]"
-            ) from e
+            raise ImportError(_RICH_REQUIRED_MSG) from e
 
         content_width = width - self._padding_x * 2
         if content_width <= 0:
@@ -183,8 +180,7 @@ class RichText(Component):
         lines: list[str] = []
 
         # Top padding
-        for _ in range(self._padding_y):
-            lines.append(" " * width)
+        lines.extend(" " * width for _ in range(self._padding_y))
 
         # Parse and render
         console = Console(
@@ -205,8 +201,7 @@ class RichText(Component):
                 lines.append(padded)
 
         # Bottom padding
-        for _ in range(self._padding_y):
-            lines.append(" " * width)
+        lines.extend(" " * width for _ in range(self._padding_y))
 
         self._cache = (width, lines)
         return lines
@@ -267,13 +262,10 @@ class RichTable(Component):
             return self._cache[1]
 
         try:
-            from rich.console import Console
-            from rich.table import Table
+            from rich.console import Console  # noqa: PLC0415
+            from rich.table import Table  # noqa: PLC0415
         except ImportError as e:
-            raise ImportError(
-                "RichTable component requires 'rich' package. "
-                "Install with: pip install pypitui[rich]"
-            ) from e
+            raise ImportError(_RICH_REQUIRED_MSG) from e
 
         content_width = width - self._padding_x * 2
         if content_width <= 0:
@@ -282,14 +274,13 @@ class RichTable(Component):
         lines: list[str] = []
 
         # Top padding
-        for _ in range(self._padding_y):
-            lines.append(" " * width)
+        lines.extend(" " * width for _ in range(self._padding_y))
 
         # Build table
         table = Table(title=self._title if self._title else None)
 
         for col in self._columns:
-            name, style, justify = col
+            name, style, _justify = col
             table.add_column(name, style=style, justify="left")
 
         for row in self._rows:
@@ -312,8 +303,7 @@ class RichTable(Component):
                 lines.append(padded)
 
         # Bottom padding
-        for _ in range(self._padding_y):
-            lines.append(" " * width)
+        lines.extend(" " * width for _ in range(self._padding_y))
 
         self._cache = (width, lines)
         return lines
@@ -344,11 +334,12 @@ def rich_to_ansi(markup: str) -> str:
 
         # Convert to ANSI for SelectList
         label = rich_to_ansi("[bold cyan]Menu Item[/bold cyan]")
-        items = [SelectItem("key", label, rich_to_ansi("[dim]Description[/dim]"))]
+        items = [SelectItem("key", label,
+                            rich_to_ansi("[dim]Description[/dim]"))]
     """
-    from io import StringIO
+    from io import StringIO  # noqa: PLC0415
 
-    from rich.console import Console
+    from rich.console import Console  # noqa: PLC0415
 
     buf = StringIO()
     console = Console(
@@ -376,8 +367,8 @@ def rich_color_to_ansi(color: str) -> str:
     if not color:
         return ""
 
-    from rich.console import Console
-    from rich.text import Text
+    from rich.console import Console  # noqa: PLC0415
+    from rich.text import Text  # noqa: PLC0415
 
     # Create a Console to render the color
     console = Console(force_terminal=True, legacy_windows=False)
@@ -389,7 +380,8 @@ def rich_color_to_ansi(color: str) -> str:
 
     result = capture.get()
     # Remove the "X" character, leaving only the ANSI codes
-    # Result may be "\x1b[1;31mX\x1b[0m" or "\x1b[1;31mX" depending on Rich version
+    # Result may be "\x1b[1;31mX\x1b[0m" or "\x1b[1;31mX"
+    # depending on Rich version
     if "X" in result:
         # Find the position of X and take everything before it
         x_pos = result.index("X")

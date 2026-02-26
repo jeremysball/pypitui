@@ -1,6 +1,6 @@
 """Tests for Input component - ported from pi-tui."""
 
-from pypitui import Input
+from pypitui import CURSOR_MARKER, Input
 
 
 class TestInputComponent:
@@ -179,8 +179,6 @@ class TestInputComponent:
 
     def test_focused_shows_cursor(self):
         """Focused input shows cursor marker."""
-        from pypitui import CURSOR_MARKER
-
         input_cmp = Input()
         input_cmp.handle_input("h")
         input_cmp.handle_input("i")
@@ -191,8 +189,6 @@ class TestInputComponent:
 
     def test_not_focused_no_cursor_marker(self):
         """Not focused input has no cursor marker."""
-        from pypitui import CURSOR_MARKER
-
         input_cmp = Input()
         input_cmp.handle_input("h")
         input_cmp.handle_input("i")

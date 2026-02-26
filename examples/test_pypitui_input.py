@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
+# ruff: noqa: C901
+# C901: Test script complexity acceptable
+
 """Test script using pypitui to verify arrow keys work."""
 
-from pypitui import ProcessTerminal, matches_key, Key
+import sys
+
+from pypitui import Key, ProcessTerminal, matches_key
 
 
 def main():
@@ -37,9 +42,7 @@ def main():
                     key_name = "Q (quit)"
 
                 # Use write to avoid line buffering issues in raw mode
-                import sys
-
-                sys.stdout.write(f"\r\x1b[KGot: {repr(data)}")
+                sys.stdout.write(f"\r\x1b[KGot: {data!r}")
                 if key_name:
                     sys.stdout.write(f" -> {key_name}")
                 sys.stdout.write("\r\n")
