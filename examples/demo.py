@@ -270,11 +270,11 @@ class DemoApp:
         self.matrix_w = max(40, w)
         self.matrix_h = max(10, h - 5)  # Reserve 5 lines for UI
 
-        # Initialize columns with slower speeds
+        # Initialize columns - some start visible for immediate effect
         self.matrix_columns = [
             {
-                "y": random.randint(-30, 0),
-                "speed": random.uniform(0.15, 0.4),  # Slower
+                "y": random.randint(-10, self.matrix_h // 2),  # Some visible immediately
+                "speed": random.uniform(0.15, 0.4),
                 "len": random.randint(8, 20),
                 "color_idx": random.randint(0, len(self.RAINBOW) - 1),
             }
@@ -302,12 +302,17 @@ class DemoApp:
             return
 
         now = time.time()
-        dt = now - self._last_matrix if self._last_matrix > 0 else 0.016
-        self._last_matrix = now
-
-        # Target ~30 FPS for matrix (smoother but not too fast)
-        if dt < 0.033:
-            return
+        
+        # First frame - initialize and render immediately
+        if self._last_matrix == 0:
+            self._last_matrix = now
+            dt = 0.033  # Fake dt to get first frame
+        else:
+            dt = now - self._last_matrix
+            # Target ~30 FPS for matrix
+            if dt < 0.033:
+                return
+            self._last_matrix = now
 
         w, h = self.matrix_w, self.matrix_h
 
