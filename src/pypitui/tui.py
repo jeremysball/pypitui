@@ -278,6 +278,7 @@ class TUI(Container):
 
         # Rendering state
         self._render_requested = False
+        self._force_full_redraw = False
         self._cursor_row: int = 0
         self._hardware_cursor_row: int = -1
         self._input_buffer: str = ""
@@ -430,10 +431,11 @@ class TUI(Container):
         """Request a render on next frame.
 
         Args:
-            force: If True, force full redraw (clear differential rendering cache)
+            force: If True, force full redraw (clears screen and resets differential cache)
         """
         self._render_requested = True
         if force:
+            self._force_full_redraw = True
             self._previous_lines = []
 
     def handle_input(self, data: str) -> None:
@@ -756,6 +758,14 @@ class TUI(Container):
 
         # Get terminal size
         term_width, term_height = self.terminal.get_size()
+
+        # Force full redraw - clear screen and reset state
+        if self._force_full_redraw:
+            self._force_full_redraw = False
+            self.terminal.write("\x1b[2J\x1b[H")  # Clear screen, move cursor home
+            self._hardware_cursor_row = 0
+            self._previous_lines = []
+            self._max_lines_rendered = 0
 
         # Check for terminal resize
         current_size = (term_width, term_height)
