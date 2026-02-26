@@ -797,18 +797,6 @@ class TUI(Container):
         previous_count = len(self._previous_lines)
         current_count = len(lines)
 
-        # Check if any visible content changed
-        content_changed = False
-        if current_count != previous_count:
-            content_changed = True
-        else:
-            # Compare visible portion
-            start = max(0, current_count - term_height)
-            for i in range(start, current_count):
-                if i >= len(self._previous_lines) or self._previous_lines[i] != lines[i]:
-                    content_changed = True
-                    break
-
         # Handle content growth - emit newlines to scroll old content into scrollback
         if current_count > term_height and current_count > previous_count:
             # New content exceeds terminal - need to scroll
@@ -829,32 +817,35 @@ class TUI(Container):
             # Reset our tracking to match
             self._hardware_cursor_row = term_height - 1
 
-        # Always redraw visible viewport when content changed (scrollback mode safety)
-        if content_changed:
-            if current_count > term_height:
-                # Content exceeds terminal - render visible portion only
-                first_visible = current_count - term_height
+        # OPTIMAL DIFFERENTIAL RENDERING: Only update changed lines
+        if current_count > term_height:
+            # Content exceeds terminal - render only changed visible lines
+            first_visible = current_count - term_height
 
-                for screen_row in range(term_height):
-                    content_row = first_visible + screen_row
-                    if content_row >= len(lines):
-                        break
+            for screen_row in range(term_height):
+                content_row = first_visible + screen_row
+                if content_row >= len(lines):
+                    break
 
+                # Only render if line changed
+                if content_row >= len(self._previous_lines) or self._previous_lines[content_row] != lines[content_row]:
                     buffer += self._move_cursor_relative(screen_row)
-                    buffer += "\r\x1b[2K"  # Clear line first
+                    buffer += "\r\x1b[2K"
                     buffer += lines[content_row]
-            else:
-                # Content fits in terminal
-                for i, line in enumerate(lines):
+        else:
+            # Content fits in terminal - render only changed lines
+            for i, line in enumerate(lines):
+                # Only render if line changed
+                if i >= len(self._previous_lines) or self._previous_lines[i] != line:
                     buffer += self._move_cursor_relative(i)
-                    buffer += "\r\x1b[2K"  # Clear line first
+                    buffer += "\r\x1b[2K"
                     buffer += line
 
-                # Clear remaining lines if content shrank
-                if self._clear_on_shrink and current_count < previous_count:
-                    for i in range(current_count, previous_count):
-                        buffer += self._move_cursor_relative(i)
-                        buffer += "\r\x1b[2K"
+            # Clear orphaned lines if content shrank
+            if self._clear_on_shrink and current_count < previous_count:
+                for i in range(current_count, previous_count):
+                    buffer += self._move_cursor_relative(i)
+                    buffer += "\r\x1b[2K"
 
         # End synchronized output and flush
         buffer += self._end_sync()
