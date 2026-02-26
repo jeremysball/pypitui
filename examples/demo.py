@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
-"""PyPiTUI Ultimate Demo - Full Rich Theme Integration
+"""PyPiTUI Demo - Proper Differential Rendering Patterns.
 
-Demonstrates how to use Rich markup to theme the ENTIRE UI.
-All text uses Rich markup instead of raw ANSI codes, making
-the entire interface themeable through Rich's style system.
+This demo shows the CORRECT way to use PyPiTUI:
+
+1. Use a root Container for screen switching
+2. Clear the CONTAINER, not the TUI
+3. For animations, update component state, don't rebuild everything
+4. Let differential rendering handle the rest
+
+Key patterns:
+- tui.add_child(root_container) once at init
+- root_container.children.clear() to switch screens
+- root_container.add_child() to build new screen
+- For streaming: just add_child() new content, never clear()
 """
 
 from __future__ import annotations
@@ -37,129 +46,42 @@ try:
         Markdown,
         RichText,
         RichTable,
-        rich_to_ansi,
         rich_color_to_ansi,
     )
-
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
 
 
 # =============================================================================
-# RICH THEME SYSTEM - All UI uses Rich markup
+# THEME SYSTEM
 # =============================================================================
 
 
 @dataclass
-class RichTheme:
-    """Rich-compatible theme using markup names instead of ANSI codes."""
-
+class Theme:
+    """Theme using Rich color names."""
     name: str
-    primary: str  # Rich color name
-    secondary: str  # Rich color name
-    accent: str  # Rich color name
-    muted: str  # Rich color name
-    success: str  # Rich color name
-    error: str  # Rich color name
+    primary: str
+    secondary: str
+    accent: str
+    muted: str
+    success: str
+    error: str
 
 
-THEMES: dict[str, RichTheme] = {
-    "neon": RichTheme(
-        name="Cyberpunk Neon",
-        primary="bright_cyan",
-        secondary="bright_magenta",
-        accent="bright_yellow",
-        muted="dim",
-        success="bright_green",
-        error="bright_red",
-    ),
-    "warm": RichTheme(
-        name="Warm Sunset",
-        primary="yellow",
-        secondary="red",
-        accent="bright_red",
-        muted="dim",
-        success="green",
-        error="red",
-    ),
-    "ocean": RichTheme(
-        name="Deep Ocean",
-        primary="blue",
-        secondary="cyan",
-        accent="bright_cyan",
-        muted="dim",
-        success="green",
-        error="red",
-    ),
+THEMES = {
+    "neon": Theme("Cyberpunk Neon", "bright_cyan", "bright_magenta", "bright_yellow", "dim", "bright_green", "bright_red"),
+    "warm": Theme("Warm Sunset", "yellow", "red", "bright_red", "dim", "green", "red"),
+    "ocean": Theme("Deep Ocean", "blue", "cyan", "bright_cyan", "dim", "green", "red"),
 }
 
-# =============================================================================
-# RENDER HELPERS - Convert Rich markup to ANSI for SelectList compatibility
-# =============================================================================
 
-
-# =============================================================================
-# RICH UI HELPERS - Everything uses Rich markup
-# =============================================================================
-
-
-def rich_header(
-    title: str, subtitle: str = "", theme: RichTheme | None = None
-) -> list[Component]:
-    """Create header using RichText for full theme integration."""
-    components: list[Component] = [Spacer(1)]
-
-    t = theme or THEMES["neon"]
-
-    # Title uses Rich markup via set_rich_title
-    box = BorderedBox(padding_x=2, max_width=45)
-    box.set_rich_title(f"[bold {t.primary}]{title}[/bold {t.primary}]")
-
-    if subtitle:
-        # RichText gets the theme styling
-        box.add_child(RichText(f"[{t.muted}]{subtitle}[/{t.muted}]"))
-
-    components.append(box)
-    components.append(Spacer(1))
-
-    return components
-
-
-def rich_text(content: str, theme: RichTheme, style: str = "") -> RichText:
-    """Create RichText with theme color.
-
-    PATTERN: Use Rich markup [color]text[/color] instead of ANSI codes.
-    This makes the entire UI themeable and consistent.
-    """
-    if style:
-        return RichText(f"[{theme.primary}]{content}[/{theme.primary}]")
-    return RichText(content)
-
-
-def rich_label(text: str, theme: RichTheme) -> RichText:
-    """Bold label using Rich markup."""
-    return RichText(f"[bold {theme.primary}]{text}[/bold {theme.primary}]")
-
-
-def rich_footer(
-    text: str = "ESC to go back", theme: RichTheme | None = None
-) -> RichText:
-    """Footer using Rich markup."""
-    t = theme or THEMES["neon"]
-    return RichText(f"[{t.muted}]{text}[/{t.muted}]")
-
-
-def create_rich_theme(theme: RichTheme) -> SelectListTheme:
-    """Create SelectList theme using ANSI colors.
-
-    GOTCHA: SelectList displays raw strings, not Rich-rendered markup.
-    Use ANSI codes for SelectList, RichText for everything else.
-    """
+def create_select_theme(theme: Theme) -> SelectListTheme:
+    """Create SelectList theme from Rich colors."""
     primary = rich_color_to_ansi(theme.primary)
     muted = rich_color_to_ansi(theme.muted)
     reset = "\x1b[0m"
-
     return SelectListTheme(
         selected_prefix=lambda s: f"{primary}▶{reset} ",
         selected_text=lambda s: f"\x1b[1m{primary}{s}{reset}",
@@ -171,37 +93,35 @@ def create_rich_theme(theme: RichTheme) -> SelectListTheme:
 # DEMO DATA
 # =============================================================================
 
-DEMO_ITEMS = [
-    ("splash", "🎨 Splash", "Animated intro"),
-    ("demoscene", "🔥 Demo Scene", "ANSI art animations"),
+MENU_ITEMS = [
+    ("streaming", "📊 Streaming", "Proper scrollback demo"),
+    ("matrix", "🌧️ Matrix Rain", "Efficient animation"),
     ("components", "🧩 Components", "UI building blocks"),
     ("wizard", "🧙 Form Wizard", "Multi-step input"),
     ("overlays", "🪟 Overlays", "Floating panels"),
-    ("themes", "🎨 Themes", "Visual styles"),
-    ("rich", "✨ Rich", "Markdown & tables"),
     ("about", "ℹ️  About", "Library info"),
 ]
 
-
-WIZARD_STEPS = [
-    ("Welcome", "Get started"),
-    ("Profile", "Your details"),
-    ("Theme", "Choose style"),
-    ("Complete", "Done!"),
-]
+WIZARD_STEPS = ["Welcome", "Profile", "Theme", "Complete"]
 
 
 # =============================================================================
-# MAIN APPLICATION - All UI uses Rich theming
+# MAIN APPLICATION
 # =============================================================================
 
 
-class UltimateDemoApp:
-    """Demo with full Rich theme integration throughout the UI."""
+class DemoApp:
+    """Demo with proper differential rendering patterns."""
 
     def __init__(self):
         self.terminal = ProcessTerminal()
         self.tui = TUI(self.terminal, show_hardware_cursor=True)
+
+        # ✅ CORRECT PATTERN: Root container for screen switching
+        # We clear THIS container, not the TUI
+        self.root = Container()
+        self.tui.add_child(self.root)
+
         self.running = True
         self.current_screen = "menu"
         self.current_theme = "neon"
@@ -209,535 +129,345 @@ class UltimateDemoApp:
         self.form_data = {"name": "", "email": "", "theme": "neon"}
         self.overlay_handle = None
         self.animation_active = False
-        self.splash_frame = 0
 
-        self.build_menu()
+        # Animation state (for matrix)
+        self.matrix_columns = []
+        self.matrix_grid = []
 
-    def _theme(self) -> RichTheme:
-        """Get current Rich theme."""
+        self.show_menu()
+
+    def _theme(self) -> Theme:
         return THEMES[self.current_theme]
 
-    def _clear(self) -> None:
-        """Clear screen preserving TUI state."""
-        self.tui.clear()
+    def switch_screen(self, builder: Callable) -> None:
+        """Switch to a new screen - PROPER PATTERN.
 
-    def build_menu(self) -> None:
-        """Main menu with Rich-styled everything."""
-        self._clear()
-        self.current_screen = "menu"
+        Clear the root container, not the TUI.
+        This preserves _previous_lines for differential rendering.
+        """
         self.animation_active = False
+        self.root.children.clear()  # ✅ Clear container, NOT tui
+        builder()
 
+    def show_menu(self) -> None:
+        """Main menu."""
+        self.current_screen = "menu"
         t = self._theme()
 
-        # Header with Rich subtitle
-        for comp in rich_header("🐍 PyPiTUI", "Terminal UI Framework", t):
-            self.tui.add_child(comp)
+        # Header
+        header = BorderedBox(padding_x=2, max_width=45)
+        header.set_rich_title(f"[bold {t.primary}]🐍 PyPiTUI[/bold {t.primary}]")
+        header.add_child(RichText(f"[{t.muted}]Terminal UI Framework[/{t.muted}]"))
+        self.root.add_child(header)
+        self.root.add_child(Spacer(1))
 
-        # Menu items with Rich theme
-        items = [
-            SelectItem(key, label, desc) for key, label, desc in DEMO_ITEMS
-        ]
-
-        menu = SelectList(items, 7, create_rich_theme(t))
+        # Menu
+        items = [SelectItem(key, label, desc) for key, label, desc in MENU_ITEMS]
+        menu = SelectList(items, 6, create_select_theme(t))
         menu.on_select = self.on_menu_select
-        self.tui.add_child(menu)
+        self.root.add_child(menu)
         self.tui.set_focus(menu)
 
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(
-            rich_footer("↑↓ Navigate • Enter Select • Q Quit", t)
-        )
+        self.root.add_child(Spacer(1))
+        self.root.add_child(RichText(f"[{t.muted}]↑↓ Navigate • Enter Select • Q Quit[/{t.muted}]"))
 
     def on_menu_select(self, item: SelectItem) -> None:
-        """Route menu selection."""
-        handlers: dict[str, Callable] = {
-            "splash": self.show_splash,
-            "demoscene": self.show_demoscene,
+        """Handle menu selection."""
+        handlers = {
+            "streaming": self.show_streaming,
+            "matrix": self.show_matrix,
             "components": self.show_components,
             "wizard": self.show_wizard,
             "overlays": self.show_overlays,
-            "themes": self.show_themes,
-            "rich": self.show_rich,
             "about": self.show_about,
         }
-        handlers.get(item.value, self.build_menu)()
+        handlers.get(item.value, lambda: None)()
 
-    def show_splash(self) -> None:
-        """Animated splash screen."""
-        self._clear()
-        self.current_screen = "splash"
-        self.animation_active = True
-        self.splash_frame = 0
+    # =========================================================================
+    # STREAMING DEMO - Proper incremental content
+    # =========================================================================
 
-        self.tui.add_child(Spacer(3))
+    def show_streaming(self) -> None:
+        """Streaming demo - CORRECT PATTERN for growing content.
 
-        self.splash_text = Text("", 0, 0)
-        self.tui.add_child(self.splash_text)
+        Key: We add new content incrementally, never clear().
+        Old content flows into scrollback naturally.
+        """
+        self.switch_screen(self._build_streaming)
 
-        self.tui.add_child(Spacer(2))
-        self.tui.add_child(
-            rich_footer("Press any key to continue", self._theme())
-        )
-
-        self.update_splash()
-
-    def update_splash(self) -> None:
-        """Update splash animation."""
-        if not self.animation_active:
-            return
-
-        now = time.time()
-        if not hasattr(self, "_last_animation_update"):
-            self._last_animation_update = 0
-        if now - self._last_animation_update < 0.5:
-            return
-        self._last_animation_update = now
-
-        frames = ["✨", "⭐", "💫", "🌟"]
-        icon = frames[self.splash_frame % len(frames)]
+    def _build_streaming(self) -> None:
+        self.current_screen = "streaming"
         t = self._theme()
 
-        # Use Rich markup for splash content
-        splash_content = Container()
-        box = BorderedBox(padding_x=3, max_width=40, title=f"{icon} PyPiTUI")
-        box.add_child(
-            RichText(f"[{t.primary}]Terminal UI Framework[/{t.primary}]")
-        )
-        box.add_child(Spacer(1))
-        box.add_child(
-            RichText(f"[{t.accent}]Beautiful Terminal Apps[/{t.accent}]")
-        )
-        splash_content.add_child(box)
+        self.root.add_child(RichText(f"[bold {t.primary}]📊 Streaming Demo[/bold {t.primary}]"))
+        self.root.add_child(RichText(f"[{t.muted}]Content grows incrementally - watch scrollback![/{t.muted}]"))
+        self.root.add_child(Spacer(1))
 
-        # Render to text
-        lines = splash_content.render(40)
-        self.splash_text.set_text("\n".join(lines))
-        self.tui.request_render()
+        # Counter component that we'll update
+        self.streaming_counter = Text("Lines: 0", padding_y=0)
+        self.root.add_child(self.streaming_counter)
+        self.root.add_child(Spacer(1))
 
-        self.splash_frame += 1
-
-    # =============================================================================
-    # DEMO SCENE - MATRIX RAIN EFFECT (Proper Implementation)
-    # Based on unimatrix/cmatrix techniques:
-    # - Column-based state with moving heads
-    # - White head character, green trail
-    # - Random character mutations
-    # - Smooth asynchronous scrolling
-    # =============================================================================
-
-    # ANSI codes
-    A = {
-        "rs": "\x1b[0m",
-        "bd": "\x1b[1m",
-        "g": "\x1b[32m",
-        "G": "\x1b[92m",
-        "w": "\x1b[97m",
-        "k": "\x1b[30m",
-        "K": "\x1b[90m",
-    }
-
-    # ASCII only - universally supported
-    CHARS = (
-        "0123456789ABCDEF"
-        + "abcdefghijklmnopqrstuvwxyz"
-        + "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        + "@#$%&*+-=<>~"
-    )
-
-    def show_demoscene(self) -> None:
-        """Matrix rain animation based on cmatrix/unimatrix.
-
-        EDGE CASES DISCOVERED:
-        1. Hardcoded sizes break on small terminals - must use actual terminal size
-        2. Grid must be resized when terminal changes size
-        3. Minimum size check needed - animation needs at least 10x10 to look good
-        4. ANSI codes in output affect line wrapping calculations
-        5. Scroller text must adapt to actual width, not hardcoded width
-        """
-        self._clear()
-        self.current_screen = "demoscene"
+        self.streaming_count = 0
         self.animation_active = True
-        self.demoscene_frame = 0
-        self.scroll_pos = 0
 
-        # Get ACTUAL terminal size - critical for proper rendering
-        # EDGE CASE: If terminal is resized during demo, we handle it in update_demoscene
-        term_width, term_height = self.terminal.get_size()
-
-        # Reserve bottom 3 rows for UI (separator, scroller, help text)
-        # EDGE CASE: Small terminals - animation area may be very limited
-        min_width, min_height = 40, 5  # Reduced min_height for edge cases
-        self.demo_width = max(min_width, term_width)
-        # Animation height is whatever is left after UI rows (minimum 1)
-        self.demo_height = max(min_height, term_height - 3)
-        self.total_height = self.demo_height + 3
-
-        # Scroller text - defined once here
-        self.scroll_text = " PYPITUI - TERMINAL UI FRAMEWORK - GITHUB.COM/JEREMYSBALL/PYPITUI - "
-
-        # Initialize columns for the animation
-        self.columns: list[dict] = []
-        self._init_columns()
-
-        # Grid stores (char, brightness, age) for each cell
-        # brightness: 0=dark, 1=green, 2=bright green, 3=white
-        self.grid: list[list[tuple[str, int, int]]] = []
-        self._init_grid()
-
-        self.demoscene_text = Text("", 0, 0)
-        self.tui.add_child(self.demoscene_text)
-
-        self.update_demoscene()
-
-    def _init_columns(self) -> None:
-        """Initialize/reset column state for animation.
-
-        EDGE CASE: When terminal grows, we need more columns.
-        When it shrinks, we keep columns but clip rendering.
-        """
-        target_cols = self.demo_width
-
-        # If we need more columns, add them
-        while len(self.columns) < target_cols:
-            self.columns.append(
-                {
-                    "head_y": random.randint(-20, 0),
-                    "speed": random.uniform(0.3, 1.2),
-                    "length": random.randint(5, 15),
-                    "timer": random.randint(0, 30),
-                    "active": True,
-                }
-            )
-
-    def _init_grid(self) -> None:
-        """Initialize/resize the animation grid.
-
-        EDGE CASE: Grid must match current terminal dimensions.
-        Old content is lost on resize - this is intentional for simplicity.
-        """
-        self.grid = [
-            [(" ", 0, 0) for _ in range(self.demo_height)]
-            for _ in range(self.demo_width)
-        ]
-
-    def _get_char(self) -> str:
-        """Get random Matrix character."""
-        return random.choice(self.CHARS)
-
-    def update_demoscene(self) -> None:
-        """Update Matrix rain at 60 FPS.
-
-        EDGE CASES HANDLED:
-        1. Terminal resize: Check size each frame, reinit grid if changed
-        2. Grid bounds: Always clip to current grid dimensions
-        3. ANSI accumulation: Each cell gets fresh ANSI codes, no stacking
-        4. Minimum size: Enforced at initialization, but checked here too
-        5. Full grid aging: ALL cells must age each frame to prevent artifacts
-        """
-        if not self.animation_active or self.current_screen != "demoscene":
+    def update_streaming(self) -> None:
+        """Add new streaming content - incremental, not rebuild."""
+        if not self.animation_active or self.current_screen != "streaming":
             return
 
         now = time.time()
-        if (
-            not hasattr(self, "_last_demo_update")
-            or self._last_demo_update == 0
-        ):
-            self._last_demo_update = now
-            return  # Skip first frame to initialize timing
-        if now - self._last_demo_update < 0.016:  # ~60 FPS
+        if not hasattr(self, "_last_stream"):
+            self._last_stream = 0
+        if now - self._last_stream < 0.15:
+            return
+        self._last_stream = now
+
+        # ✅ CORRECT: Just add new content
+        self.streaming_count += 1
+
+        # Update counter in place
+        self.streaming_counter.set_text(f"Lines: {self.streaming_count}")
+
+        # Add new line - this scrolls into scrollback
+        self.root.add_child(Text(f"  Entry {self.streaming_count}: {'█' * (self.streaming_count % 30)}", padding_y=0))
+
+        if self.streaming_count >= 50:
+            self.root.add_child(Spacer(1))
+            self.root.add_child(RichText(f"[{t.muted}]Done! Shift+PgUp to scroll, ESC to exit[/{t.muted}]"))
+            self.animation_active = False
+
+    # =========================================================================
+    # MATRIX DEMO - Efficient animation with state update
+    # =========================================================================
+
+    A = {"rs": "\x1b[0m", "bd": "\x1b[1m", "g": "\x1b[32m", "G": "\x1b[92m", "w": "\x1b[97m", "K": "\x1b[90m"}
+    CHARS = "0123456789ABCDEFabcdefghijklmnopqrstuvwxyz@#$%&*+-="
+
+    def show_matrix(self) -> None:
+        """Matrix rain - efficient animation pattern."""
+        self.switch_screen(self._build_matrix)
+
+    def _build_matrix(self) -> None:
+        self.current_screen = "matrix"
+        t = self._theme()
+
+        w, h = self.terminal.get_size()
+        self.matrix_w = max(40, w)
+        self.matrix_h = max(10, h - 4)
+
+        # Initialize columns
+        self.matrix_columns = [
+            {"y": random.randint(-20, 0), "speed": random.uniform(0.3, 1.0), "len": random.randint(5, 15)}
+            for _ in range(self.matrix_w)
+        ]
+
+        # Initialize grid
+        self.matrix_grid = [[(" ", 0) for _ in range(self.matrix_h)] for _ in range(self.matrix_w)]
+
+        # Single text component we update in place
+        self.matrix_text = Text("", 0, 0)
+        self.root.add_child(self.matrix_text)
+        self.root.add_child(Spacer(1))
+        self.root.add_child(RichText(f"[{t.muted}]Press any key to exit[/{t.muted}]"))
+
+        self.animation_active = True
+        self._last_matrix = 0
+
+    def update_matrix(self) -> None:
+        """Update matrix - modify state, rebuild only output string."""
+        if not self.animation_active or self.current_screen != "matrix":
             return
 
-        # Calculate delta time for smooth animation regardless of frame rate
-        dt = now - self._last_demo_update
-        self._last_demo_update = now
+        now = time.time()
+        if now - self._last_matrix < 0.03:
+            return
+        self._last_matrix = now
 
-        # EDGE CASE: Handle terminal resize
-        term_width, term_height = self.terminal.get_size()
-        # Must match the logic in show_demoscene exactly!
-        min_width, min_height = 40, 5
-        new_width = max(min_width, term_width)
-        new_height = max(min_height, term_height - 3)
+        w, h = self.matrix_w, self.matrix_h
 
-        if new_width != self.demo_width or new_height != self.demo_height:
-            # Terminal resized - reinitialize to match new size
-            self.demo_width = new_width
-            self.demo_height = new_height
-            self.total_height = new_height + 3
-            self._init_columns()
-            self._init_grid()
+        # Update columns
+        for x, col in enumerate(self.matrix_columns):
+            col["y"] += col["speed"]
 
-        w, h = self.demo_width, self.demo_height
-
-        # Update each column
-        for x, col in enumerate(self.columns):
-            if x >= w:  # EDGE CASE: Skip columns beyond visible width
-                continue
-
-            if not col["active"]:
-                col["timer"] -= 1
-                if col["timer"] <= 0:
-                    col["head_y"] = random.randint(-10, -2)
-                    col["speed"] = random.uniform(0.3, 1.2)
-                    col["length"] = random.randint(5, 15)
-                    col["active"] = True
-                continue
-
-            # Use delta time for smooth animation speed regardless of frame rate
-            # Scale speed down so it's visible but not too fast at 60 FPS
-            col["head_y"] += col["speed"] * dt * 2.0
-            head_int = int(col["head_y"])
-
-            # Draw trail - clip to animation bounds
-            for dy in range(col["length"]):
-                y = head_int - dy
-                if y < 0 or y >= h:  # EDGE CASE: Clip to grid bounds
-                    continue
-                if dy == 0:
-                    # White head
-                    self.grid[x][y] = (self._get_char(), 3, 0)
-                elif dy < 3:
-                    # Bright green near head - with random mutation for variety
-                    if random.random() < 0.3:
-                        self.grid[x][y] = (self._get_char(), 2, dy)
+            # Draw head and trail
+            for dy in range(col["len"]):
+                y = int(col["y"]) - dy
+                if 0 <= y < h:
+                    if dy == 0:
+                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 3)
+                    elif dy < 3:
+                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 2)
                     else:
-                        old_char = (
-                            self.grid[x][y][0]
-                            if self.grid[x][y][0] != " "
-                            else self._get_char()
-                        )
-                        self.grid[x][y] = (old_char, 2, dy)
-                else:
-                    # Dark green trail - occasional mutation
-                    if random.random() < 0.05:
-                        old_char = (
-                            self.grid[x][y][0]
-                            if self.grid[x][y][0] != " "
-                            else self._get_char()
-                        )
-                        self.grid[x][y] = (old_char, 1, dy)
+                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 1)
 
-            # Deactivate if trail goes off bottom
-            if head_int - col["length"] > h:
-                col["active"] = False
-                col["timer"] = random.randint(10, 60)
+            # Reset if off screen
+            if int(col["y"]) - col["len"] > h:
+                col["y"] = random.randint(-10, -2)
+                col["speed"] = random.uniform(0.3, 1.0)
 
-        # Age/fade trail below head (original approach - per column)
-        for x, col in enumerate(self.columns):
-            if x >= w:
-                continue
-            if not col["active"]:
-                continue
-            head_int = int(col["head_y"])
-            fade_start = max(0, head_int - col["length"] - 2)
-            fade_end = min(h, head_int - col["length"] + 2)
-            for y in range(fade_start, fade_end):
-                char, bright, age = self.grid[x][y]
+        # Fade grid
+        for x in range(w):
+            for y in range(h):
+                char, bright = self.matrix_grid[x][y]
                 if bright > 0:
-                    age += 1
-                    if age > 3 and bright == 2:
-                        bright = 1
-                    elif age > 6 and bright == 1:
-                        bright = 0
-                        char = " "
-                    self.grid[x][y] = (char, bright, age)
+                    self.matrix_grid[x][y] = (char, max(0, bright - 1)) if random.random() < 0.1 else (char, bright)
 
-        # Render animation - build exactly h lines
+        # Build output - single string update
         lines = []
         for y in range(h):
-            line_chars = []
+            row = []
             for x in range(w):
-                char, brightness, _ = self.grid[x][y]
-                # EDGE CASE: Fresh ANSI codes each frame - don't accumulate
-                if brightness == 3:
-                    line_chars.append(
-                        f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}"
-                    )
-                elif brightness == 2:
-                    line_chars.append(f"{self.A['G']}{char}{self.A['rs']}")
-                elif brightness == 1:
-                    line_chars.append(f"{self.A['g']}{char}{self.A['rs']}")
+                char, bright = self.matrix_grid[x][y]
+                if bright == 3:
+                    row.append(f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}")
+                elif bright == 2:
+                    row.append(f"{self.A['G']}{char}{self.A['rs']}")
+                elif bright == 1:
+                    row.append(f"{self.A['g']}{char}{self.A['rs']}")
                 else:
-                    line_chars.append(" ")
-            # Use non-breaking spaces so wrap_text_with_ansi doesn't split our lines
-            lines.append("".join(line_chars).replace(" ", "\xa0"))
+                    row.append(" ")
+            lines.append("".join(row).replace(" ", "\xa0"))
 
-        # Fixed UI at bottom - exactly 3 lines
-        # Use delta time for smooth scrolling (slower than the rain)
-        self._scroll_accumulator = (
-            getattr(self, "_scroll_accumulator", 0.0) + dt * 8.0
-        )
-        if self._scroll_accumulator >= 1.0:
-            self.scroll_pos = (
-                self.scroll_pos + int(self._scroll_accumulator)
-            ) % len(self.scroll_text)
-            self._scroll_accumulator = 0.0
+        # Update in place - efficient
+        self.matrix_text.set_text("\n".join(lines))
 
-        # Build scroller to match actual terminal width
-        visible = ""
-        text_len = len(self.scroll_text)
-        for i in range(w):
-            idx = (self.scroll_pos + i) % text_len
-            visible += self.scroll_text[idx]
-
-        # Center the help text
-        help_raw = "Press any key to exit"
-        pad_left = max(0, (w - len(help_raw)) // 2)
-        pad_right = max(0, w - len(help_raw) - pad_left)
-        help_text = " " * pad_left + help_raw + " " * pad_right
-
-        lines.append(f"{self.A['K']}{'═' * w}{self.A['rs']}")
-        lines.append(f"{self.A['g']}{visible}{self.A['rs']}")
-        lines.append(f"{self.A['K']}{help_text}{self.A['rs']}")
-
-        self.demoscene_text.set_text("\n".join(lines))
-        self.tui.request_render()
+    # =========================================================================
+    # COMPONENTS DEMO
+    # =========================================================================
 
     def show_components(self) -> None:
-        """Component showcase with Rich theming."""
-        self._clear()
+        """Component showcase."""
+        self.switch_screen(self._build_components)
+
+    def _build_components(self) -> None:
         self.current_screen = "components"
         t = self._theme()
 
-        for comp in rich_header("Component Showcase", theme=t):
-            self.tui.add_child(comp)
+        header = BorderedBox(padding_x=2, max_width=50)
+        header.set_rich_title(f"[bold {t.primary}]Component Showcase[/bold {t.primary}]")
+        self.root.add_child(header)
+        self.root.add_child(Spacer(1))
 
-        # Text component - uses Rich
-        self.tui.add_child(
-            RichText(
-                f"[bold {t.primary}]Text:[/bold {t.primary}] Auto-wraps content. "
-                f"[{t.muted}]This demonstrates word wrapping.[/{t.muted}]"
-            )
-        )
-        self.tui.add_child(Spacer(1))
+        # Text
+        self.root.add_child(RichText(f"[bold {t.primary}]Text:[/bold {t.primary}] Auto-wraps content. [{t.muted}]This is muted.[/{t.muted}]"))
+        self.root.add_child(Spacer(1))
 
-        # Box component
-        self.tui.add_child(rich_label("Box (padding):", t))
+        # Box
+        self.root.add_child(RichText(f"[bold {t.primary}]Box (padding):[/bold {t.primary}]"))
         box = Box(padding_x=2)
-        box.add_child(
-            RichText(f"[{t.secondary}]Content with padding[/{t.secondary}]")
-        )
-        self.tui.add_child(box)
-        self.tui.add_child(Spacer(1))
+        box.add_child(RichText(f"[{t.secondary}]Content with padding[/{t.secondary}]"))
+        self.root.add_child(box)
+        self.root.add_child(Spacer(1))
 
-        # BorderedBox component
-        self.tui.add_child(rich_label("BorderedBox (preferred):", t))
-        b = BorderedBox(padding_x=2, max_width=35, title="Panel")
-        b.add_child(
-            RichText(f"[{t.accent}]Draws borders, wraps content[/{t.accent}]")
-        )
-        self.tui.add_child(b)
-        self.tui.add_child(Spacer(1))
+        # BorderedBox
+        self.root.add_child(RichText(f"[bold {t.primary}]BorderedBox:[/bold {t.primary}]"))
+        bordered = BorderedBox(padding_x=2, max_width=35, title="Panel")
+        bordered.add_child(RichText(f"[{t.accent}]Draws borders, wraps content[/{t.accent}]"))
+        self.root.add_child(bordered)
+        self.root.add_child(Spacer(1))
 
-        # Input component
-        self.tui.add_child(rich_label("Input:", t))
+        # Input
+        self.root.add_child(RichText(f"[bold {t.primary}]Input:[/bold {t.primary}]"))
         inp = Input(placeholder="Type and press Enter...")
-        inp.on_submit = lambda v: self.show_result(f"You typed: {v}")
-        self.tui.add_child(inp)
+        inp.on_submit = lambda v: self._show_result(f"You typed: {v}")
+        self.root.add_child(inp)
         self.tui.set_focus(inp)
 
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(rich_footer(theme=t))
+        self.root.add_child(Spacer(1))
+        self.root.add_child(RichText(f"[{t.muted}]ESC to go back[/{t.muted}]"))
+
+    # =========================================================================
+    # WIZARD DEMO
+    # =========================================================================
 
     def show_wizard(self) -> None:
-        """Multi-step form wizard with Rich theming."""
-        self._clear()
+        """Multi-step form wizard."""
+        self.switch_screen(lambda: self._build_wizard())
+
+    def _build_wizard(self) -> None:
         self.current_screen = "wizard"
         t = self._theme()
+        step = self.wizard_step
 
-        step_name, step_desc = WIZARD_STEPS[self.wizard_step]
+        # Header with step name
+        names = ["Welcome", "Profile", "Theme", "Complete"]
+        header = BorderedBox(padding_x=2, max_width=50)
+        header.set_rich_title(f"[bold {t.primary}]Wizard: {names[step]}[/bold {t.primary}]")
+        self.root.add_child(header)
 
-        for comp in rich_header(f"Wizard: {step_name}", step_desc, t):
-            self.tui.add_child(comp)
+        # Progress
+        progress = " → ".join(
+            f"[bold {t.primary}]{n}[/bold {t.primary}]" if i == step else f"[{t.muted}]{n}[/{t.muted}]"
+            for i, n in enumerate(names)
+        )
+        self.root.add_child(RichText(progress))
+        self.root.add_child(Spacer(2))
 
-        # Progress indicator with Rich colors
-        progress_parts = []
-        for i, (name, _) in enumerate(WIZARD_STEPS):
-            if i == self.wizard_step:
-                progress_parts.append(
-                    f"[bold {t.primary}]{name}[/bold {t.primary}]"
-                )
-            else:
-                progress_parts.append(f"[{t.muted}]{name}[/{t.muted}]")
-        progress = " → ".join(progress_parts)
-        self.tui.add_child(RichText(progress))
-        self.tui.add_child(Spacer(2))
+        if step == 0:
+            self.root.add_child(RichText(f"[{t.secondary}]This wizard demonstrates forms.[/{t.secondary}]"))
+            self.root.add_child(Spacer(1))
+            self.root.add_child(RichText(f"[{t.muted}]Press Enter to start[/{t.muted}]"))
 
-        if self.wizard_step == 0:
-            self.tui.add_child(
-                RichText(
-                    f"[{t.secondary}]This wizard demonstrates forms.[/{t.secondary}]"
-                )
-            )
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(rich_footer("Press Enter to start", t))
+        elif step == 1:
+            self.root.add_child(RichText(f"[bold {t.primary}]Name:[/bold {t.primary}]"))
+            self.name_input = Input(placeholder="Your name")
+            self.name_input.set_value(self.form_data["name"])
+            self.root.add_child(self.name_input)
 
-        elif self.wizard_step == 1:
-            self.tui.add_child(rich_label("Name:", t))
-            name = Input(placeholder="Your name")
-            name.set_value(self.form_data["name"])
-            self.tui.add_child(name)
-            self.name_input = name
+            self.root.add_child(Spacer(1))
+            self.root.add_child(RichText(f"[bold {t.primary}]Email:[/bold {t.primary}]"))
+            self.email_input = Input(placeholder="Your email")
+            self.email_input.set_value(self.form_data["email"])
+            self.root.add_child(self.email_input)
 
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(rich_label("Email:", t))
-            email = Input(placeholder="Your email")
-            email.set_value(self.form_data["email"])
-            self.tui.add_child(email)
-            self.email_input = email
+            self.root.add_child(Spacer(1))
+            self.root.add_child(RichText(f"[{t.muted}]Tab: switch • Enter: continue[/{t.muted}]"))
+            self.tui.set_focus(self.name_input)
 
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(rich_footer("Tab: switch • Enter: continue", t))
-            self.tui.set_focus(name)
-
-        elif self.wizard_step == 2:
-            self.tui.add_child(rich_label("Choose Theme:", t))
-
+        elif step == 2:
+            self.root.add_child(RichText(f"[bold {t.primary}]Choose Theme:[/bold {t.primary}]"))
             items = [SelectItem(k, v.name) for k, v in THEMES.items()]
-            lst = SelectList(items, 3, create_rich_theme(t))
-            lst.on_select = lambda i: self.advance_wizard(theme=i.value)
-            self.tui.add_child(lst)
+            lst = SelectList(items, 3, create_select_theme(t))
+            lst.on_select = lambda i: self._wizard_next(theme=i.value)
+            self.root.add_child(lst)
             self.tui.set_focus(lst)
 
         else:  # Complete
-            self.tui.add_child(
-                RichText(
-                    f"[bold {t.success}]✓ Setup Complete![/bold {t.success}]"
-                )
-            )
-            self.tui.add_child(Spacer(1))
-            self.tui.add_child(
-                RichText(f"Name: {self.form_data['name'] or '(none)'}")
-            )
-            self.tui.add_child(
-                RichText(f"Email: {self.form_data['email'] or '(none)'}")
-            )
-            self.tui.add_child(
-                RichText(
-                    f"Theme: [{t.accent}]{THEMES[self.form_data.get('theme', 'neon')].name}[/{t.accent}]"
-                )
-            )
+            self.root.add_child(RichText(f"[bold {t.success}]✓ Setup Complete![/bold {t.success}]"))
+            self.root.add_child(Spacer(1))
+            self.root.add_child(RichText(f"Name: {self.form_data['name'] or '(none)'}"))
+            self.root.add_child(RichText(f"Email: {self.form_data['email'] or '(none)'}"))
+            theme_name = THEMES.get(self.form_data.get('theme', 'neon'), THEMES['neon']).name
+            self.root.add_child(RichText(f"Theme: [{t.accent}]{theme_name}[/{t.accent}]"))
 
-    def advance_wizard(self, **kwargs) -> None:
-        """Advance to next wizard step."""
+    def _wizard_next(self, **kwargs) -> None:
+        """Advance wizard."""
         self.form_data.update(kwargs)
-
-        if self.wizard_step < len(WIZARD_STEPS) - 1:
+        if self.wizard_step < 3:
             self.wizard_step += 1
-            self.show_wizard()
+            self.switch_screen(self._build_wizard)
         else:
             self.wizard_step = 0
-            self.build_menu()
+            self.switch_screen(self.show_menu)
+
+    # =========================================================================
+    # OVERLAYS DEMO
+    # =========================================================================
 
     def show_overlays(self) -> None:
-        """Overlay positioning demo with Rich theming."""
-        self._clear()
+        """Overlay positioning demo."""
+        self.switch_screen(self._build_overlays)
+
+    def _build_overlays(self) -> None:
         self.current_screen = "overlays"
         t = self._theme()
 
-        for comp in rich_header(
-            "Overlay System", "Floating panels & dialogs", t
-        ):
-            self.tui.add_child(comp)
+        header = BorderedBox(padding_x=2, max_width=50)
+        header.set_rich_title(f"[bold {t.primary}]Overlay System[/bold {t.primary}]")
+        header.add_child(RichText(f"[{t.muted}]Floating panels & dialogs[/{t.muted}]"))
+        self.root.add_child(header)
+        self.root.add_child(Spacer(1))
 
         positions = [
             SelectItem("center", "Center", "Default centered"),
@@ -746,201 +476,90 @@ class UltimateDemoApp:
             SelectItem("top-right", "Top Right", "Upper right corner"),
         ]
 
-        lst = SelectList(positions, 4, create_rich_theme(t))
-        lst.on_select = self.show_overlay_demo
-        self.tui.add_child(lst)
+        lst = SelectList(positions, 4, create_select_theme(t))
+        lst.on_select = self._show_overlay
+        self.root.add_child(lst)
         self.tui.set_focus(lst)
 
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(rich_footer(theme=t))
+        self.root.add_child(Spacer(1))
+        self.root.add_child(RichText(f"[{t.muted}]ESC to go back[/{t.muted}]"))
 
-    def show_overlay_demo(self, item: SelectItem) -> None:
-        """Show example overlay with Rich theming."""
+    def _show_overlay(self, item: SelectItem) -> None:
+        """Show overlay at selected position."""
         if self.overlay_handle:
             self.overlay_handle.hide()
 
-        anchors = {
-            "center": "center",
-            "top": "top",
-            "bottom": "bottom",
-            "top-right": "top-right",
-        }
+        t = self._theme()
+        anchors = {"center": "center", "top": "top", "bottom": "bottom", "top-right": "top-right"}
         anchor = anchors.get(item.value, "center")
-        t = self._theme()
 
-        content = BorderedBox(
-            padding_x=2, max_width=35, title=f"{anchor.title()} Overlay"
-        )
-        content.add_child(
-            RichText(f"[{t.primary}]Positioned at {anchor}[/{t.primary}]")
-        )
-        content.add_child(
-            RichText(f"[{t.muted}]Press ESC to close[/{t.muted}]")
-        )
+        content = BorderedBox(padding_x=2, max_width=35, title=f"{anchor.title()} Overlay")
+        content.add_child(RichText(f"[{t.primary}]Positioned at {anchor}[/{t.primary}]"))
+        content.add_child(RichText(f"[{t.muted}]Press ESC to close[/{t.muted}]"))
 
-        opts = OverlayOptions(width=35, anchor=anchor)
-        self.overlay_handle = self.tui.show_overlay(content, opts)
+        self.overlay_handle = self.tui.show_overlay(content, OverlayOptions(width=35, anchor=anchor))
 
-    def show_themes(self) -> None:
-        """Theme gallery with Rich color previews."""
-        self._clear()
-        self.current_screen = "themes"
-        t = self._theme()
-
-        for comp in rich_header("Theme Gallery", theme=t):
-            self.tui.add_child(comp)
-
-        # Show themes with Rich color previews
-        items = []
-        for key, th in THEMES.items():
-            desc = f"[bold {th.primary}]████[/bold {th.primary}] [bold {th.secondary}]████[/bold {th.secondary}]"
-            items.append(SelectItem(key, th.name, desc))
-
-        lst = SelectList(items, 3, create_rich_theme(t))
-        lst.on_select = self.apply_theme
-        self.tui.add_child(lst)
-        self.tui.set_focus(lst)
-
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(rich_footer(theme=t))
-
-    def apply_theme(self, item: SelectItem) -> None:
-        """Apply selected theme and return to menu."""
-        self.current_theme = item.value
-        self.form_data["theme"] = item.value
-        self.build_menu()
-
-    def show_rich(self) -> None:
-        """Rich integration demo with full theme support."""
-        self._clear()
-        self.current_screen = "rich"
-        t = self._theme()
-
-        for comp in rich_header("Rich Integration", theme=t):
-            self.tui.add_child(comp)
-
-        if not RICH_AVAILABLE:
-            self.tui.add_child(
-                RichText(
-                    f"[bold {t.error}]Rich not installed. Run: pip install pypitui[rich][/bold {t.error}]"
-                )
-            )
-        else:
-            items = [
-                SelectItem(
-                    "markdown", "Markdown", f"Render markdown with {t.primary}"
-                ),
-                SelectItem("text", "RichText", f"Styled text in {t.primary}"),
-                SelectItem(
-                    "table", "Table", f"Formatted tables ({t.primary} theme)"
-                ),
-            ]
-            lst = SelectList(items, 3, create_rich_theme(t))
-            lst.on_select = self.show_rich_example
-            self.tui.add_child(lst)
-            self.tui.set_focus(lst)
-
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(rich_footer(theme=t))
-
-    def show_rich_example(self, item: SelectItem) -> None:
-        """Show Rich component with current theme colors."""
-        if self.overlay_handle:
-            self.overlay_handle.hide()
-
-        content = Container()
-        t = self._theme()
-
-        if item.value == "markdown":
-            md = f"# {t.name}\n\n**Bold** and *italic* text.\n\n```python\nprint('Hello from {self.current_theme} theme')\n```"
-            content.add_child(Markdown(md))
-        elif item.value == "text":
-            content.add_child(
-                RichText(
-                    f"[bold {t.primary}]{t.name}[/bold {t.primary}] "
-                    f"[bold {t.secondary}]Theme[/bold {t.secondary}]!"
-                )
-            )
-        elif item.value == "table":
-            table = RichTable(title=f"{t.name}")
-            table.add_column("Feature")
-            table.add_column("Status", style=t.success)
-            table.add_row("Markdown", "✓")
-            table.add_row("Tables", "✓")
-            content.add_child(table)
-
-        self.overlay_handle = self.tui.show_overlay(
-            content, OverlayOptions(width="70%", anchor="center")
-        )
+    # =========================================================================
+    # ABOUT
+    # =========================================================================
 
     def show_about(self) -> None:
-        """About screen with Rich theming."""
-        self._clear()
+        """About screen."""
+        self.switch_screen(self._build_about)
+
+    def _build_about(self) -> None:
         self.current_screen = "about"
         t = self._theme()
 
-        for comp in rich_header("About PyPiTUI", theme=t):
-            self.tui.add_child(comp)
+        header = BorderedBox(padding_x=2, max_width=50)
+        header.set_rich_title(f"[bold {t.primary}]About PyPiTUI[/bold {t.primary}]")
+        self.root.add_child(header)
+        self.root.add_child(Spacer(1))
 
-        self.tui.add_child(
-            RichText(
-                f"[{t.secondary}]PyPiTUI is a Python terminal UI library.[/{t.secondary}]"
-            )
-        )
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(rich_label("Features:", t))
-        self.tui.add_child(
-            RichText(
-                f"  • [{t.primary}]Component-based architecture[/{t.primary}]"
-            )
-        )
-        self.tui.add_child(
-            RichText(f"  • [{t.primary}]Differential rendering[/{t.primary}]")
-        )
-        self.tui.add_child(
-            RichText(f"  • [{t.primary}]Overlay system[/{t.primary}]")
-        )
-        self.tui.add_child(
-            RichText(f"  • [{t.primary}]Rich integration[/{t.primary}]")
-        )
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(
-            RichText(
-                f"[{t.muted}]https://github.com/jeremysball/pypitui[/{t.muted}]"
-            )
-        )
+        self.root.add_child(RichText(f"[{t.secondary}]Python terminal UI library with differential rendering.[/{t.secondary}]"))
+        self.root.add_child(Spacer(1))
 
-        self.tui.add_child(Spacer(2))
+        self.root.add_child(RichText(f"[bold {t.primary}]Features:[/bold {t.primary}]"))
+        self.root.add_child(RichText(f"  • [{t.primary}]Component-based architecture[/{t.primary}]"))
+        self.root.add_child(RichText(f"  • [{t.primary}]Differential rendering[/{t.primary}]"))
+        self.root.add_child(RichText(f"  • [{t.primary}]DEC 2026 synchronized output[/{t.primary}]"))
+        self.root.add_child(RichText(f"  • [{t.primary}]Relative cursor movement[/{t.primary}]"))
+        self.root.add_child(RichText(f"  • [{t.primary}]Overlay system[/{t.primary}]"))
+        self.root.add_child(RichText(f"  • [{t.primary}]Rich integration[/{t.primary}]"))
 
-        box = BorderedBox(padding_x=2, max_width=40)
-        box.add_child(
-            RichText(
-                f"  [bold {t.primary}]Try the other demos![/bold {t.primary}]"
-            )
-        )
-        self.tui.add_child(box)
+        self.root.add_child(Spacer(1))
+        self.root.add_child(RichText(f"[{t.muted}]https://github.com/jeremysball/pypitui[/{t.muted}]"))
+        self.root.add_child(Spacer(1))
+        self.root.add_child(RichText(f"[{t.muted}]ESC to go back[/{t.muted}]"))
 
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(rich_footer(theme=t))
+    # =========================================================================
+    # RESULT SCREEN
+    # =========================================================================
 
-    def show_result(self, message: str) -> None:
-        """Show temporary result with Rich theming."""
-        self._clear()
+    def _show_result(self, message: str) -> None:
+        """Show result message."""
+        self.switch_screen(lambda: self._build_result(message))
+
+    def _build_result(self, message: str) -> None:
         self.current_screen = "result"
         t = self._theme()
 
-        self.tui.add_child(RichText(message))
-        self.tui.add_child(Spacer(1))
-        self.tui.add_child(rich_footer("Press any key", t))
+        self.root.add_child(RichText(f"[{t.success}]{message}[/{t.success}]"))
+        self.root.add_child(Spacer(1))
+        self.root.add_child(RichText(f"[{t.muted}]Press any key[/{t.muted}]"))
+
+    # =========================================================================
+    # INPUT HANDLING
+    # =========================================================================
 
     def handle_input(self, data: str) -> None:
-        """Central input handler."""
+        """Handle input."""
         # Global quit
         if data.lower() == "q" and self.current_screen == "menu":
             self.running = False
             return
 
-        # ESC: back or close overlay
+        # ESC
         if matches_key(data, Key.escape):
             if self.tui.has_overlay():
                 self.tui.hide_overlay()
@@ -949,77 +568,80 @@ class UltimateDemoApp:
                 self.running = False
             else:
                 self.wizard_step = 0
-                self.build_menu()
+                self.switch_screen(self.show_menu)
             return
 
-        # Demo scene - any key exits
-        if self.current_screen == "demoscene":
-            self.animation_active = False
-            self.build_menu()
+        # Exit animation screens
+        if self.current_screen in ("streaming", "matrix"):
+            self.switch_screen(self.show_menu)
             return
 
-        # Wizard navigation
+        # Wizard
         if self.current_screen == "wizard":
             if matches_key(data, Key.left) and self.wizard_step > 0:
                 self.wizard_step -= 1
-                self.show_wizard()
+                self.switch_screen(self._build_wizard)
+                return
+
+            if self.wizard_step == 0 and matches_key(data, Key.enter):
+                self._wizard_next()
                 return
 
             if self.wizard_step == 1 and hasattr(self, "name_input"):
                 if matches_key(data, Key.tab):
-                    new_focus = (
-                        self.email_input
-                        if self.tui._focused_component == self.name_input
-                        else self.name_input
-                    )
+                    new_focus = self.email_input if self.tui._focused_component == self.name_input else self.name_input
                     self.tui.set_focus(new_focus)
                     return
-                elif matches_key(data, Key.enter):
+                if matches_key(data, Key.enter):
                     self.form_data["name"] = self.name_input.get_value()
                     self.form_data["email"] = self.email_input.get_value()
-                    self.advance_wizard()
+                    self._wizard_next()
                     return
-            elif self.wizard_step == 0 and matches_key(data, Key.enter):
-                self.advance_wizard()
-                return
 
-        # Pass to TUI for components
         self.tui.handle_input(data)
+
+    # =========================================================================
+    # MAIN LOOP
+    # =========================================================================
 
     def run(self) -> None:
         """Main loop at 60 FPS."""
         self.tui.start()
-        frame_duration = 1.0 / 60.0
+        frame_time = 1.0 / 60.0
 
         try:
             while self.running:
-                frame_start = time.time()
+                start = time.time()
 
+                # Input
                 data = self.terminal.read_sequence(timeout=0.001)
                 if data:
                     self.handle_input(data)
 
+                # Animations
                 if self.animation_active:
-                    if self.current_screen == "splash":
-                        self.update_splash()
-                    elif self.current_screen == "demoscene":
-                        self.update_demoscene()
+                    if self.current_screen == "streaming":
+                        self.update_streaming()
+                    elif self.current_screen == "matrix":
+                        self.update_matrix()
 
+                # Render
                 self.tui.request_render()
                 self.tui.render_frame()
 
-                elapsed = time.time() - frame_start
-                if elapsed < frame_duration:
-                    time.sleep(frame_duration - elapsed)
+                # Frame limit
+                elapsed = time.time() - start
+                if elapsed < frame_time:
+                    time.sleep(frame_time - elapsed)
+
         finally:
             self.tui.stop()
 
 
 def main() -> None:
-    """Entry point."""
-    print("PyPiTUI Ultimate Demo - Full Rich Theme Integration")
+    print("PyPiTUI Demo - Proper Differential Rendering Patterns")
     print("")
-    UltimateDemoApp().run()
+    DemoApp().run()
     print("\nGoodbye!")
 
 

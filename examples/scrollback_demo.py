@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Demo to test scrollback buffer support.
+"""Demo to test scrollback buffer with PROPER streaming.
 
-Run this in a terminal and use Shift+PgUp to scroll back through history.
+This demonstrates the CORRECT way to use PyPiTUI for streaming content:
+- Add new content incrementally with add_child()
+- Never call tui.clear() for growing content
+- Old content flows into terminal's native scrollback buffer
+- Only NEW lines are rendered each frame (differential)
+
+Run this and use Shift+PgUp to scroll back through history.
 """
 
 import asyncio
@@ -16,42 +22,31 @@ async def main():
 
     tui.start()
 
-    # Keep all lines
-    all_lines = []
+    # Header - added once, stays at top (will scroll into history)
+    tui.add_child(Text("Scrollback Demo - Press Ctrl+C to exit", padding_y=0))
+    tui.add_child(Text("", padding_y=0))  # Spacer
 
     try:
-        # Add lines continuously
-        for i in range(40):
-            all_lines.append(f"Line {i}: {'x' * (i % 40)}")
+        # Add lines incrementally - THIS IS THE KEY PATTERN
+        for i in range(100):
+            # Just add the NEW line - don't clear, don't re-add old lines
+            tui.add_child(Text(f"Line {i}: {'x' * (i % 40)}", padding_y=0))
 
-            # Clear and re-render all lines
-            tui.clear()
-
-            # Header
-            tui.add_child(Text(f"Line count: {len(all_lines)}", padding_y=0))
-            tui.add_child(
-                Text(f"Max rendered: {tui._max_lines_rendered}", padding_y=0)
-            )
-            tui.add_child(Text("", padding_y=0))  # Spacer
-
-            # All lines
-            for line in all_lines:
-                tui.add_child(Text(line, padding_y=0))
-
+            # Render - only the new line is differentially rendered
+            # Old lines are frozen in scrollback
             tui.request_render()
             tui.render_frame()
+
             await asyncio.sleep(0.1)
 
-        # Keep running so user can scroll
+        # Add final message
         tui.add_child(Text("", padding_y=0))
-        tui.add_child(
-            Text("=== Done! Use Shift+PgUp to scroll ===", padding_y=0)
-        )
-        tui.add_child(Text("Press Ctrl+C to exit", padding_y=0))
+        tui.add_child(Text("=== Done! Use Shift+PgUp to scroll ===", padding_y=0))
+
         tui.request_render()
         tui.render_frame()
 
-        # Wait for user
+        # Keep running so user can scroll
         while True:
             await asyncio.sleep(1)
 

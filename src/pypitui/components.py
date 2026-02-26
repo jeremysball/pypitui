@@ -576,7 +576,9 @@ class SelectList(Component):
 
             # Add description if present and there's room
             if item.description and visible_width(line) + 3 < width:
-                desc = " - " + item.description
+                # Normalize newlines to spaces
+                normalized_desc = item.description.replace("\n", " ")
+                desc = " - " + normalized_desc
                 desc = self._theme.description(desc)
                 line += desc
 

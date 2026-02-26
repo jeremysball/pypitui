@@ -110,7 +110,7 @@ packages = ["src/pypitui"]
 [tool.hatch.build.targets.wheel.force-include]
 "docs" = "pypitui/docs"
 "examples" = "pypitui/examples"
-"AGENTS.md" = "pypitui/LLMS.md"
+"LLMS.md" = "pypitui/LLMS.md"
 
 [dependency-groups]
 dev = [

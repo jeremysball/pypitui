@@ -588,10 +588,10 @@ class TestOverlayViewportPositioning:
         # Composite with viewport_top = 10
         result = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
 
-        # Overlay should appear at screen row 2 (12 - 10)
-        # The result list should have at least 3 lines
-        assert len(result) >= 3
-        assert "OVERLAY LINE" in result[2]
+        # Overlay should appear at content row 12 (not screen row 2)
+        # The rendering loop will later render result[10:20] to screen rows 0-9
+        assert len(result) >= 13
+        assert "OVERLAY LINE" in result[12]
 
         handle.hide()
 
@@ -612,8 +612,8 @@ class TestOverlayViewportPositioning:
         # Composite with viewport_top = 10
         result = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
 
-        # Overlay at content row 10 -> screen row 0
-        assert "BOUNDARY OVERLAY" in result[0]
+        # Overlay at content row 10 (which maps to screen row 0 when rendered)
+        assert "BOUNDARY OVERLAY" in result[10]
 
         handle.hide()
 
@@ -634,9 +634,9 @@ class TestOverlayViewportPositioning:
         # Composite with viewport_top = 10
         result = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
 
-        # Overlay at content row 19 -> screen row 9 (last visible row)
-        assert len(result) >= 10
-        assert "BOTTOM EDGE" in result[9]
+        # Overlay at content row 19 (which maps to screen row 9 when rendered)
+        assert len(result) >= 20
+        assert "BOTTOM EDGE" in result[19]
 
         handle.hide()
 

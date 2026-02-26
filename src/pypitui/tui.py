@@ -171,7 +171,49 @@ class Container(Component):
             self.children.remove(component)
 
     def clear(self) -> None:
-        """Remove all child components."""
+        """Remove all child components.
+
+        ⚠️⚠️⚠️ WARNING: DO NOT USE THIS FOR SCREEN SWITCHING ⚠️⚠️⚠️
+
+        This method removes all children but preserves _previous_lines. If you
+        clear() and then re-add content, you defeat differential rendering.
+
+        For streaming content that grows incrementally:
+            - Just add_child() new content
+            - Don't call clear()
+            - Old content flows into scrollback naturally
+
+        For screen switching, use one of these patterns:
+
+        Pattern 1 - Root Container (RECOMMENDED):
+            self.root = Container()
+            tui.add_child(self.root)
+
+            # Switch screens:
+            self.root.children.clear()  # Clear container, not TUI
+            self.root.add_child(new_screen_content)
+
+        Pattern 2 - Reusable Component:
+            class ScreenManager(Component):
+                def __init__(self):
+                    self.current = None
+
+                def switch_to(self, screen):
+                    self.current = screen
+                    self.invalidate()
+
+                def render(self, width):
+                    return self.current.render(width) if self.current else []
+
+            manager = ScreenManager()
+            tui.add_child(manager)
+            manager.switch_to(new_screen)
+
+        WHY THIS MATTERS:
+            - TUI uses _previous_lines for differential rendering
+            - clear() + re-add forces full re-render of all lines
+            - Proper patterns only update what actually changed
+        """
         self.children.clear()
 
     def invalidate(self) -> None:
@@ -606,12 +648,20 @@ class TUI(Container):
                 if target_screen_row < 0 or target_screen_row >= term_height:
                     continue
 
+                # Calculate the content row where overlay should be composited
+                # For explicit row positioning, layout_row is the content coordinate
+                # For anchor-based positioning, we need to convert screen to content
+                if entry.options.row is not None:
+                    target_content_row = layout_row + i
+                else:
+                    target_content_row = viewport_top + target_screen_row
+
                 # Ensure result has enough lines
-                while len(result) <= target_screen_row:
+                while len(result) <= target_content_row:
                     result.append("")
 
-                result[target_screen_row] = self._composite_line_at(
-                    result[target_screen_row],
+                result[target_content_row] = self._composite_line_at(
+                    result[target_content_row],
                     overlay_line,
                     col,
                     width,
