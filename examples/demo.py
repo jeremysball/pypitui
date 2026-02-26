@@ -142,12 +142,14 @@ class DemoApp:
     def switch_screen(self, builder: Callable) -> None:
         """Switch to a new screen - PROPER PATTERN.
 
-        Clear the root container, not the TUI.
-        This preserves _previous_lines for differential rendering.
+        Clear the root container and force full redraw.
+        This ensures old screen content is fully cleared.
         """
         self.animation_active = False
         self.root.children.clear()  # ✅ Clear container, NOT tui
         builder()
+        # Force full redraw to clear any leftover content from previous screen
+        self.tui.request_render(force=True)
 
     def show_menu(self) -> None:
         """Main menu."""
