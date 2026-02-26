@@ -6,13 +6,8 @@ This is an optional component that requires the 'rich' extra:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from .tui import Component
 from .utils import visible_width
-
-if TYPE_CHECKING:
-    pass
 
 
 class Markdown(Component):
@@ -356,7 +351,9 @@ def rich_to_ansi(markup: str) -> str:
     from rich.console import Console
 
     buf = StringIO()
-    console = Console(file=buf, force_terminal=True, width=200, legacy_windows=False)
+    console = Console(
+        file=buf, force_terminal=True, width=200, legacy_windows=False
+    )
     console.print(markup, end="")
     return buf.getvalue()
 

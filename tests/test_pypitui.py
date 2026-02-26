@@ -1,23 +1,23 @@
 """Comprehensive tests for PyPiTUI library."""
 
 from pypitui import (
+    CURSOR_MARKER,
     TUI,
-    Container,
-    Text,
     Box,
-    Spacer,
-    SelectList,
-    SelectItem,
-    SelectListTheme,
+    Container,
     Input,
     Key,
-    matches_key,
-    visible_width,
-    truncate_to_width,
     MockTerminal,
-    CURSOR_MARKER,
     OverlayOptions,
+    SelectItem,
+    SelectList,
+    SelectListTheme,
+    Spacer,
+    Text,
     is_focusable,
+    matches_key,
+    truncate_to_width,
+    visible_width,
 )
 
 
@@ -161,12 +161,6 @@ def test_mock_terminal():
 
     terminal.show_cursor()
     assert terminal.cursor_visible
-
-    terminal.enter_alternate_screen()
-    assert terminal._in_alternate_screen
-
-    terminal.exit_alternate_screen()
-    assert not terminal._in_alternate_screen
 
     terminal.clear()
     assert "[CLEAR]" in terminal.get_output()

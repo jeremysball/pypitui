@@ -192,6 +192,7 @@ LEGACY_SEQUENCES: dict[str, str] = {
 # Control character mapping
 CTRL_CHARS: dict[str, str] = {
     "\x00": "ctrl+space",
+    " ": "space",  # Space key
     "\x01": "ctrl+a",
     "\x02": "ctrl+b",
     "\x03": "ctrl+c",
@@ -226,7 +227,25 @@ CTRL_CHARS: dict[str, str] = {
 }
 
 # Kitty protocol CSI u pattern
-KITTY_CSI_U_PATTERN = re.compile(r"\x1b\[(\d+);?(\d*);?(\d*)(?:;(\d+))?u")
+# Format: ESC [ key[:shifted[:base]] ; modifiers[:event] u
+# - key: the pressed key codepoint (mandatory, always lowercase/unshifted)
+# - shifted: optional shifted version of the key (empty if :: used)
+# - base: optional base layout key (PC-101 layout, for non-Latin keyboards)
+# - modifiers: modifier flags encoded as 1 + actual_mods (mandatory)
+# - event: optional event type (1=press, 2=repeat, 3=release)
+#
+# Examples:
+#   ESC[97;2u           - shift+a (key=97, mods=2=1+1=shift)
+#   ESC[1089::99;5u     - Ctrl+Cyrillic-с with base Latin-c (key=1089, base=99, mods=5=1+4=ctrl)
+#   ESC[99;5u           - Ctrl+c (key=99, mods=5=1+4=ctrl)
+KITTY_CSI_U_PATTERN = re.compile(
+    r"\x1b\[(\d+)"          # key (mandatory)
+    r"(?::(\d*))?"          # :shifted (optional, can be empty)
+    r"(?::(\d+))?"          # :base (optional)
+    r";(\d+)"               # ;modifiers (mandatory)
+    r"(?::(\d+))?"          # :event (optional)
+    r"u"
+)
 
 # Kitty key code mapping
 KITTY_KEY_CODES: dict[int, str] = {
@@ -263,27 +282,43 @@ def _parse_kitty_csi_u(data: str) -> tuple[str, str] | None:
     """Parse Kitty protocol CSI u sequence.
 
     Returns (key_id, event_type) or None.
+
+    The Kitty protocol format is:
+        ESC [ key[:shifted[:base]] ; modifiers[:event] u
+
+    When a base layout key is provided (for non-Latin keyboards), we use it
+    for shortcut matching. E.g., Ctrl+Cyrillic-с with base=99 matches ctrl+c.
     """
     match = KITTY_CSI_U_PATTERN.match(data)
     if not match:
         return None
 
-    code_str, mods_str, event_type_str, _ = match.groups()
-    code = int(code_str)
-    mods = int(mods_str) if mods_str else 0
-    event_type_num = int(event_type_str) if event_type_str else 1
+    # Groups: key, shifted, base, modifiers, event
+    key_str, shifted_str, base_str, mods_str, event_str = match.groups()
+
+    key_code = int(key_str)
+    # Modifiers are encoded as 1 + actual_modifiers
+    mods = int(mods_str) - 1 if mods_str else 0
+    event_type_num = int(event_str) if event_str else 1
 
     # Event types: 1 = press, 2 = repeat, 3 = release
-    event_type = {1: "press", 2: "repeat", 3: "release"}.get(event_type_num, "press")
+    event_type = {1: "press", 2: "repeat", 3: "release"}.get(
+        event_type_num, "press"
+    )
 
-    # Get base key
-    if 97 <= code <= 122:  # a-z
-        base_key = chr(code)
-    elif 65 <= code <= 90:  # A-Z (shifted letters)
-        base_key = chr(code).lower()
+    # Prefer base layout key for shortcut matching (non-Latin keyboards)
+    # Otherwise use the main key code
+    if base_str:
+        key_code = int(base_str)
+
+    # Get base key name
+    if 97 <= key_code <= 122:  # a-z
+        base_key = chr(key_code)
+    elif 65 <= key_code <= 90:  # A-Z (shifted letters)
+        base_key = chr(key_code).lower()
         mods |= 1  # Add shift modifier
-    elif code in KITTY_KEY_CODES:
-        base_key = KITTY_KEY_CODES[code]
+    elif key_code in KITTY_KEY_CODES:
+        base_key = KITTY_KEY_CODES[key_code]
     else:
         return None
 

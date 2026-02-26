@@ -27,7 +27,12 @@ from .tui import (
     OverlayOptions,
     is_focusable,
 )
-from .utils import slice_by_column, truncate_to_width, visible_width, wrap_text_with_ansi
+from .utils import (
+    slice_by_column,
+    truncate_to_width,
+    visible_width,
+    wrap_text_with_ansi,
+)
 
 __all__ = [
     # Core

@@ -171,7 +171,49 @@ class Container(Component):
             self.children.remove(component)
 
     def clear(self) -> None:
-        """Remove all child components."""
+        """Remove all child components.
+
+        ⚠️⚠️⚠️ WARNING: DO NOT USE THIS FOR SCREEN SWITCHING ⚠️⚠️⚠️
+
+        This method removes all children but preserves _previous_lines. If you
+        clear() and then re-add content, you defeat differential rendering.
+
+        For streaming content that grows incrementally:
+            - Just add_child() new content
+            - Don't call clear()
+            - Old content flows into scrollback naturally
+
+        For screen switching, use one of these patterns:
+
+        Pattern 1 - Root Container (RECOMMENDED):
+            self.root = Container()
+            tui.add_child(self.root)
+
+            # Switch screens:
+            self.root.children.clear()  # Clear container, not TUI
+            self.root.add_child(new_screen_content)
+
+        Pattern 2 - Reusable Component:
+            class ScreenManager(Component):
+                def __init__(self):
+                    self.current = None
+
+                def switch_to(self, screen):
+                    self.current = screen
+                    self.invalidate()
+
+                def render(self, width):
+                    return self.current.render(width) if self.current else []
+
+            manager = ScreenManager()
+            tui.add_child(manager)
+            manager.switch_to(new_screen)
+
+        WHY THIS MATTERS:
+            - TUI uses _previous_lines for differential rendering
+            - clear() + re-add forces full re-render of all lines
+            - Proper patterns only update what actually changed
+        """
         self.children.clear()
 
     def invalidate(self) -> None:
@@ -218,13 +260,11 @@ class TUI(Container):
         terminal: Terminal,
         show_hardware_cursor: bool = False,
         clear_on_shrink: bool = True,
-        use_alternate_buffer: bool = False,
     ) -> None:
         super().__init__()
         self.terminal = terminal
         self._show_hardware_cursor = show_hardware_cursor
         self._clear_on_shrink = clear_on_shrink
-        self._use_alternate_buffer = use_alternate_buffer
 
         # State for differential rendering
         self._previous_lines: list[str] = []
@@ -242,6 +282,9 @@ class TUI(Container):
         self._hardware_cursor_row: int = -1
         self._input_buffer: str = ""
         self._max_lines_rendered: int = 0
+        self._first_visible_row_previous: int = (
+            0  # First visible row in scrollback from last frame
+        )
         self._stopped = False
 
         # Overlay stack
@@ -291,7 +334,9 @@ class TUI(Container):
             Handle to control the overlay's visibility
         """
         opts = options or OverlayOptions()
-        entry = _OverlayEntry(component, opts, previous_focus=self._focused_component)
+        entry = _OverlayEntry(
+            component, opts, previous_focus=self._focused_component
+        )
         self._overlay_stack.append(entry)
 
         # Set focus to overlay component if it's focusable
@@ -321,7 +366,10 @@ class TUI(Container):
 
     def has_overlay(self) -> bool:
         """Check if there are any visible overlays."""
-        return any(not entry.hidden and not entry.closed for entry in self._overlay_stack)
+        return any(
+            not entry.hidden and not entry.closed
+            for entry in self._overlay_stack
+        )
 
     def _is_overlay_visible(self, entry: _OverlayEntry) -> bool:
         """Check if an overlay entry is currently visible."""
@@ -344,13 +392,10 @@ class TUI(Container):
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""
-        if self._use_alternate_buffer:
-            self.terminal.enter_alternate_screen()
-        else:
-            # Save cursor position and clear screen for main buffer mode
-            self.terminal.write("\x1b[s")  # Save cursor
-            self.terminal.write("\x1b[H")  # Move to home first
-            self.terminal.write("\x1b[2J")  # Clear screen
+        # Save cursor position and clear screen
+        self.terminal.write("\x1b[s")  # Save cursor
+        self.terminal.write("\x1b[H")  # Move to home first
+        self.terminal.write("\x1b[2J")  # Clear screen
 
         self.terminal.hide_cursor()
         self.terminal.set_raw_mode()
@@ -361,20 +406,17 @@ class TUI(Container):
         """Stop the TUI - restore terminal state."""
         self._stopped = True
 
-        if not self._use_alternate_buffer:
-            # Clear our content and restore cursor in main buffer mode
-            self.terminal.write("\x1b[H")  # Move to home first
-            self.terminal.write("\x1b[2J")  # Clear screen
-            self.terminal.write("\x1b[u")  # Restore cursor
+        # Clear our content and restore cursor
+        self.terminal.write("\x1b[H")  # Move to home first
+        self.terminal.write("\x1b[2J")  # Clear screen
+        self.terminal.write("\x1b[u")  # Restore cursor
 
         self.terminal.show_cursor()
-
-        if self._use_alternate_buffer:
-            self.terminal.exit_alternate_screen()
-
         self.terminal.restore_mode()
 
-    def add_input_listener(self, listener: Callable[[str], dict | None]) -> Callable[[], None]:
+    def add_input_listener(
+        self, listener: Callable[[str], dict | None]
+    ) -> Callable[[], None]:
         """Add an input listener. Returns a function to remove the listener."""
         self._input_listeners.append(listener)
 
@@ -396,7 +438,7 @@ class TUI(Container):
 
     def handle_input(self, data: str) -> None:
         """Handle keyboard input - forwards to focused component.
-        
+
         Call this from your main loop with data from terminal.read_sequence().
         """
         self._handle_input(data)
@@ -420,7 +462,9 @@ class TUI(Container):
             return
 
         # Send to focused component
-        if self._focused_component and hasattr(self._focused_component, "handle_input"):
+        if self._focused_component and hasattr(
+            self._focused_component, "handle_input"
+        ):
             self._focused_component.handle_input(data)
 
     def _resolve_size_value(self, value: SizeValue | None, total: int) -> int:
@@ -462,7 +506,11 @@ class TUI(Container):
         return col + offset_x
 
     def _resolve_overlay_layout(
-        self, options: OverlayOptions, term_width: int, term_height: int, content_height: int
+        self,
+        options: OverlayOptions,
+        term_width: int,
+        term_height: int,
+        content_height: int,
     ) -> tuple[int, int, int, int]:
         """Resolve overlay layout from options.
 
@@ -472,8 +520,7 @@ class TUI(Container):
         width = self._resolve_size_value(options.width, term_width)
         if options.min_width and width < options.min_width:
             width = options.min_width
-        if width > term_width:
-            width = term_width
+        width = min(width, term_width)
 
         # Resolve max height
         max_height = self._resolve_size_value(options.max_height, term_height)
@@ -496,23 +543,26 @@ class TUI(Container):
         avail_width = term_width - margin_left - margin_right
         avail_height = term_height - margin_top - margin_bottom
 
-        if width > avail_width:
-            width = avail_width
-        if max_height > avail_height:
-            max_height = avail_height
+        width = min(width, avail_width)
+        max_height = min(max_height, avail_height)
 
         # Resolve position
         if options.row is not None:
             row = self._resolve_size_value(options.row, term_height)
         else:
             row = self._resolve_anchor_row(
-                options.anchor, avail_height, min(content_height, max_height), options.offset_y
+                options.anchor,
+                avail_height,
+                min(content_height, max_height),
+                options.offset_y,
             )
 
         if options.col is not None:
             col = self._resolve_size_value(options.col, term_width)
         else:
-            col = self._resolve_anchor_col(options.anchor, avail_width, width, options.offset_x)
+            col = self._resolve_anchor_col(
+                options.anchor, avail_width, width, options.offset_x
+            )
 
         row += margin_top
         col += margin_left
@@ -520,9 +570,22 @@ class TUI(Container):
         return (width, row, col, max_height)
 
     def _composite_overlays(
-        self, base_lines: list[str], term_width: int, term_height: int
+        self,
+        base_lines: list[str],
+        term_width: int,
+        term_height: int,
+        viewport_top: int = 0,
     ) -> list[str]:
-        """Composite all overlays into content lines (in stack order)."""
+        """Composite all overlays into content lines (in stack order).
+
+        Args:
+            base_lines: The base content lines (full scrollback, not just viewport)
+            term_width: Terminal width in columns
+            term_height: Terminal height in rows
+            viewport_top: The first visible row in the scrollback buffer.
+                         When content exceeds terminal height, this tells us
+                         which line appears at the top of the screen.
+        """
         result = list(base_lines)
 
         for entry in self._overlay_stack:
@@ -530,7 +593,9 @@ class TUI(Container):
                 continue
 
             # Check visibility condition
-            if entry.options.visible and not entry.options.visible(term_width, term_height):
+            if entry.options.visible and not entry.options.visible(
+                term_width, term_height
+            ):
                 continue
 
             # Calculate margins first
@@ -549,19 +614,27 @@ class TUI(Container):
             width = self._resolve_size_value(entry.options.width, term_width)
             if entry.options.min_width and width < entry.options.min_width:
                 width = entry.options.min_width
-            if width > term_width:
-                width = term_width
-            if width > avail_width:
-                width = avail_width
+            width = min(width, term_width)
+            width = min(width, avail_width)
 
             # Render overlay content at the resolved width
             content = entry.component.render(width)
             content_height = len(content)
 
             # Now resolve full layout (row, col, max_height) with actual content height
-            _, row, col, max_height = self._resolve_overlay_layout(
+            _, layout_row, col, max_height = self._resolve_overlay_layout(
                 entry.options, term_width, term_height, content_height
             )
+
+            # Determine screen row based on positioning mode:
+            # - Anchored overlays (no explicit row): layout_row is already in screen coords
+            # - Absolute positioned (explicit row): layout_row is in content coords
+            if entry.options.row is not None:
+                # Explicit row = content coordinates, convert to screen
+                screen_row = layout_row - viewport_top
+            else:
+                # Anchor-based = screen coordinates already
+                screen_row = layout_row
 
             # Limit content to max_height
             if len(content) > max_height:
@@ -569,50 +642,70 @@ class TUI(Container):
 
             # Composite each line
             for i, overlay_line in enumerate(content):
-                target_row = row + i
-                if target_row < 0 or target_row >= term_height:
+                target_screen_row = screen_row + i
+
+                # Only render if visible in the terminal viewport
+                if target_screen_row < 0 or target_screen_row >= term_height:
                     continue
 
+                # Calculate the content row where overlay should be composited
+                # For explicit row positioning, layout_row is the content coordinate
+                # For anchor-based positioning, we need to convert screen to content
+                if entry.options.row is not None:
+                    target_content_row = layout_row + i
+                else:
+                    target_content_row = viewport_top + target_screen_row
+
                 # Ensure result has enough lines
-                while len(result) <= target_row:
+                while len(result) <= target_content_row:
                     result.append("")
 
-                result[target_row] = self._composite_line_at(
-                    result[target_row], overlay_line, col, width, term_width
+                result[target_content_row] = self._composite_line_at(
+                    result[target_content_row],
+                    overlay_line,
+                    col,
+                    width,
+                    term_width,
                 )
 
         return result
 
     def _composite_line_at(
-        self, base_line: str, overlay_line: str, col: int, width: int, total_width: int
+        self,
+        base_line: str,
+        overlay_line: str,
+        col: int,
+        width: int,
+        total_width: int,
     ) -> str:
         """Splice overlay content into a base line at a specific column."""
         # Get before segment (everything up to col)
         before = slice_by_column(base_line, 0, col)
-        
+
         # Pad before if it's shorter than col (base line was shorter)
         before_width = visible_width(before)
         if before_width < col:
             before += " " * (col - before_width)
-        
+
         # Get overlay content, limited to its width
         overlay = slice_by_column(overlay_line, 0, width)
         # Preserve trailing reset code if original had one (prevents color bleeding)
-        if overlay_line.rstrip().endswith("\x1b[0m") and not overlay.endswith("\x1b[0m"):
+        if overlay_line.rstrip().endswith("\x1b[0m") and not overlay.endswith(
+            "\x1b[0m"
+        ):
             overlay += "\x1b[0m"
         overlay_visible_width = visible_width(overlay)
-        
+
         # Calculate where overlay ends and after segment begins
         after_start = col + overlay_visible_width
-        
+
         # Calculate remaining width for after segment
         remaining_width = total_width - after_start
-        if remaining_width < 0:
-            remaining_width = 0
-        
+        remaining_width = max(remaining_width, 0)
+
         # Get after segment
         after = slice_by_column(base_line, after_start, remaining_width)
-        
+
         # Pad after if needed to fill total_width
         after_width = visible_width(after)
         if after_start + after_width < total_width:
@@ -624,7 +717,9 @@ class TUI(Container):
         """Apply SGR reset at end of each line."""
         return [line + self._SEGMENT_RESET for line in lines]
 
-    def _extract_cursor_position(self, lines: list[str], height: int) -> tuple[int, int] | None:
+    def _extract_cursor_position(
+        self, lines: list[str], height: int
+    ) -> tuple[int, int] | None:
         """Find and extract cursor position from rendered lines.
 
         Searches for CURSOR_MARKER, calculates its position, and strips it.
@@ -649,7 +744,11 @@ class TUI(Container):
         return None
 
     def render_frame(self) -> None:
-        """Render a single frame."""
+        """Render a single frame using relative cursor positioning.
+
+        Uses synchronized output (DEC 2026) and relative cursor movement
+        to enable scrollback buffer support.
+        """
         if self._stopped:
             return
 
@@ -668,8 +767,14 @@ class TUI(Container):
         # Render base content
         base_lines = self.render(term_width)
 
-        # Composite overlays
-        lines = self._composite_overlays(base_lines, term_width, term_height)
+        # Calculate viewport position for overlay positioning
+        # This tells us which line in the scrollback is at the top of the terminal
+        viewport_top = self._calculate_first_visible_row(term_height)
+
+        # Composite overlays (with viewport offset for correct positioning)
+        lines = self._composite_overlays(
+            base_lines, term_width, term_height, viewport_top
+        )
 
         # Apply line resets
         lines = self._apply_line_resets(lines)
@@ -680,20 +785,83 @@ class TUI(Container):
         # Strip cursor markers from output
         lines = [line.replace(CURSOR_MARKER, "") for line in lines]
 
-        # Differential rendering
-        for i, line in enumerate(lines):
-            if i >= len(self._previous_lines) or self._previous_lines[i] != line:
-                self.terminal.move_cursor(i, 0)
-                self.terminal.write(line)
+        # Build output buffer with synchronized output
+        buffer = self._begin_sync()
 
-        # Clear remaining lines if content shrank
-        if self._clear_on_shrink and len(lines) < len(self._previous_lines):
-            for i in range(len(lines), len(self._previous_lines)):
-                self.terminal.move_cursor(i, 0)
-                self.terminal.write(" " * term_width)
+        # Initialize cursor position on first frame
+        if self._hardware_cursor_row < 0:
+            # Move to top of screen on first render
+            buffer += "\x1b[H"
+            self._hardware_cursor_row = 0
+
+        previous_count = len(self._previous_lines)
+        current_count = len(lines)
+
+        # Check if any visible content changed
+        content_changed = False
+        if current_count != previous_count:
+            content_changed = True
+        else:
+            # Compare visible portion
+            start = max(0, current_count - term_height)
+            for i in range(start, current_count):
+                if i >= len(self._previous_lines) or self._previous_lines[i] != lines[i]:
+                    content_changed = True
+                    break
+
+        # Handle content growth - emit newlines to scroll old content into scrollback
+        if current_count > term_height and current_count > previous_count:
+            # New content exceeds terminal - need to scroll
+            new_lines = current_count - previous_count
+
+            # Move to the last line we previously rendered (or bottom of screen)
+            last_rendered = min(previous_count, term_height)
+            if last_rendered > 0:
+                buffer += self._move_cursor_relative(last_rendered - 1)
+            else:
+                buffer += self._move_cursor_relative(term_height - 1)
+
+            # Emit newlines to scroll terminal - each newline scrolls content up
+            for _ in range(new_lines):
+                buffer += "\r\n"
+
+            # After all the newlines, cursor is at bottom of screen
+            # Reset our tracking to match
+            self._hardware_cursor_row = term_height - 1
+
+        # Always redraw visible viewport when content changed (scrollback mode safety)
+        if content_changed:
+            if current_count > term_height:
+                # Content exceeds terminal - render visible portion only
+                first_visible = current_count - term_height
+
+                for screen_row in range(term_height):
+                    content_row = first_visible + screen_row
+                    if content_row >= len(lines):
+                        break
+
+                    buffer += self._move_cursor_relative(screen_row)
+                    buffer += "\r\x1b[2K"  # Clear line first
+                    buffer += lines[content_row]
+            else:
+                # Content fits in terminal
+                for i, line in enumerate(lines):
+                    buffer += self._move_cursor_relative(i)
+                    buffer += "\r\x1b[2K"  # Clear line first
+                    buffer += line
+
+                # Clear remaining lines if content shrank
+                if self._clear_on_shrink and current_count < previous_count:
+                    for i in range(current_count, previous_count):
+                        buffer += self._move_cursor_relative(i)
+                        buffer += "\r\x1b[2K"
+
+        # End synchronized output and flush
+        buffer += self._end_sync()
+        self.terminal.write(buffer)
 
         # Position hardware cursor if needed
-        self._position_hardware_cursor(cursor_pos, len(lines))
+        self._position_hardware_cursor_relative(cursor_pos, len(lines))
 
         self._previous_lines = lines
         self._previous_width = term_width
@@ -702,7 +870,7 @@ class TUI(Container):
     def _position_hardware_cursor(
         self, cursor_pos: tuple[int, int] | None, total_lines: int
     ) -> None:
-        """Position the hardware cursor for IME candidate window."""
+        """Position the hardware cursor for IME candidate window (absolute positioning)."""
         if not self._show_hardware_cursor:
             return
 
@@ -715,6 +883,101 @@ class TUI(Container):
                 return
 
         self.terminal.hide_cursor()
+
+    def _position_hardware_cursor_relative(
+        self, cursor_pos: tuple[int, int] | None, total_lines: int
+    ) -> None:
+        """Position the hardware cursor for IME candidate window (relative positioning)."""
+        if not self._show_hardware_cursor:
+            self.terminal.hide_cursor()
+            return
+
+        if cursor_pos:
+            row, col = cursor_pos
+            if row < total_lines:
+                # Move to cursor row using relative positioning
+                self.terminal.write(self._move_cursor_relative(row))
+                # Move to column (absolute column, relative row)
+                self.terminal.write(f"\r\x1b[{col}C")
+                self.terminal.show_cursor()
+                self._hardware_cursor_row = row
+                return
+
+        self.terminal.hide_cursor()
+
+    def _calculate_first_visible_row(self, term_height: int) -> int:
+        """Calculate which line in the scrollback buffer is at the top of the terminal.
+
+        When content exceeds terminal height, this tells us the first line
+        of the scrollback that's currently visible. Lines before this are
+        in the terminal's native scrollback history (accessible via Shift+PgUp).
+
+        Args:
+            term_height: Current terminal height in rows
+
+        Returns:
+            The line number (0-indexed) in the virtual canvas that appears
+            at the top of the terminal screen.
+
+        Example:
+            If max_lines_rendered=100 and term_height=24:
+            - Returns 76 (lines 0-75 are in scrollback, lines 76-99 are visible)
+        """
+        return max(0, self._max_lines_rendered - term_height)
+
+    def _begin_sync(self) -> str:
+        """Begin synchronized output mode (DEC 2026).
+
+        This tells the terminal to buffer all output until _end_sync() is called,
+        preventing flickering during partial screen updates. Terminals that don't
+        support this mode will simply ignore it (graceful degradation).
+
+        Returns:
+            Escape sequence to begin synchronized output: "\\x1b[?2026h"
+        """
+        return "\x1b[?2026h"
+
+    def _end_sync(self) -> str:
+        """End synchronized output mode (DEC 2026).
+
+        Flushes the buffered output to the screen as a single atomic update.
+        Must be called after _begin_sync() to make changes visible.
+
+        Returns:
+            Escape sequence to end synchronized output: "\\x1b[?2026l"
+        """
+        return "\x1b[?2026l"
+
+    def _move_cursor_relative(self, target_row: int) -> str:
+        """Generate escape sequence to move cursor relative to current position.
+
+        Uses relative cursor movement (\x1b[nA/B) instead of absolute positioning.
+        This allows content to flow into the terminal's scrollback buffer.
+
+        Args:
+            target_row: The row to move to (0-indexed in virtual canvas)
+
+        Returns:
+            Escape sequence to move cursor, or empty string if already at target.
+
+        Example:
+            If cursor is at row 5 and target is row 8:
+            - Returns "\\x1b[3B" (move down 3 lines)
+            - Updates _hardware_cursor_row to 8
+        """
+        delta = target_row - self._hardware_cursor_row
+
+        if delta == 0:
+            return ""
+
+        if delta > 0:
+            # Move cursor down
+            self._hardware_cursor_row = target_row
+            return self.terminal.move_cursor_down(delta)
+        else:
+            # Move cursor up (negative delta)
+            self._hardware_cursor_row = target_row
+            return self.terminal.move_cursor_up(-delta)
 
     def run_frame(self) -> bool:
         """Run a single frame - process input and render.

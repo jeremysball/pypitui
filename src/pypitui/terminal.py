@@ -66,13 +66,27 @@ class Terminal(ABC):
         pass
 
     @abstractmethod
-    def enter_alternate_screen(self) -> None:
-        """Switch to alternate screen buffer."""
+    def move_cursor_up(self, n: int = 1) -> str:
+        """Return escape sequence to move cursor up n lines.
+
+        Args:
+            n: Number of lines to move up (default 1)
+
+        Returns:
+            Escape sequence: "\\x1b[nA"
+        """
         pass
 
     @abstractmethod
-    def exit_alternate_screen(self) -> None:
-        """Return to normal screen buffer."""
+    def move_cursor_down(self, n: int = 1) -> str:
+        """Return escape sequence to move cursor down n lines.
+
+        Args:
+            n: Number of lines to move down (default 1)
+
+        Returns:
+            Escape sequence: "\\x1b[nB"
+        """
         pass
 
 
@@ -82,7 +96,6 @@ class ProcessTerminal(Terminal):
     def __init__(self) -> None:
         self._original_settings: object | None = None
         self._is_raw = False
-        self._in_alternate_screen = False
         self._fd = sys.stdin.fileno()
 
     def write(self, data: str) -> None:
@@ -216,22 +229,24 @@ class ProcessTerminal(Terminal):
             return
 
         try:
-            termios.tcsetattr(self._fd, termios.TCSADRAIN, self._original_settings)
+            termios.tcsetattr(
+                self._fd, termios.TCSADRAIN, self._original_settings
+            )
             self._is_raw = False
         except termios.error:
             pass
 
-    def enter_alternate_screen(self) -> None:
-        """Switch to alternate screen buffer."""
-        if not self._in_alternate_screen:
-            self.write("\x1b[?1049h")
-            self._in_alternate_screen = True
+    def move_cursor_up(self, n: int = 1) -> str:
+        """Return escape sequence to move cursor up n lines."""
+        if n <= 0:
+            return ""
+        return f"\x1b[{n}A"
 
-    def exit_alternate_screen(self) -> None:
-        """Return to normal screen buffer."""
-        if self._in_alternate_screen:
-            self.write("\x1b[?1049l")
-            self._in_alternate_screen = False
+    def move_cursor_down(self, n: int = 1) -> str:
+        """Return escape sequence to move cursor down n lines."""
+        if n <= 0:
+            return ""
+        return f"\x1b[{n}B"
 
 
 class MockTerminal(Terminal):
@@ -243,7 +258,6 @@ class MockTerminal(Terminal):
         self._buffer: list[str] = []
         self._input_buffer: list[str] = []
         self.cursor_visible = True
-        self._in_alternate_screen = False
 
     def write(self, data: str) -> None:
         """Write data to buffer."""
@@ -288,13 +302,17 @@ class MockTerminal(Terminal):
         """Restore mode."""
         pass
 
-    def enter_alternate_screen(self) -> None:
-        """Enter alternate screen."""
-        self._in_alternate_screen = True
+    def move_cursor_up(self, n: int = 1) -> str:
+        """Return escape sequence to move cursor up n lines."""
+        if n <= 0:
+            return ""
+        return f"\x1b[{n}A"
 
-    def exit_alternate_screen(self) -> None:
-        """Exit alternate screen."""
-        self._in_alternate_screen = False
+    def move_cursor_down(self, n: int = 1) -> str:
+        """Return escape sequence to move cursor down n lines."""
+        if n <= 0:
+            return ""
+        return f"\x1b[{n}B"
 
     def queue_input(self, data: str) -> None:
         """Queue input data for testing."""

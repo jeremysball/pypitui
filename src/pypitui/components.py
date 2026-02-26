@@ -36,7 +36,9 @@ class Text(Component):
         self._text = text
         self.invalidate()
 
-    def set_custom_bg_fn(self, custom_bg_fn: Callable[[str], str] | None) -> None:
+    def set_custom_bg_fn(
+        self, custom_bg_fn: Callable[[str], str] | None
+    ) -> None:
         """Set custom background function."""
         self._custom_bg_fn = custom_bg_fn
         self.invalidate()
@@ -110,7 +112,10 @@ class Box(Component):
     """Box component - a container that applies padding and background."""
 
     def __init__(
-        self, padding_x: int = 1, padding_y: int = 1, bg_fn: Callable[[str], str] | None = None
+        self,
+        padding_x: int = 1,
+        padding_y: int = 1,
+        bg_fn: Callable[[str], str] | None = None,
     ) -> None:
         self.children: list[Component] = []
         self._padding_x = padding_x
@@ -197,7 +202,7 @@ class Box(Component):
 
 class BorderedBox(Component):
     """A box with borders that intelligently wraps content to fit inside.
-    
+
     Unlike Box which just adds padding, BorderedBox draws borders and
     wraps content to fit within the content area, maintaining the box shape.
     """
@@ -221,7 +226,7 @@ class BorderedBox(Component):
         title: str | None = None,
     ) -> None:
         """Initialize bordered box.
-        
+
         Args:
             padding_x: Horizontal padding inside the box (default 1)
             padding_y: Vertical padding inside the box (default 0)
@@ -260,6 +265,7 @@ class BorderedBox(Component):
         """
         try:
             from .rich_components import rich_to_ansi
+
             self._title = rich_to_ansi(markup)
             self._invalidate_cache()
         except ImportError as e:
@@ -296,7 +302,7 @@ class BorderedBox(Component):
 
     def render(self, width: int) -> list[str]:
         """Render bordered box with wrapped content.
-        
+
         The box will use the requested width if possible, but content
         will be wrapped to fit within the borders.
         """
@@ -307,14 +313,14 @@ class BorderedBox(Component):
         # Apply max_width constraint if set
         if self._max_width is not None:
             width = min(width, self._max_width)
-        
+
         # Ensure minimum width
         width = max(width, self._min_width)
-        
+
         # Calculate content width (inside borders and padding)
         # width = border (1) + padding + content + padding + border (1)
         content_width = max(1, width - 2 - self._padding_x * 2)
-        
+
         # Build content lines from children
         content_lines: list[str] = []
         for child in self.children:
@@ -323,47 +329,63 @@ class BorderedBox(Component):
 
         # Build the box
         lines: list[str] = []
-        
+
         # Top border
-        top_border = self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
+        top_border = (
+            self.TOP_LEFT + self.HORIZONTAL * (width - 2) + self.TOP_RIGHT
+        )
         lines.append(top_border)
-        
+
         # Top padding (if any)
         for _ in range(self._padding_y):
             lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
-        
+
         # Title (if provided) - appears as first content line with separator after
         if self._title:
             # Title line with padding
-            title_padded = " " * self._padding_x + self._title + " " * self._padding_x
+            title_padded = (
+                " " * self._padding_x + self._title + " " * self._padding_x
+            )
             inner_width = width - 2
             if visible_width(title_padded) < inner_width:
-                title_padded += " " * (inner_width - visible_width(title_padded))
+                title_padded += " " * (
+                    inner_width - visible_width(title_padded)
+                )
             lines.append(self.VERTICAL + title_padded + self.VERTICAL)
-            
+
             # Separator line (├─┤)
             sep_inner = self.HORIZONTAL * (width - 2)
             lines.append(self.T_LEFT + sep_inner + self.T_RIGHT)
-        
+
         # Content lines with wrapping and padding
         for line in content_lines:
             # Wrap line to fit content width
             wrapped = self._wrap_line(line, content_width)
             for wrapped_line in wrapped:
                 # Add horizontal padding
-                padded_content = " " * self._padding_x + wrapped_line + " " * self._padding_x
+                padded_content = (
+                    " " * self._padding_x
+                    + wrapped_line
+                    + " " * self._padding_x
+                )
                 # Pad to full inner width
                 inner_width = width - 2
                 if visible_width(padded_content) < inner_width:
-                    padded_content += " " * (inner_width - visible_width(padded_content))
+                    padded_content += " " * (
+                        inner_width - visible_width(padded_content)
+                    )
                 lines.append(self.VERTICAL + padded_content + self.VERTICAL)
-        
+
         # Bottom padding (if any)
         for _ in range(self._padding_y):
             lines.append(self.VERTICAL + " " * (width - 2) + self.VERTICAL)
-        
+
         # Bottom border
-        bottom_border = self.BOTTOM_LEFT + self.HORIZONTAL * (width - 2) + self.BOTTOM_RIGHT
+        bottom_border = (
+            self.BOTTOM_LEFT
+            + self.HORIZONTAL * (width - 2)
+            + self.BOTTOM_RIGHT
+        )
         lines.append(bottom_border)
 
         # Cache
@@ -373,26 +395,26 @@ class BorderedBox(Component):
 
     def _wrap_line(self, line: str, max_width: int) -> list[str]:
         """Wrap a line to fit within max_width visible characters.
-        
+
         Unlike wrap_text_with_ansi, this preserves the line structure
         and doesn't add reset codes at the end.
         """
         if not line:
             return [""]
-        
+
         visible = visible_width(line)
         if visible <= max_width:
             return [line]
-        
+
         # Need to wrap - use word wrapping
         words = line.split(" ")
         result: list[str] = []
         current_line = ""
         current_width = 0
-        
+
         for word in words:
             word_visible = visible_width(word)
-            
+
             # Check if word alone exceeds max_width
             if word_visible > max_width:
                 # Flush current line if any
@@ -403,7 +425,7 @@ class BorderedBox(Component):
                 # Truncate the long word
                 result.append(truncate_to_width(word, max_width, pad=False))
                 continue
-            
+
             # Check if adding this word would exceed width
             space_needed = 1 if current_line else 0
             if current_width + space_needed + word_visible > max_width:
@@ -418,11 +440,11 @@ class BorderedBox(Component):
                     current_width += 1
                 current_line += word
                 current_width += word_visible
-        
+
         # Don't forget the last line
         if current_line:
             result.append(current_line)
-        
+
         return result if result else [""]
 
 
@@ -464,7 +486,9 @@ class SelectListTheme:
 class SelectList(Component):
     """Selectable list component."""
 
-    def __init__(self, items: list[SelectItem], max_visible: int, theme: SelectListTheme) -> None:
+    def __init__(
+        self, items: list[SelectItem], max_visible: int, theme: SelectListTheme
+    ) -> None:
         self._items = items
         self._filtered_items = list(items)
         self._selected_index = 0
@@ -498,11 +522,15 @@ class SelectList(Component):
     def _notify_selection_change(self) -> None:
         """Notify selection change callback."""
         if self.on_selection_change and self._filtered_items:
-            self.on_selection_change(self._filtered_items[self._selected_index])
+            self.on_selection_change(
+                self._filtered_items[self._selected_index]
+            )
 
     def get_selected_item(self) -> SelectItem | None:
         """Get currently selected item."""
-        if self._filtered_items and 0 <= self._selected_index < len(self._filtered_items):
+        if self._filtered_items and 0 <= self._selected_index < len(
+            self._filtered_items
+        ):
             return self._filtered_items[self._selected_index]
         return None
 
@@ -548,7 +576,9 @@ class SelectList(Component):
 
             # Add description if present and there's room
             if item.description and visible_width(line) + 3 < width:
-                desc = " - " + item.description
+                # Normalize newlines to spaces
+                normalized_desc = item.description.replace("\n", " ")
+                desc = " - " + normalized_desc
                 desc = self._theme.description(desc)
                 line += desc
 
@@ -556,7 +586,9 @@ class SelectList(Component):
 
         # Scroll indicator
         if total_items > visible_count:
-            scroll_text = f" {self._scroll_offset + 1}-{end_offset} of {total_items} "
+            scroll_text = (
+                f" {self._scroll_offset + 1}-{end_offset} of {total_items} "
+            )
             scroll_line = self._theme.scroll_info(scroll_text)
             lines.append(truncate_to_width(scroll_line, width))
 
@@ -632,7 +664,9 @@ class Input(Component, Focusable):
 
     def render(self, width: int) -> list[str]:
         """Render input with cursor."""
-        display_text = self._text if not self._password else "*" * len(self._text)
+        display_text = (
+            self._text if not self._password else "*" * len(self._text)
+        )
 
         if not display_text and not self._focused:
             # Show placeholder
@@ -647,14 +681,16 @@ class Input(Component, Focusable):
 
         # Build line with cursor
         before_cursor = display_text[: self._cursor_pos]
-        at_cursor = display_text[self._cursor_pos : self._cursor_pos + 1] or " "
+        at_cursor = (
+            display_text[self._cursor_pos : self._cursor_pos + 1] or " "
+        )
         after_cursor = display_text[self._cursor_pos + 1 :]
 
         if self._focused:
             # Use reverse video for cursor
-            line = f"> {before_cursor}{CURSOR_MARKER}\x1b[7m{at_cursor}\x1b[27m{after_cursor}"
+            line = f"{before_cursor}{CURSOR_MARKER}\x1b[7m{at_cursor}\x1b[27m{after_cursor}"
         else:
-            line = f"> {before_cursor}{at_cursor}{after_cursor}"
+            line = f"{before_cursor}{at_cursor}{after_cursor}"
 
         return [truncate_to_width(line, width)]
 
@@ -672,11 +708,17 @@ class Input(Component, Focusable):
             self._cursor_pos = len(self._text)
         elif matches_key(data, Key.backspace):
             if self._cursor_pos > 0:
-                self._text = self._text[: self._cursor_pos - 1] + self._text[self._cursor_pos :]
+                self._text = (
+                    self._text[: self._cursor_pos - 1]
+                    + self._text[self._cursor_pos :]
+                )
                 self._cursor_pos -= 1
         elif matches_key(data, Key.delete):
             if self._cursor_pos < len(self._text):
-                self._text = self._text[: self._cursor_pos] + self._text[self._cursor_pos + 1 :]
+                self._text = (
+                    self._text[: self._cursor_pos]
+                    + self._text[self._cursor_pos + 1 :]
+                )
         elif matches_key(data, Key.ctrl("u")):
             # Delete to start of line
             self._text = self._text[self._cursor_pos :]
@@ -692,5 +734,9 @@ class Input(Component, Focusable):
                 self.on_submit(self._text)
         elif len(data) == 1 and ord(data[0]) >= 32:
             # Printable character
-            self._text = self._text[: self._cursor_pos] + data + self._text[self._cursor_pos :]
+            self._text = (
+                self._text[: self._cursor_pos]
+                + data
+                + self._text[self._cursor_pos :]
+            )
             self._cursor_pos += 1
