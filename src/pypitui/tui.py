@@ -759,13 +759,13 @@ class TUI(Container):
         # Get terminal size
         term_width, term_height = self.terminal.get_size()
 
-        # Force full redraw - clear screen and reset state
+        # Force full redraw - clear visible screen and reset state
         if self._force_full_redraw:
             self._force_full_redraw = False
-            self.terminal.write("\x1b[2J\x1b[H")  # Clear screen, move cursor home
+            self.terminal.write("\x1b[2J\x1b[H")  # Clear visible screen, move cursor home
             self._hardware_cursor_row = 0
             self._previous_lines = []
-            self._max_lines_rendered = 0
+            # Note: Don't reset _max_lines_rendered - scrollback still has old content
 
         # Check for terminal resize
         current_size = (term_width, term_height)
