@@ -15,10 +15,15 @@ from .utils import truncate_to_width, visible_width, wrap_text_with_ansi
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+# Constants
 _RICH_REQUIRED_MSG = (
     "This feature requires 'rich' package. "
     "Install with: pip install pypitui[rich]"
 )
+
+# ANSI escape codes
+ANSI_RESET = "\x1b[0m"
+ANSI_RESET_LEN = len(ANSI_RESET)  # 4 bytes
 
 
 class Text(Component):
@@ -59,8 +64,8 @@ class Text(Component):
 
     def _strip_trailing_reset(self, line: str) -> str:
         """Strip trailing ANSI reset codes from a line."""
-        while line.endswith("\x1b[0m"):
-            line = line[:-4]
+        while line.endswith(ANSI_RESET):
+            line = line[:-ANSI_RESET_LEN]
         return line
 
     def _apply_background(self, lines: list[str], width: int) -> list[str]:
@@ -673,10 +678,16 @@ class SelectList(Component):
 class Input(Component, Focusable):
     """Text input component with cursor support."""
 
-    def __init__(self, placeholder: str = "", password: bool = False) -> None:
+    def __init__(
+        self,
+        placeholder: str = "",
+        password: bool = False,
+        max_length: int | None = None,
+    ) -> None:
         self._text = ""
         self._placeholder = placeholder
         self._password = password
+        self._max_length = max_length
         self._cursor_pos = 0
         self._focused = False
         # Callbacks
@@ -778,6 +789,9 @@ class Input(Component, Focusable):
 
     def _insert_char(self, char: str) -> None:
         """Insert character at cursor position."""
+        # Check max length constraint
+        if self._max_length and len(self._text) >= self._max_length:
+            return
         self._text = (
             self._text[: self._cursor_pos]
             + char

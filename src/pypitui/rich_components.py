@@ -15,6 +15,43 @@ _RICH_REQUIRED_MSG = (
 )
 
 
+def _apply_padding(
+    lines: list[str],
+    width: int,
+    padding_x: int,
+    padding_y: int,
+) -> list[str]:
+    """Apply horizontal and vertical padding to rendered lines.
+
+    Args:
+        lines: Rendered content lines
+        width: Target width including padding
+        padding_x: Horizontal padding (added to left)
+        padding_y: Vertical padding (added to top and bottom)
+
+    Returns:
+        Padded lines with proper spacing
+    """
+    result: list[str] = []
+
+    # Top padding
+    result.extend(" " * width for _ in range(padding_y))
+
+    # Content with horizontal padding
+    for line in lines:
+        if line:
+            padded = " " * padding_x + line
+            line_width = visible_width(padded)
+            if line_width < width:
+                padded += " " * (width - line_width)
+            result.append(padded)
+
+    # Bottom padding
+    result.extend(" " * width for _ in range(padding_y))
+
+    return result
+
+
 class Markdown(Component):
     """Render markdown using Rich library.
 
@@ -108,25 +145,11 @@ class Markdown(Component):
         if content_width <= 0:
             return []
 
-        lines: list[str] = []
-
-        # Top padding
-        lines.extend(" " * width for _ in range(self._padding_y))
-
-        # Render markdown
+        # Render markdown and apply padding
         md_lines = self._render_with_rich(width)
-
-        # Apply horizontal padding and ensure width
-        for line in md_lines:
-            if line:  # Skip empty lines from split
-                padded = " " * self._padding_x + line
-                line_width = visible_width(padded)
-                if line_width < width:
-                    padded += " " * (width - line_width)
-                lines.append(padded)
-
-        # Bottom padding
-        lines.extend(" " * width for _ in range(self._padding_y))
+        lines = _apply_padding(
+            md_lines, width, self._padding_x, self._padding_y
+        )
 
         # Cache result
         self._cache = (width, lines)
@@ -177,11 +200,6 @@ class RichText(Component):
         if content_width <= 0:
             return []
 
-        lines: list[str] = []
-
-        # Top padding
-        lines.extend(" " * width for _ in range(self._padding_y))
-
         # Parse and render
         console = Console(
             width=content_width,
@@ -194,14 +212,11 @@ class RichText(Component):
         with console.capture() as capture:
             console.print(rich_text)
 
-        output = capture.get()
-        for line in output.split("\n"):
-            if line:
-                padded = " " * self._padding_x + line
-                lines.append(padded)
-
-        # Bottom padding
-        lines.extend(" " * width for _ in range(self._padding_y))
+        # Apply padding to rendered lines
+        text_lines = [line for line in capture.get().split("\n") if line]
+        lines = _apply_padding(
+            text_lines, width, self._padding_x, self._padding_y
+        )
 
         self._cache = (width, lines)
         return lines
@@ -239,7 +254,7 @@ class RichTable(Component):
         justify: str = "left",
     ) -> None:
         """Add a column."""
-        self._columns.append((name, style, justify))  # type: ignore
+        self._columns.append((name, style, justify))
         self._cache = None
 
     def add_row(self, *values: str) -> None:
@@ -271,17 +286,12 @@ class RichTable(Component):
         if content_width <= 0:
             return []
 
-        lines: list[str] = []
-
-        # Top padding
-        lines.extend(" " * width for _ in range(self._padding_y))
-
         # Build table
         table = Table(title=self._title if self._title else None)
 
         for col in self._columns:
-            name, style, _justify = col
-            table.add_column(name, style=style, justify="left")
+            name, style, justify = col
+            table.add_column(name, style=style, justify=justify)
 
         for row in self._rows:
             table.add_row(*row)
@@ -296,14 +306,11 @@ class RichTable(Component):
         with console.capture() as capture:
             console.print(table)
 
-        output = capture.get()
-        for line in output.split("\n"):
-            if line:
-                padded = " " * self._padding_x + line
-                lines.append(padded)
-
-        # Bottom padding
-        lines.extend(" " * width for _ in range(self._padding_y))
+        # Apply padding to rendered lines
+        table_lines = [line for line in capture.get().split("\n") if line]
+        lines = _apply_padding(
+            table_lines, width, self._padding_x, self._padding_y
+        )
 
         self._cache = (width, lines)
         return lines

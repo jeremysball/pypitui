@@ -20,6 +20,9 @@ if TYPE_CHECKING:
 # Cursor position marker - APC (Application Program Command) sequence
 CURSOR_MARKER = "\x1b_pi:c\x07"
 
+# Timing constants (seconds)
+FRAME_TIME = 0.016  # ~60 FPS
+
 
 class Component(ABC):
     """Component interface - all components must implement this.
@@ -891,26 +894,6 @@ class TUI(Container):
         self._previous_width = term_width
         self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
 
-    def _position_hardware_cursor(
-        self, cursor_pos: tuple[int, int] | None, total_lines: int
-    ) -> None:
-        """Position the hardware cursor for IME candidate window.
-
-        Uses absolute positioning.
-        """
-        if not self._show_hardware_cursor:
-            return
-
-        if cursor_pos:
-            row, col = cursor_pos
-            if row < total_lines:
-                self.terminal.move_cursor(row, col)
-                self.terminal.show_cursor()
-                self._hardware_cursor_row = row
-                return
-
-        self.terminal.hide_cursor()
-
     def _position_hardware_cursor_relative(
         self, cursor_pos: tuple[int, int] | None, total_lines: int
     ) -> None:
@@ -1070,6 +1053,6 @@ class TUI(Container):
         self.start()
         try:
             while self.run_frame():
-                time.sleep(0.016)  # ~60fps
+                time.sleep(FRAME_TIME)
         finally:
             self.stop()
