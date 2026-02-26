@@ -129,26 +129,26 @@ Create a document that verifies each core feature works correctly.
 
 ---
 
-## Phase 4: Update Documentation
+## Phase 4: Update Documentation ✅ COMPLETE
 
 ### 4.1 README.md
 
-- [ ] Remove `use_alternate_buffer` parameter from examples
-- [ ] Update Quick Start to clarify scrollback is always enabled
-- [ ] Remove "alternate buffer" mentions from Scrollback Support section
-- [ ] Update TUI constructor signature in examples
+- [x] Remove `use_alternate_buffer` parameter from examples
+- [x] Update Quick Start to clarify scrollback is always enabled
+- [x] Remove "alternate buffer" mentions from Scrollback Support section
+- [x] Update TUI constructor signature in examples
 
 ### 4.2 docs/scrollback-and-streaming.md
 
-- [ ] Remove "Main Buffer vs Alternate Buffer" comparison table
-- [ ] Remove alternate buffer implementation checklist items
-- [ ] Update to reflect current implementation (no alternate buffer option)
+- [x] Remove "Main Buffer vs Alternate Buffer" comparison table
+- [x] Remove alternate buffer implementation checklist items
+- [x] Update to reflect current implementation (no alternate buffer option)
 - [ ] Add practical usage examples
 
 ### 4.3 LLMS.md
 
-- [ ] Remove alternate buffer API references
-- [ ] Update TUI constructor documentation
+- [x] Remove alternate buffer API references
+- [x] Update TUI constructor documentation
 
 ---
 
