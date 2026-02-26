@@ -265,6 +265,26 @@ class DemoApp:
         "\x1b[38;5;201m",  # Magenta
         "\x1b[38;5;198m",  # Pink
     ]
+    GREEN = [
+        "\x1b[38;5;46m",   # Bright green
+        "\x1b[38;5;47m",   # Green
+        "\x1b[38;5;48m",   # Green-cyan
+        "\x1b[38;5;49m",   # Green
+        "\x1b[38;5;50m",   # Green
+        "\x1b[38;5;82m",   # Green
+        "\x1b[38;5;83m",   # Green
+        "\x1b[38;5;84m",   # Green
+        "\x1b[38;5;85m",   # Green
+        "\x1b[38;5;120m",  # Light green
+        "\x1b[38;5;121m",  # Light green
+        "\x1b[38;5;155m",  # Light green
+        "\x1b[38;5;156m",  # Light green
+        "\x1b[38;5;157m",  # Light green
+        "\x1b[38;5;191m",  # Light green
+        "\x1b[38;5;192m",  # Light green
+        "\x1b[38;5;228m",  # Pale green
+        "\x1b[38;5;229m",  # Pale green
+    ]
     A = {"rs": "\x1b[0m", "bd": "\x1b[1m", "w": "\x1b[97m", "K": "\x1b[90m", "dim": "\x1b[2m"}
 
     # Character sets for matrix rain
@@ -282,6 +302,10 @@ class DemoApp:
         if not hasattr(self, "_matrix_mode"):
             self._matrix_mode = "katakana"
 
+        # Color mode: "rainbow" or "green"
+        if not hasattr(self, "_matrix_color"):
+            self._matrix_color = "rainbow"
+
         # Set character set and width based on mode
         if self._matrix_mode == "katakana":
             self._matrix_chars = self.CHARS_KATAKANA
@@ -289,6 +313,9 @@ class DemoApp:
         else:
             self._matrix_chars = self.CHARS_ASCII
             self._matrix_char_width = 1
+
+        # Select color palette
+        self._matrix_palette = self.RAINBOW if self._matrix_color == "rainbow" else self.GREEN
 
         w, h = self.terminal.get_size()
         # Grid width depends on character width
@@ -309,7 +336,7 @@ class DemoApp:
                     "y": random.uniform(-20, self.matrix_h),  # Spread initial positions
                     "speed": random.uniform(0.4, 1.0),
                     "length": random.randint(12, 30),
-                    "color_offset": random.randint(0, len(self.RAINBOW) - 1),  # Phase offset for rainbow
+                    "color_offset": random.randint(0, len(self._matrix_palette) - 1),  # Phase offset for rainbow
                     "active": True,
                 })
             else:
@@ -393,13 +420,13 @@ class DemoApp:
                     if dy == 0:
                         # HEAD: Always write new character with max brightness
                         char = random.choice(self._matrix_chars)
-                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self.RAINBOW))
+                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self._matrix_palette))
                         self.matrix_grid[col["x"]][y] = (char, 10, color_idx, 0)
                     elif existing_bright == 0:
                         # Empty cell in trail zone: seed it with character and brightness based on position
                         char = random.choice(self._matrix_chars)
                         brightness = max(1, 10 - dy)
-                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self.RAINBOW))
+                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self._matrix_palette))
                         self.matrix_grid[col["x"]][y] = (char, brightness, color_idx, 0)
                     # else: Cell already has content - leave it alone, let fade handle it
 
@@ -408,7 +435,7 @@ class DemoApp:
                 col["y"] = random.uniform(-30, -5)
                 col["speed"] = random.uniform(0.4, 1.0)
                 col["length"] = random.randint(12, 30)
-                col["color_offset"] = random.randint(0, len(self.RAINBOW) - 1)
+                col["color_offset"] = random.randint(0, len(self._matrix_palette) - 1)
 
         # Randomly activate inactive columns (lower rate for ASCII since more columns)
         activate_rate = 0.003 if self._matrix_mode == "ascii" else 0.005
@@ -418,7 +445,7 @@ class DemoApp:
                 col["y"] = random.uniform(-20, -5)
                 col["speed"] = random.uniform(0.4, 1.0)
                 col["length"] = random.randint(12, 30)
-                col["color_offset"] = random.randint(0, len(self.RAINBOW) - 1)
+                col["color_offset"] = random.randint(0, len(self._matrix_palette) - 1)
 
         # Deactivate some columns occasionally for variety
         for col in self.matrix_columns:
@@ -448,19 +475,19 @@ class DemoApp:
                     row.append(f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}")
                 elif bright >= 7:
                     # Bright bold color
-                    color = self.RAINBOW[color_idx]
+                    color = self._matrix_palette[color_idx]
                     row.append(f"{self.A['bd']}{color}{char}{self.A['rs']}")
                 elif bright >= 5:
                     # Normal bright
-                    color = self.RAINBOW[color_idx]
+                    color = self._matrix_palette[color_idx]
                     row.append(f"{color}{char}{self.A['rs']}")
                 elif bright >= 3:
                     # Medium
-                    color = self.RAINBOW[color_idx]
+                    color = self._matrix_palette[color_idx]
                     row.append(f"{color}{self.A['dim']}{char}{self.A['rs']}")
                 elif bright >= 1:
                     # Dim trail
-                    color = self.RAINBOW[color_idx]
+                    color = self._matrix_palette[color_idx]
                     row.append(f"{color}\x1b[2;22m{char}{self.A['rs']}")
                 else:
                     # Empty cell - pad with spaces based on character width
@@ -470,7 +497,7 @@ class DemoApp:
 
         # Add FPS header line at top with mode indicator
         fps_text = f"{self._fps:5.1f} FPS"
-        mode_text = f"[{self._matrix_mode.upper()}]"
+        mode_text = f"[{self._matrix_mode.upper()} | {self._matrix_color.upper()}]"
         header_content = f" {fps_text} {mode_text} "
         header_pad = (self.terminal_w - len(header_content)) // 2
         header = f"{self.A['K']}{'─' * header_pad}{self.A['rs']}{self.A['w']}{self.A['bd']}{header_content}{self.A['rs']}{self.A['K']}{'─' * header_pad}{self.A['rs']}"
@@ -487,11 +514,11 @@ class DemoApp:
             idx = (self.scroll_pos + i) % len(self.scroll_text)
             visible_banner += self.scroll_text[idx]
 
-        # Rainbow banner
+        # Colored banner (uses current palette)
         banner_line = ""
         for i, ch in enumerate(visible_banner):
-            cidx = int((self._color_cycle * 2 + i * 0.5) % len(self.RAINBOW))
-            banner_line += f"{self.A['bd']}{self.RAINBOW[cidx]}{ch}{self.A['rs']}"
+            cidx = int((self._color_cycle * 2 + i * 0.5) % len(self._matrix_palette))
+            banner_line += f"{self.A['bd']}{self._matrix_palette[cidx]}{ch}{self.A['rs']}"
 
         # Add UI lines (full terminal width)
         lines.append(f"{self.A['K']}{'─' * self.terminal_w}{self.A['rs']}")
@@ -506,6 +533,25 @@ class DemoApp:
         self._matrix_mode = "ascii" if self._matrix_mode == "katakana" else "katakana"
         # Rebuild matrix with new mode
         self.switch_screen(self._build_matrix)
+
+    def _toggle_matrix_color(self) -> None:
+        """Toggle between rainbow and green color modes."""
+        self._matrix_color = "green" if self._matrix_color == "rainbow" else "rainbow"
+        # Rebuild matrix with new color mode
+        self.switch_screen(self._build_matrix)
+
+    def _show_matrix_help(self) -> None:
+        """Show help overlay with keybinds."""
+        t = self._theme()
+        help_box = BorderedBox(padding_x=2, max_width=45, title="Matrix Rain Controls")
+        help_box.add_child(RichText(""))
+        help_box.add_child(RichText(f"  [{t.primary}]T[/{t.primary}]  Toggle character mode (Katakana/ASCII)"))
+        help_box.add_child(RichText(f"  [{t.primary}]G[/{t.primary}]  Toggle color mode (Rainbow/Green)"))
+        help_box.add_child(RichText(f"  [{t.primary}]H[/{t.primary}]  Show this help"))
+        help_box.add_child(RichText(f"  [{t.primary}]ESC[/{t.primary}]  Exit matrix rain"))
+        help_box.add_child(RichText(""))
+        help_box.add_child(RichText(f"  [{t.muted}]Press any key to close[/{t.muted}]"))
+        self.overlay_handle = self.tui.show_overlay(help_box, OverlayOptions(width=45, anchor="center"))
 
     # =========================================================================
     # COMPONENTS DEMO
@@ -746,12 +792,19 @@ class DemoApp:
                 self.switch_screen(self.show_menu)
             return
 
-        # Matrix screen - toggle mode or exit
+        # Matrix screen - handle keybinds
         if self.current_screen == "matrix":
             if data.lower() == "t":
                 self._toggle_matrix_mode()
                 return
-            # Any other key exits (except ESC which is handled above)
+            if data.lower() == "g":
+                self._toggle_matrix_color()
+                return
+            if data.lower() == "h":
+                self._show_matrix_help()
+                return
+            # ESC handled above closes overlay or exits
+            # Any other key exits
             if not matches_key(data, Key.escape):
                 self.switch_screen(self.show_menu)
             return
