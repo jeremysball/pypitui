@@ -244,19 +244,32 @@ class DemoApp:
     # MATRIX DEMO - Rainbow animation with delta time
     # =========================================================================
 
-    # Rainbow colors (ANSI 256 color codes)
+    # Rainbow colors (ANSI 256 color codes) - vibrant spectrum
     RAINBOW = [
         "\x1b[38;5;196m",  # Red
+        "\x1b[38;5;202m",  # Red-Orange
         "\x1b[38;5;208m",  # Orange
+        "\x1b[38;5;214m",  # Orange-Yellow
         "\x1b[38;5;226m",  # Yellow
+        "\x1b[38;5;154m",  # Yellow-Green
         "\x1b[38;5;46m",   # Green
+        "\x1b[38;5;47m",   # Spring Green
+        "\x1b[38;5;48m",   # Cyan-Green
         "\x1b[38;5;51m",   # Cyan
+        "\x1b[38;5;45m",   # Sky Blue
+        "\x1b[38;5;39m",   # Blue
         "\x1b[38;5;21m",   # Blue
-        "\x1b[38;5;129m",  # Purple
+        "\x1b[38;5;93m",   # Purple
+        "\x1b[38;5;129m",  # Medium Purple
+        "\x1b[38;5;165m",  # Purple
         "\x1b[38;5;201m",  # Magenta
+        "\x1b[38;5;198m",  # Pink
     ]
-    A = {"rs": "\x1b[0m", "bd": "\x1b[1m", "w": "\x1b[97m", "K": "\x1b[90m"}
-    CHARS = "0123456789ABCDEFabcdefghijklmnopqrstuvwxyz@#$%&*+-="
+    A = {"rs": "\x1b[0m", "bd": "\x1b[1m", "w": "\x1b[97m", "K": "\x1b[90m", "dim": "\x1b[2m"}
+
+    # Character sets for matrix rain
+    CHARS_KATAKANA = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン"
+    CHARS_ASCII = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*+-=<>[]{}"
 
     def show_matrix(self) -> None:
         """Matrix rain - rainbow animation with delta time."""
@@ -264,30 +277,68 @@ class DemoApp:
 
     def _build_matrix(self) -> None:
         self.current_screen = "matrix"
-        t = self._theme()
+
+        # Matrix mode: "katakana" (double-width) or "ascii" (single-width)
+        if not hasattr(self, "_matrix_mode"):
+            self._matrix_mode = "katakana"
+
+        # Set character set and width based on mode
+        if self._matrix_mode == "katakana":
+            self._matrix_chars = self.CHARS_KATAKANA
+            self._matrix_char_width = 2
+        else:
+            self._matrix_chars = self.CHARS_ASCII
+            self._matrix_char_width = 1
 
         w, h = self.terminal.get_size()
-        self.matrix_w = max(40, w)
-        self.matrix_h = max(10, h - 5)  # Reserve 5 lines for UI
+        # Grid width depends on character width
+        self.matrix_w = max(20, w // self._matrix_char_width)
+        self.matrix_h = max(10, h - 5)  # Reserve 5 lines for UI (header + footer)
+        self.terminal_w = w  # Store actual terminal width for padding
 
-        # Initialize columns - some start visible for immediate effect
-        self.matrix_columns = [
-            {
-                "y": random.randint(-10, self.matrix_h // 2),  # Some visible immediately
-                "speed": random.uniform(0.15, 0.4),
-                "len": random.randint(8, 20),
-                "color_idx": random.randint(0, len(self.RAINBOW) - 1),
-            }
-            for _ in range(self.matrix_w)
-        ]
+        # Sparse columns - density depends on mode
+        # ASCII has 2x columns, so needs lower density to look similar
+        density = 0.20 if self._matrix_mode == "ascii" else 0.35
 
-        # Initialize grid: (char, brightness, color_idx)
-        self.matrix_grid = [[(" ", 0, 0) for _ in range(self.matrix_h)] for _ in range(self.matrix_w)]
+        # Each column: {y (float), speed, length, color_offset, active}
+        self.matrix_columns = []
+        for x in range(self.matrix_w):
+            if random.random() < density:
+                self.matrix_columns.append({
+                    "x": x,
+                    "y": random.uniform(-20, self.matrix_h),  # Spread initial positions
+                    "speed": random.uniform(0.4, 1.0),
+                    "length": random.randint(12, 30),
+                    "color_offset": random.randint(0, len(self.RAINBOW) - 1),  # Phase offset for rainbow
+                    "active": True,
+                })
+            else:
+                self.matrix_columns.append({
+                    "x": x,
+                    "y": -100,
+                    "speed": 0,
+                    "length": 0,
+                    "color_offset": 0,
+                    "active": False,
+                })
+
+        # Grid: (char, brightness, color_idx, age)
+        # brightness: 0-10 (10 = head, fades down)
+        # age: for fade timing
+        self.matrix_grid = [[(" ", 0, 0, 0) for _ in range(self.matrix_h)] for _ in range(self.matrix_w)]
+
+        # Global color cycle for smooth rainbow movement
+        self._color_cycle = 0.0
 
         # Scrolling banner
-        self.scroll_text = " PYPITUI - RAINBOW MATRIX - TERMINAL UI FRAMEWORK - GITHUB.COM/JEREMYSBALL/PYPITUI - "
+        self.scroll_text = " PYPITUI  •  RAINBOW MATRIX  •  TERMINAL UI FRAMEWORK  •  GITHUB.COM/JEREMYSBALL/PYPITUI  • "
         self.scroll_pos = 0
         self._scroll_accumulator = 0.0
+
+        # FPS tracking
+        self._fps = 0.0
+        self._fps_frame_count = 0
+        self._fps_last_time = time.time()
 
         # Single text component we update in place
         self.matrix_text = Text("", 0, 0)
@@ -302,95 +353,159 @@ class DemoApp:
             return
 
         now = time.time()
-        
+
         # First frame - initialize and render immediately
         if self._last_matrix == 0:
             self._last_matrix = now
-            dt = 0.033  # Fake dt to get first frame
+            dt = 0.016
         else:
             dt = now - self._last_matrix
-            # Target ~30 FPS for matrix
-            if dt < 0.033:
+            if dt < 0.016:  # ~60 FPS cap
                 return
             self._last_matrix = now
 
+        # FPS calculation (update every 0.5 seconds)
+        self._fps_frame_count += 1
+        if now - self._fps_last_time >= 0.5:
+            self._fps = self._fps_frame_count / (now - self._fps_last_time)
+            self._fps_frame_count = 0
+            self._fps_last_time = now
+
         w, h = self.matrix_w, self.matrix_h
 
-        # Update columns with delta time
-        for x, col in enumerate(self.matrix_columns):
-            col["y"] += col["speed"] * dt * 30  # Scaled by dt
+        # Advance global color cycle for rainbow wave effect
+        self._color_cycle += dt * 3.0  # Rainbow speed
 
-            # Draw head and trail
-            for dy in range(col["len"]):
-                y = int(col["y"]) - dy
+        # Update columns
+        for col in self.matrix_columns:
+            if not col["active"]:
+                continue
+
+            col["y"] += col["speed"] * dt * 25
+
+            # Draw the trail
+            head_y = int(col["y"])
+            for dy in range(col["length"]):
+                y = head_y - dy
                 if 0 <= y < h:
-                    # Fade brightness along trail
+                    existing_char, existing_bright, _, _ = self.matrix_grid[col["x"]][y]
+                    
                     if dy == 0:
-                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 4, col["color_idx"])
-                    elif dy < 2:
-                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 3, col["color_idx"])
-                    elif dy < 5:
-                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 2, col["color_idx"])
-                    else:
-                        self.matrix_grid[x][y] = (random.choice(self.CHARS), 1, col["color_idx"])
+                        # HEAD: Always write new character with max brightness
+                        char = random.choice(self._matrix_chars)
+                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self.RAINBOW))
+                        self.matrix_grid[col["x"]][y] = (char, 10, color_idx, 0)
+                    elif existing_bright == 0:
+                        # Empty cell in trail zone: seed it with character and brightness based on position
+                        char = random.choice(self._matrix_chars)
+                        brightness = max(1, 10 - dy)
+                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self.RAINBOW))
+                        self.matrix_grid[col["x"]][y] = (char, brightness, color_idx, 0)
+                    # else: Cell already has content - leave it alone, let fade handle it
 
-            # Reset if off screen, pick new color
-            if int(col["y"]) - col["len"] > h:
-                col["y"] = random.randint(-15, -3)
-                col["speed"] = random.uniform(0.15, 0.4)
-                col["len"] = random.randint(8, 20)
-                col["color_idx"] = random.randint(0, len(self.RAINBOW) - 1)
+            # Reset column when it exits screen
+            if head_y - col["length"] > h:
+                col["y"] = random.uniform(-30, -5)
+                col["speed"] = random.uniform(0.4, 1.0)
+                col["length"] = random.randint(12, 30)
+                col["color_offset"] = random.randint(0, len(self.RAINBOW) - 1)
 
-        # Slowly fade grid
+        # Randomly activate inactive columns (lower rate for ASCII since more columns)
+        activate_rate = 0.003 if self._matrix_mode == "ascii" else 0.005
+        for col in self.matrix_columns:
+            if not col["active"] and random.random() < activate_rate:
+                col["active"] = True
+                col["y"] = random.uniform(-20, -5)
+                col["speed"] = random.uniform(0.4, 1.0)
+                col["length"] = random.randint(12, 30)
+                col["color_offset"] = random.randint(0, len(self.RAINBOW) - 1)
+
+        # Deactivate some columns occasionally for variety
+        for col in self.matrix_columns:
+            if col["active"] and random.random() < 0.001:
+                col["active"] = False
+
+        # Fade grid brightness - clear character when fully faded
         for x in range(w):
             for y in range(h):
-                char, bright, color = self.matrix_grid[x][y]
-                if bright > 0 and random.random() < 0.08:
-                    self.matrix_grid[x][y] = (char, bright - 1, color)
+                char, bright, color_idx, age = self.matrix_grid[x][y]
+                if bright > 0:
+                    new_bright = bright - 1 if random.random() < 0.12 else bright
+                    if new_bright == 0:
+                        # Fully faded - clear the cell completely
+                        self.matrix_grid[x][y] = (" ", 0, 0, 0)
+                    else:
+                        self.matrix_grid[x][y] = (char, new_bright, color_idx, age + 1)
 
-        # Build output - rainbow colored
+        # Build output with smooth color gradient
         lines = []
         for y in range(h):
             row = []
             for x in range(w):
-                char, bright, color_idx = self.matrix_grid[x][y]
-                if bright >= 4:
-                    # White head
+                char, bright, color_idx, _ = self.matrix_grid[x][y]
+                if bright >= 9:
+                    # Bright white head with subtle color tint
                     row.append(f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}")
-                elif bright >= 3:
-                    # Bright rainbow
+                elif bright >= 7:
+                    # Bright bold color
                     color = self.RAINBOW[color_idx]
                     row.append(f"{self.A['bd']}{color}{char}{self.A['rs']}")
-                elif bright >= 2:
-                    # Normal rainbow
+                elif bright >= 5:
+                    # Normal bright
                     color = self.RAINBOW[color_idx]
                     row.append(f"{color}{char}{self.A['rs']}")
-                elif bright >= 1:
-                    # Dim rainbow
+                elif bright >= 3:
+                    # Medium
                     color = self.RAINBOW[color_idx]
-                    row.append(f"{color}\x1b[2m{char}{self.A['rs']}")
+                    row.append(f"{color}{self.A['dim']}{char}{self.A['rs']}")
+                elif bright >= 1:
+                    # Dim trail
+                    color = self.RAINBOW[color_idx]
+                    row.append(f"{color}\x1b[2;22m{char}{self.A['rs']}")
                 else:
-                    row.append(" ")
-            lines.append("".join(row).replace(" ", "\xa0"))
+                    # Empty cell - pad with spaces based on character width
+                    row.append(f"{self.A['rs']}{' ' * self._matrix_char_width}")
+            # Build the row - each element is 1 visible column
+            lines.append("".join(row))
+
+        # Add FPS header line at top with mode indicator
+        fps_text = f"{self._fps:5.1f} FPS"
+        mode_text = f"[{self._matrix_mode.upper()}]"
+        header_content = f" {fps_text} {mode_text} "
+        header_pad = (self.terminal_w - len(header_content)) // 2
+        header = f"{self.A['K']}{'─' * header_pad}{self.A['rs']}{self.A['w']}{self.A['bd']}{header_content}{self.A['rs']}{self.A['K']}{'─' * header_pad}{self.A['rs']}"
+        lines.insert(0, header)
 
         # Scrolling banner at bottom
-        self._scroll_accumulator += dt * 12  # Scroll speed
+        self._scroll_accumulator += dt * 15
         if self._scroll_accumulator >= 1.0:
             self.scroll_pos = (self.scroll_pos + int(self._scroll_accumulator)) % len(self.scroll_text)
             self._scroll_accumulator -= int(self._scroll_accumulator)
 
         visible_banner = ""
-        for i in range(w):
+        for i in range(self.terminal_w):
             idx = (self.scroll_pos + i) % len(self.scroll_text)
             visible_banner += self.scroll_text[idx]
 
-        # Add UI lines
-        lines.append(f"{self.A['K']}{'─' * w}{self.A['rs']}")
-        lines.append(f"{self.RAINBOW[2]}{visible_banner}{self.A['rs']}")
-        lines.append(f"{self.A['K']}{'─' * w}{self.A['rs']}")
+        # Rainbow banner
+        banner_line = ""
+        for i, ch in enumerate(visible_banner):
+            cidx = int((self._color_cycle * 2 + i * 0.5) % len(self.RAINBOW))
+            banner_line += f"{self.A['bd']}{self.RAINBOW[cidx]}{ch}{self.A['rs']}"
 
-        # Update in place - efficient
+        # Add UI lines (full terminal width)
+        lines.append(f"{self.A['K']}{'─' * self.terminal_w}{self.A['rs']}")
+        lines.append(banner_line)
+        lines.append(f"{self.A['K']}{'─' * self.terminal_w}{self.A['rs']}")
+
+        # Update in place
         self.matrix_text.set_text("\n".join(lines))
+
+    def _toggle_matrix_mode(self) -> None:
+        """Toggle between Katakana and ASCII character modes."""
+        self._matrix_mode = "ascii" if self._matrix_mode == "katakana" else "katakana"
+        # Rebuild matrix with new mode
+        self.switch_screen(self._build_matrix)
 
     # =========================================================================
     # COMPONENTS DEMO
@@ -631,8 +746,18 @@ class DemoApp:
                 self.switch_screen(self.show_menu)
             return
 
-        # Exit animation screens
-        if self.current_screen in ("streaming", "matrix"):
+        # Matrix screen - toggle mode or exit
+        if self.current_screen == "matrix":
+            if data.lower() == "t":
+                self._toggle_matrix_mode()
+                return
+            # Any other key exits (except ESC which is handled above)
+            if not matches_key(data, Key.escape):
+                self.switch_screen(self.show_menu)
+            return
+
+        # Streaming screen - any key exits
+        if self.current_screen == "streaming":
             self.switch_screen(self.show_menu)
             return
 
