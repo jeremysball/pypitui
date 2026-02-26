@@ -90,7 +90,6 @@ class TUI(Container):
         terminal: Terminal,
         show_hardware_cursor: bool = ...,
         clear_on_shrink: bool = ...,
-        use_alternate_buffer: bool = ...,
     ) -> None: ...
     @property
     def clear_on_shrink(self) -> bool: ...

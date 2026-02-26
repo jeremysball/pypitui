@@ -73,10 +73,7 @@ from pypitui import TUI, Text, Input, ProcessTerminal
 
 # Create terminal and TUI
 terminal = ProcessTerminal()
-tui = TUI(terminal)  # Uses main buffer (content stays visible after exit)
-
-# For full-screen apps that restore terminal on exit:
-# tui = TUI(terminal, use_alternate_buffer=True)
+tui = TUI(terminal)
 
 # Add components
 tui.add_child(Text("Welcome to PyPiTUI!"))
@@ -103,10 +100,10 @@ finally:
 
 ## Scrollback Support
 
-PyPiTUI supports terminal scrollback by default. When content exceeds the terminal height, it flows into the terminal's native scrollback buffer instead of being clipped.
+PyPiTUI uses the main terminal buffer by default, enabling native scrollback support. When content exceeds the terminal height, it flows into the terminal's scrollback buffer instead of being clipped.
 
 ```python
-# Default: main buffer mode - content stays in scrollback
+# Scrollback is always enabled
 tui = TUI(terminal)
 
 # Use Shift+PgUp or mouse wheel to scroll back through history
@@ -117,8 +114,6 @@ tui = TUI(terminal)
 - Content that scrolls off-screen remains accessible via terminal scrollback
 - Synchronized output (DEC 2026) prevents flickering during updates
 - Overlays position correctly relative to the visible viewport
-
-**Note:** For traditional full-screen apps where content should NOT persist after exit, use `use_alternate_buffer=True`.
 
 ## Components
 

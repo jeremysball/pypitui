@@ -162,12 +162,6 @@ def test_mock_terminal():
     terminal.show_cursor()
     assert terminal.cursor_visible
 
-    terminal.enter_alternate_screen()
-    assert terminal._in_alternate_screen
-
-    terminal.exit_alternate_screen()
-    assert not terminal._in_alternate_screen
-
     terminal.clear()
     assert "[CLEAR]" in terminal.get_output()
 

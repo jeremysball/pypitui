@@ -686,9 +686,9 @@ class Input(Component, Focusable):
 
         if self._focused:
             # Use reverse video for cursor
-            line = f"> {before_cursor}{CURSOR_MARKER}\x1b[7m{at_cursor}\x1b[27m{after_cursor}"
+            line = f"{before_cursor}{CURSOR_MARKER}\x1b[7m{at_cursor}\x1b[27m{after_cursor}"
         else:
-            line = f"> {before_cursor}{at_cursor}{after_cursor}"
+            line = f"{before_cursor}{at_cursor}{after_cursor}"
 
         return [truncate_to_width(line, width)]
 

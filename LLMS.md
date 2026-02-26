@@ -41,7 +41,6 @@ tui = TUI(
     terminal,
     show_hardware_cursor=False,  # Show cursor for IME (default: False)
     clear_on_shrink=True,        # Clear old lines when content shrinks (default: True)
-    use_alternate_buffer=False,  # Use alternate screen buffer (default: False)
 )
 ```
 
@@ -273,7 +272,6 @@ cols, rows = terminal.get_size()
 terminal.move_cursor(row, col)
 terminal.hide_cursor() / terminal.show_cursor()
 terminal.clear()
-terminal.enter_alternate_screen() / terminal.exit_alternate_screen()
 terminal.set_raw_mode() / terminal.restore_mode()
 ```
 

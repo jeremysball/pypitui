@@ -8,19 +8,12 @@ When building a chat application or any long-running TUI, content eventually exc
 
 **The challenge**: Most TUI libraries render to a fixed-size screen. When content exceeds screen height, it's either clipped or the library uses an alternate buffer that has no scrollback.
 
-## Terminal Buffers Explained
+## Terminal Buffers
 
-### Main Buffer vs Alternate Buffer
-
-Terminals have two screen buffers:
-
-| Buffer | Scrollback | Use Case |
-|--------|------------|----------|
-| **Main buffer** | Yes | Normal shell use, apps that want history |
-| **Alternate buffer** | No | Vim, htop, full-screen apps |
+Terminals have a main screen buffer with scrollback support:
 
 ```
-Main buffer (default):
+Main buffer:
 ┌─────────────────────┐
 │ Old command 1       │ ← Scrollback history
 │ Old command 2       │
@@ -32,18 +25,9 @@ Main buffer (default):
 │ ...                 │
 │ Current output 24   │
 └─────────────────────┘
-
-Alternate buffer:
-┌─────────────────────┐
-│ Line 1              │ ← Always line 1 of app
-│ Line 2              │
-│ ...                 │
-│ Line 24             │ ← Always last visible line
-└─────────────────────┘
-(No scrollback - when app exits, buffer is gone)
 ```
 
-**To enable scrollback**: Use the main buffer. Never call `enter_alternate_screen()`.
+**To enable scrollback**: Use the main buffer (default). Never call alternate screen escape sequences.
 
 ## Why Absolute Positioning Breaks Scrollback
 
@@ -309,14 +293,15 @@ def _composite_overlay(self, overlay_row: int, overlay_height: int,
 
 ## Implementation Checklist for pypitui
 
-- [ ] Add `_max_lines_rendered` tracking
-- [ ] Add `_hardware_cursor_row` tracking
-- [ ] Add `_previous_viewport_top` tracking
-- [ ] Replace `move_cursor(i, 0)` with relative movement
-- [ ] Add synchronized output wrapper
-- [ ] Update overlay compositing to use viewport-relative positioning
-- [ ] Remove height limiting from components (let content flow to scrollback)
-- [ ] Add newline-based scrolling for content growth
+- [x] Add `_max_lines_rendered` tracking
+- [x] Add `_hardware_cursor_row` tracking
+- [x] Add `_previous_viewport_top` tracking
+- [x] Replace `move_cursor(i, 0)` with relative movement
+- [x] Add synchronized output wrapper
+- [x] Update overlay compositing to use viewport-relative positioning
+- [x] Remove height limiting from components (let content flow to scrollback)
+- [x] Add newline-based scrolling for content growth
+- [x] Remove alternate buffer support (scrollback is always enabled)
 
 ## References
 

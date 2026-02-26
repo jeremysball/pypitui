@@ -218,13 +218,11 @@ class TUI(Container):
         terminal: Terminal,
         show_hardware_cursor: bool = False,
         clear_on_shrink: bool = True,
-        use_alternate_buffer: bool = False,
     ) -> None:
         super().__init__()
         self.terminal = terminal
         self._show_hardware_cursor = show_hardware_cursor
         self._clear_on_shrink = clear_on_shrink
-        self._use_alternate_buffer = use_alternate_buffer
 
         # State for differential rendering
         self._previous_lines: list[str] = []
@@ -352,13 +350,10 @@ class TUI(Container):
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""
-        if self._use_alternate_buffer:
-            self.terminal.enter_alternate_screen()
-        else:
-            # Save cursor position and clear screen for main buffer mode
-            self.terminal.write("\x1b[s")  # Save cursor
-            self.terminal.write("\x1b[H")  # Move to home first
-            self.terminal.write("\x1b[2J")  # Clear screen
+        # Save cursor position and clear screen
+        self.terminal.write("\x1b[s")  # Save cursor
+        self.terminal.write("\x1b[H")  # Move to home first
+        self.terminal.write("\x1b[2J")  # Clear screen
 
         self.terminal.hide_cursor()
         self.terminal.set_raw_mode()
@@ -369,17 +364,12 @@ class TUI(Container):
         """Stop the TUI - restore terminal state."""
         self._stopped = True
 
-        if not self._use_alternate_buffer:
-            # Clear our content and restore cursor in main buffer mode
-            self.terminal.write("\x1b[H")  # Move to home first
-            self.terminal.write("\x1b[2J")  # Clear screen
-            self.terminal.write("\x1b[u")  # Restore cursor
+        # Clear our content and restore cursor
+        self.terminal.write("\x1b[H")  # Move to home first
+        self.terminal.write("\x1b[2J")  # Clear screen
+        self.terminal.write("\x1b[u")  # Restore cursor
 
         self.terminal.show_cursor()
-
-        if self._use_alternate_buffer:
-            self.terminal.exit_alternate_screen()
-
         self.terminal.restore_mode()
 
     def add_input_listener(
@@ -757,6 +747,18 @@ class TUI(Container):
         previous_count = len(self._previous_lines)
         current_count = len(lines)
 
+        # Check if any visible content changed
+        content_changed = False
+        if current_count != previous_count:
+            content_changed = True
+        else:
+            # Compare visible portion
+            start = max(0, current_count - term_height)
+            for i in range(start, current_count):
+                if i >= len(self._previous_lines) or self._previous_lines[i] != lines[i]:
+                    content_changed = True
+                    break
+
         # Handle content growth - emit newlines to scroll old content into scrollback
         if current_count > term_height and current_count > previous_count:
             # New content exceeds terminal - need to scroll
@@ -777,54 +779,32 @@ class TUI(Container):
             # Reset our tracking to match
             self._hardware_cursor_row = term_height - 1
 
-            # Now render the new visible lines at the bottom
-            # The last new_lines lines are now visible at the bottom
-            for i in range(current_count - new_lines, current_count):
-                if i < len(lines):
-                    # Calculate screen row for this content
-                    first_visible = current_count - term_height
-                    screen_row = i - first_visible
-                    # Move to this screen row
+        # Always redraw visible viewport when content changed (scrollback mode safety)
+        if content_changed:
+            if current_count > term_height:
+                # Content exceeds terminal - render visible portion only
+                first_visible = current_count - term_height
+
+                for screen_row in range(term_height):
+                    content_row = first_visible + screen_row
+                    if content_row >= len(lines):
+                        break
+
                     buffer += self._move_cursor_relative(screen_row)
-                    buffer += "\r"
-                    buffer += lines[i]
-        elif current_count > term_height:
-            # Content exceeds terminal but hasn't grown - render visible portion only
-            # Lines in scrollback are frozen; we can only update the visible viewport
-            first_visible = current_count - term_height
-
-            for screen_row in range(term_height):
-                content_row = first_visible + screen_row
-                if content_row >= len(lines):
-                    break
-
-                line = lines[content_row]
-                prev_line = (
-                    self._previous_lines[content_row]
-                    if content_row < len(self._previous_lines)
-                    else None
-                )
-
-                if line != prev_line:
-                    buffer += self._move_cursor_relative(screen_row)
-                    buffer += "\r"
-                    buffer += line
-        else:
-            # Content fits in terminal - use normal differential rendering
-            for i, line in enumerate(lines):
-                if (
-                    i >= len(self._previous_lines)
-                    or self._previous_lines[i] != line
-                ):
+                    buffer += "\r\x1b[2K"  # Clear line first
+                    buffer += lines[content_row]
+            else:
+                # Content fits in terminal
+                for i, line in enumerate(lines):
                     buffer += self._move_cursor_relative(i)
-                    buffer += "\r"  # CR to start of line
+                    buffer += "\r\x1b[2K"  # Clear line first
                     buffer += line
 
-        # Clear remaining lines if content shrank
-        if self._clear_on_shrink and current_count < previous_count:
-            for i in range(current_count, previous_count):
-                buffer += self._move_cursor_relative(i)
-                buffer += "\r\x1b[2K"  # CR + clear line
+                # Clear remaining lines if content shrank
+                if self._clear_on_shrink and current_count < previous_count:
+                    for i in range(current_count, previous_count):
+                        buffer += self._move_cursor_relative(i)
+                        buffer += "\r\x1b[2K"
 
         # End synchronized output and flush
         buffer += self._end_sync()

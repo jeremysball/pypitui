@@ -66,16 +66,6 @@ class Terminal(ABC):
         pass
 
     @abstractmethod
-    def enter_alternate_screen(self) -> None:
-        """Switch to alternate screen buffer."""
-        pass
-
-    @abstractmethod
-    def exit_alternate_screen(self) -> None:
-        """Return to normal screen buffer."""
-        pass
-
-    @abstractmethod
     def move_cursor_up(self, n: int = 1) -> str:
         """Return escape sequence to move cursor up n lines.
 
@@ -106,7 +96,6 @@ class ProcessTerminal(Terminal):
     def __init__(self) -> None:
         self._original_settings: object | None = None
         self._is_raw = False
-        self._in_alternate_screen = False
         self._fd = sys.stdin.fileno()
 
     def write(self, data: str) -> None:
@@ -247,18 +236,6 @@ class ProcessTerminal(Terminal):
         except termios.error:
             pass
 
-    def enter_alternate_screen(self) -> None:
-        """Switch to alternate screen buffer."""
-        if not self._in_alternate_screen:
-            self.write("\x1b[?1049h")
-            self._in_alternate_screen = True
-
-    def exit_alternate_screen(self) -> None:
-        """Return to normal screen buffer."""
-        if self._in_alternate_screen:
-            self.write("\x1b[?1049l")
-            self._in_alternate_screen = False
-
     def move_cursor_up(self, n: int = 1) -> str:
         """Return escape sequence to move cursor up n lines."""
         if n <= 0:
@@ -281,7 +258,6 @@ class MockTerminal(Terminal):
         self._buffer: list[str] = []
         self._input_buffer: list[str] = []
         self.cursor_visible = True
-        self._in_alternate_screen = False
 
     def write(self, data: str) -> None:
         """Write data to buffer."""
@@ -325,14 +301,6 @@ class MockTerminal(Terminal):
     def restore_mode(self) -> None:
         """Restore mode."""
         pass
-
-    def enter_alternate_screen(self) -> None:
-        """Enter alternate screen."""
-        self._in_alternate_screen = True
-
-    def exit_alternate_screen(self) -> None:
-        """Exit alternate screen."""
-        self._in_alternate_screen = False
 
     def move_cursor_up(self, n: int = 1) -> str:
         """Return escape sequence to move cursor up n lines."""
