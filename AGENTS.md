@@ -1,14 +1,26 @@
 # PyPiTUI Agent Guidelines
 
-## Always Load Writing Skill
+---
 
-Load the `writing-clearly-and-concisely` skill at the start of every conversation:
+## ⚠️ 🚨 🔔 LOAD THIS SKILL FIRST — EVERY CONVERSATION — NO EXCEPTIONS 🔔 🚨 ⚠️
 
 ```
 /skill:writing-clearly-and-concisely
 ```
 
-This applies Strunk's rules for clear, concise writing and helps avoid AI-generated puffery in all output.
+### Why? 📝
+- Strunk's rules = clear, concise writing
+- Prevents AI fluff and corporate-speak
+- Better commit messages, docs, and explanations
+
+### When? 🕐
+- ✅ Start of EVERY conversation
+- ✅ Before writing ANY prose humans will read
+- ✅ BEFORE you start coding or planning
+
+### Don't skip this. Seriously. 👀
+
+---
 
 ## Check `.agents/` Folders for Utilities
 

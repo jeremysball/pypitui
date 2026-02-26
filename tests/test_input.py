@@ -40,12 +40,12 @@ class TestInputComponent:
         input_cmp.set_value("hello")
         # Move cursor to start
         input_cmp.handle_input("\x01")  # Ctrl+A
-        # Move cursor right once
+        # Move cursor right once (now at position 1)
         input_cmp.handle_input("\x1b[C")  # right
-        # Delete
+        # Delete removes character at position 1 ("e"), not before it
         input_cmp.handle_input("\x1b[3~")  # delete
 
-        assert input_cmp.get_value() == "ello"
+        assert input_cmp.get_value() == "hllo"
 
     def test_cursor_navigation_left_right(self):
         """Cursor can move left and right."""
