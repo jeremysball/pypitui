@@ -794,6 +794,12 @@ class DemoApp:
 
         # Matrix screen - handle keybinds
         if self.current_screen == "matrix":
+            # If overlay is open, any key closes it (don't exit matrix)
+            if self.tui.has_overlay():
+                self.tui.hide_overlay()
+                self.overlay_handle = None
+                return
+
             if data.lower() == "t":
                 self._toggle_matrix_mode()
                 return
@@ -803,14 +809,16 @@ class DemoApp:
             if data.lower() == "h":
                 self._show_matrix_help()
                 return
-            # ESC handled above closes overlay or exits
-            # Any other key exits
-            if not matches_key(data, Key.escape):
-                self.switch_screen(self.show_menu)
+            # Any other key exits matrix
+            self.switch_screen(self.show_menu)
             return
 
-        # Streaming screen - any key exits
+        # Streaming screen - any key exits (but close overlay first)
         if self.current_screen == "streaming":
+            if self.tui.has_overlay():
+                self.tui.hide_overlay()
+                self.overlay_handle = None
+                return
             self.switch_screen(self.show_menu)
             return
 

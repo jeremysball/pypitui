@@ -363,7 +363,8 @@ class TUI(Container):
             if entry.previous_focus:
                 self.set_focus(entry.previous_focus)
 
-            self.request_render()
+            # Force full redraw to ensure clean compositing after overlay removal
+            self.request_render(force=True)
 
     def has_overlay(self) -> bool:
         """Check if there are any visible overlays."""
