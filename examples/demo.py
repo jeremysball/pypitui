@@ -233,6 +233,7 @@ class DemoApp:
         self.root.add_child(Text(f"  Entry {self.streaming_count}: {'█' * (self.streaming_count % 30)}", padding_y=0))
 
         if self.streaming_count >= 50:
+            t = self._theme()
             self.root.add_child(Spacer(1))
             self.root.add_child(RichText(f"[{t.muted}]Done! Shift+PgUp to scroll, ESC to exit[/{t.muted}]"))
             self.animation_active = False
