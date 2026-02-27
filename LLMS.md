@@ -1,71 +1,82 @@
-# PyPiTUI - Terminal UI Library for Python
+# PyPiTUI - Quick Reference
 
-**A Python terminal UI library with differential rendering, component-based architecture, and Rich integration.**
+**Terminal UI library with differential rendering and component-based architecture.**
 
 ---
 
-## Quick Start
+## Quick Reference (Common Patterns)
 
 ```python
-from pypitui import TUI, Text, Spacer, ProcessTerminal, Key, matches_key
+from pypitui import (
+    TUI, Container, Text, Input, SelectList, SelectItem,
+    ProcessTerminal, Key, matches_key, parse_key,
+    EVENT_PRESS, EVENT_RELEASE,
+)
 
+# Setup
 terminal = ProcessTerminal()
 tui = TUI(terminal)
-tui.add_child(Text("Hello, World!"))
-tui.add_child(Spacer(1))
+root = Container()
+tui.add_child(root)
 
-tui.start()
-try:
-    while True:
-        data = terminal.read_sequence(timeout=0.05)
-        if data:
-            if matches_key(data, Key.escape):
-                break
-            tui.handle_input(data)
-        tui.request_render()
-        tui.render_frame()
-finally:
-    tui.stop()
+# Screen switching (REUSE TUI - don't create new one)
+root.children.clear()  # Clear container, not TUI
+root.add_child(Text("New Screen"))
+
+# Keyboard handling
+data = terminal.read_sequence(timeout=0.05)
+key_id, event_type = parse_key(data)  # Returns tuple!
+if matches_key(data, Key.ctrl("c")): ...
+if event_type == EVENT_RELEASE: ...  # Kitty protocol only
+
+# Input with validation
+inp = Input(placeholder="Name", max_length=50)
+inp.on_submit = lambda v: print(f"Hello {v}")
+
+# Selection list
+items = [SelectItem("a", "Option A"), SelectItem("b", "Option B")]
+select = SelectList(items, max_visible=5, theme=default_theme)
+select.on_select = lambda item: print(item.value)
+
+# Main loop
+tui.run()  # Built-in ~60fps loop
 ```
 
 ---
+
+# Full Guide
 
 ## Core Concepts
 
-### TUI (Terminal User Interface)
+### TUI Instance Reuse (CRITICAL)
 
-Main class managing terminal state, input handling, and differential rendering.
-
+**WRONG** - Creates ghost content:
 ```python
-tui = TUI(
-    terminal,
-    show_hardware_cursor=False,  # Show cursor for IME (default: False)
-    clear_on_shrink=True,        # Clear old lines when content shrinks (default: True)
-)
+self.tui = TUI(terminal)  # Loses _previous_lines state
+self.tui.add_child(Text("Screen"))
 ```
 
-**CRITICAL: Reuse TUI Instances**
+**RIGHT** - Reuse TUI instance:
 ```python
-# WRONG - loses _previous_lines, causes ghost content
-self.tui = TUI(terminal)
-self.tui.add_child(Text("New screen"))
+self.root = Container()
+self.tui.add_child(self.root)
 
-# RIGHT - reuse TUI, preserves differential rendering state
-self.tui.clear()
-self.tui.add_child(Text("New screen"))
+# Switch screens:
+self.root.children.clear()  # Clear container
+self.root.add_child(Text("New Screen"))
 ```
 
 ### Component Model
 
-All UI elements inherit from `Component`:
+All components inherit from `Component`:
 - `render(width: int) -> list[str]` - Render to lines
 - `invalidate()` - Clear render cache
 - `handle_input(data: str)` - Optional input handler
-- `wants_key_release` - Set `True` to receive Kitty key release events
+- `wants_key_release: bool` - Set True for Kitty release events
 
 ### Differential Rendering
 
-TUI only updates changed lines. Creating new TUI instances loses `_previous_lines` state needed for clearing old content.
+TUI only updates changed lines. The `_previous_lines` state enables efficient updates. Creating new TUI instances loses this state.
 
 ---
 
@@ -96,13 +107,17 @@ box.clear()  # Remove all children
 
 ### BorderedBox
 
-Box with borders, wraps content to fit.
+Box with borders and optional title.
 
 ```python
-box = BorderedBox(padding_x=1, padding_y=0, min_width=10, max_width=40, title="Panel")
+box = BorderedBox(
+    padding_x=1, padding_y=0,
+    min_width=10, max_width=40,
+    title="Panel"
+)
 box.add_child(Text("Content"))
 box.set_title("Plain Title")
-box.set_rich_title("[bold cyan]Rich Title[/bold cyan]")  # Requires pypitui[rich]
+box.set_rich_title("[bold cyan]Rich Title[/bold cyan]")  # Requires rich
 ```
 
 ### Spacer
@@ -115,13 +130,13 @@ spacer = Spacer(height=2)
 
 ### Container
 
-Groups components vertically.
+Groups components vertically. Use for screen switching.
 
 ```python
 container = Container()
 container.add_child(Text("Line 1"))
 container.add_child(Text("Line 2"))
-container.clear()
+container.clear()  # Remove all children
 ```
 
 ### SelectList
@@ -154,10 +169,14 @@ tui.set_focus(select)
 
 ### Input
 
-Text input with cursor.
+Text input with cursor and optional max length.
 
 ```python
-input_field = Input(placeholder="Enter text...", password=False)
+input_field = Input(
+    placeholder="Enter text...",
+    password=False,
+    max_length=100  # Optional validation
+)
 input_field.on_submit = lambda v: print(f"Submitted: {v}")
 input_field.on_cancel = lambda: print("Cancelled")
 
@@ -207,7 +226,7 @@ tui.has_overlay()          # Check if any visible
 ### Key Matching
 
 ```python
-from pypitui import Key, matches_key, parse_key
+from pypitui import Key, matches_key, parse_key, EVENT_PRESS, EVENT_RELEASE
 
 if matches_key(data, Key.escape): ...
 if matches_key(data, Key.enter): ...
@@ -216,7 +235,10 @@ if matches_key(data, Key.ctrl("c")): ...
 if matches_key(data, Key.ctrl_shift("p")): ...
 if matches_key(data, Key.alt("enter")): ...
 
-key_id = parse_key(data)  # Returns "ctrl+c", "escape", "a", etc.
+# Parse returns tuple: (key_id, event_type)
+key_id, event_type = parse_key(data)
+if event_type == EVENT_RELEASE:
+    return  # Ignore key releases
 ```
 
 ### Available Keys
@@ -241,9 +263,10 @@ Key.ctrl_shift("a"), Key.ctrl_alt("a"), Key.shift_alt("a")
 For key release/repeat events (Kitty terminal only):
 
 ```python
-from pypitui.keys import set_kitty_protocol_active, is_key_release, is_key_repeat
+from pypitui.keys import set_kitty_protocol_active
+from pypitui import EVENT_PRESS, EVENT_REPEAT, EVENT_RELEASE
 
-set_kitty_protocol_active(True)  # Enable after setting up terminal
+set_kitty_protocol_active(True)  # Enable after terminal setup
 
 # In component:
 @property
@@ -251,8 +274,11 @@ def wants_key_release(self) -> bool:
     return True
 
 def handle_input(self, data):
-    if is_key_release(data):
+    key_id, event_type = parse_key(data)
+    if event_type == EVENT_RELEASE:
         return  # Ignore releases
+    if event_type == EVENT_REPEAT:
+        pass  # Handle repeat
 ```
 
 ---
@@ -291,8 +317,10 @@ output = terminal.get_output()
 ## Utilities
 
 ```python
-from pypitui import visible_width, truncate_to_width, wrap_text_with_ansi, slice_by_column
-from pypitui import get_terminal_size
+from pypitui import (
+    visible_width, truncate_to_width, wrap_text_with_ansi,
+    slice_by_column, get_terminal_size
+)
 from pypitui.utils import strip_ansi
 
 width = visible_width("\x1b[31mHello\x1b[0m")  # 5
@@ -310,10 +338,14 @@ clean = strip_ansi("\x1b[31mText\x1b[0m")  # "Text"
 Install: `pip install pypitui[rich]`
 
 ```python
-from pypitui.rich_components import RichText, Markdown, RichTable, rich_to_ansi, rich_color_to_ansi
+from pypitui.rich_components import (
+    RichText, Markdown, RichTable,
+    rich_to_ansi, rich_color_to_ansi
+)
 
 text = RichText("[bold cyan]Hello[/bold cyan]!")
 md = Markdown("# Heading\n\n**Bold** text", code_theme="monokai")
+
 table = RichTable(title="My Table")
 table.add_column("Name", style="cyan")
 table.add_row("Item 1", "100")
@@ -329,10 +361,12 @@ code = rich_color_to_ansi("bright_cyan")  # "\x1b[96m"
 ### Manual Loop
 
 ```python
+from pypitui import FRAME_TIME  # ~60fps target
+
 tui.start()
 try:
     while running:
-        data = terminal.read_sequence(timeout=0.05)
+        data = terminal.read_sequence(timeout=0.001)
         if data:
             if matches_key(data, Key.escape):
                 running = False
@@ -353,8 +387,9 @@ tui.run()  # Handles start/stop, input, and ~60fps rendering
 ### With Animation
 
 ```python
-last_time = time.time()
+import time
 
+last_time = time.time()
 tui.start()
 try:
     while running:
@@ -396,15 +431,17 @@ class App:
     def __init__(self):
         self.terminal = ProcessTerminal()
         self.tui = TUI(self.terminal)
+        self.root = Container()
+        self.tui.add_child(self.root)
         self.build_menu()
     
     def build_menu(self):
-        self.tui.clear()
-        self.tui.add_child(Text("Main Menu"))
+        self.root.children.clear()  # Clear container, NOT tui
+        self.root.add_child(Text("Main Menu"))
     
     def build_settings(self):
-        self.tui.clear()
-        self.tui.add_child(Text("Settings"))
+        self.root.children.clear()
+        self.root.add_child(Text("Settings"))
 ```
 
 ### Terminal Resize
@@ -422,7 +459,7 @@ def update_size(self):
 
 | Issue | Solution |
 |-------|----------|
-| Ghost content | Reuse TUI instance, call `tui.clear()` |
+| Ghost content | Reuse TUI instance, use `container.children.clear()` |
 | Text breaks pre-formatted lines | Use `\xa0` (non-breaking space) |
 | First frame huge delta time | Skip first frame or initialize `_last_time` |
 | Resize loops | Use consistent min values everywhere |
@@ -459,7 +496,7 @@ from pypitui import (
     # Core
     TUI, Component, Container, Focusable,
     OverlayOptions, OverlayMargin, OverlayHandle,
-    CURSOR_MARKER, is_focusable,
+    CURSOR_MARKER, is_focusable, FRAME_TIME,
     
     # Components
     Text, Box, BorderedBox, Spacer,
@@ -467,6 +504,7 @@ from pypitui import (
     
     # Keys
     Key, matches_key, parse_key,
+    EVENT_PRESS, EVENT_RELEASE, EVENT_REPEAT,
     
     # Terminal
     Terminal, ProcessTerminal, MockTerminal,
@@ -481,7 +519,7 @@ from pypitui import (
 
 | Method | Description |
 |--------|-------------|
-| `add_child(c)` / `remove_child(c)` / `clear()` | Manage children |
+| `add_child(c)` / `remove_child(c)` | Manage children |
 | `set_focus(component)` | Set focused component |
 | `show_overlay(c, opts)` → `OverlayHandle` | Show overlay |
 | `hide_overlay()` / `has_overlay()` | Manage overlays |
@@ -489,7 +527,7 @@ from pypitui import (
 | `add_input_listener(fn)` → `remove_fn` | Intercept input |
 | `request_render(force=False)` | Request next frame render |
 | `render_frame()` | Render current frame |
-| `run()` | Built-in main loop |
+| `run()` | Built-in main loop (~60fps) |
 | `start()` / `stop()` | Enter/exit TUI mode |
 
 ### Component Interface
@@ -506,6 +544,19 @@ from pypitui import (
 | Property | Description |
 |----------|-------------|
 | `focused` | Get/set focus state |
+
+---
+
+## Constants
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `CURSOR_MARKER` | `"\x1b_pi:c\x07"` | Hardware cursor position |
+| `FRAME_TIME` | `0.016` | ~60fps target (seconds) |
+| `EVENT_PRESS` | `"press"` | Key press event |
+| `EVENT_RELEASE` | `"release"` | Key release event |
+| `EVENT_REPEAT` | `"repeat"` | Key repeat event |
+| `ANSI_RESET` | `"\x1b[0m"` | ANSI reset code |
 
 ---
 
