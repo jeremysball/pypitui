@@ -181,8 +181,7 @@ class Box(Component):
 
         # Top padding
         lines.extend(
-            self._apply_bg(" " * width, width)
-            for _ in range(self._padding_y)
+            self._apply_bg(" " * width, width) for _ in range(self._padding_y)
         )
 
         # Render children
@@ -197,8 +196,7 @@ class Box(Component):
 
         # Bottom padding
         lines.extend(
-            self._apply_bg(" " * width, width)
-            for _ in range(self._padding_y)
+            self._apply_bg(" " * width, width) for _ in range(self._padding_y)
         )
 
         # Cache

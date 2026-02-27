@@ -134,8 +134,7 @@ def test_demo():
 
         # Start demo
         demo_cmd = (
-            "cd /workspace/pypitui && "
-            "uv run python examples/ultimate_demo.py"
+            "cd /workspace/pypitui && uv run python examples/ultimate_demo.py"
         )
         s.send(demo_cmd)
         s.send_key("Enter")

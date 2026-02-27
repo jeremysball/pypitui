@@ -231,11 +231,11 @@ CTRL_CHARS: dict[str, str] = {
 #                         (key=1089, base=99, mods=5=1+4=ctrl)
 #   ESC[99;5u           - Ctrl+c (key=99, mods=5=1+4=ctrl)
 KITTY_CSI_U_PATTERN = re.compile(
-    r"\x1b\[(\d+)"          # key (mandatory)
-    r"(?::(\d*))?"          # :shifted (optional, can be empty)
-    r"(?::(\d+))?"          # :base (optional)
-    r";(\d+)"               # ;modifiers (mandatory)
-    r"(?::(\d+))?"          # :event (optional)
+    r"\x1b\[(\d+)"  # key (mandatory)
+    r"(?::(\d*))?"  # :shifted (optional, can be empty)
+    r"(?::(\d+))?"  # :base (optional)
+    r";(\d+)"  # ;modifiers (mandatory)
+    r"(?::(\d+))?"  # :event (optional)
     r"u"
 )
 

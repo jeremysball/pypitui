@@ -56,6 +56,7 @@ try:
         RichText,
         rich_color_to_ansi,
     )
+
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -69,6 +70,7 @@ except ImportError:
 @dataclass
 class Theme:
     """Theme using Rich color names."""
+
     name: str
     primary: str
     secondary: str
@@ -190,20 +192,30 @@ class DemoApp:
 
         # Header
         header = BorderedBox(padding_x=2, max_width=45)
-        header.set_rich_title(f"[bold {t.primary}]🐍 PyPiTUI[/bold {t.primary}]")
-        header.add_child(RichText(f"[{t.muted}]Terminal UI Framework[/{t.muted}]"))
+        header.set_rich_title(
+            f"[bold {t.primary}]🐍 PyPiTUI[/bold {t.primary}]"
+        )
+        header.add_child(
+            RichText(f"[{t.muted}]Terminal UI Framework[/{t.muted}]")
+        )
         self.root.add_child(header)
         self.root.add_child(Spacer(1))
 
         # Menu
-        items = [SelectItem(key, label, desc) for key, label, desc in MENU_ITEMS]
+        items = [
+            SelectItem(key, label, desc) for key, label, desc in MENU_ITEMS
+        ]
         menu = SelectList(items, 6, create_select_theme(t))
         menu.on_select = self.on_menu_select
         self.root.add_child(menu)
         self.tui.set_focus(menu)
 
         self.root.add_child(Spacer(1))
-        self.root.add_child(RichText(f"[{t.muted}]↑↓ Navigate • Enter Select • Q Quit[/{t.muted}]"))
+        self.root.add_child(
+            RichText(
+                f"[{t.muted}]↑↓ Navigate • Enter Select • Q Quit[/{t.muted}]"
+            )
+        )
 
     def on_menu_select(self, item: SelectItem) -> None:
         """Handle menu selection."""
@@ -233,8 +245,14 @@ class DemoApp:
         self.current_screen = "streaming"
         t = self._theme()
 
-        self.root.add_child(RichText(f"[bold {t.primary}]📊 Streaming Demo[/bold {t.primary}]"))
-        self.root.add_child(RichText(f"[{t.muted}]Content grows incrementally - watch scrollback![/{t.muted}]"))
+        self.root.add_child(
+            RichText(f"[bold {t.primary}]📊 Streaming Demo[/bold {t.primary}]")
+        )
+        self.root.add_child(
+            RichText(
+                f"[{t.muted}]Content grows incrementally - watch scrollback![/{t.muted}]"
+            )
+        )
         self.root.add_child(Spacer(1))
 
         # Counter component that we'll update
@@ -264,12 +282,21 @@ class DemoApp:
         self.streaming_counter.set_text(f"Lines: {self.streaming_count}")
 
         # Add new line - this scrolls into scrollback
-        self.root.add_child(Text(f"  Entry {self.streaming_count}: {'█' * (self.streaming_count % 30)}", padding_y=0))
+        self.root.add_child(
+            Text(
+                f"  Entry {self.streaming_count}: {'█' * (self.streaming_count % 30)}",
+                padding_y=0,
+            )
+        )
 
         if self.streaming_count >= 50:
             t = self._theme()
             self.root.add_child(Spacer(1))
-            self.root.add_child(RichText(f"[{t.muted}]Done! Shift+PgUp to scroll, ESC to exit[/{t.muted}]"))
+            self.root.add_child(
+                RichText(
+                    f"[{t.muted}]Done! Shift+PgUp to scroll, ESC to exit[/{t.muted}]"
+                )
+            )
             self.animation_active = False
 
     # =========================================================================
@@ -284,29 +311,29 @@ class DemoApp:
         "\x1b[38;5;214m",  # Orange-Yellow
         "\x1b[38;5;226m",  # Yellow
         "\x1b[38;5;154m",  # Yellow-Green
-        "\x1b[38;5;46m",   # Green
-        "\x1b[38;5;47m",   # Spring Green
-        "\x1b[38;5;48m",   # Cyan-Green
-        "\x1b[38;5;51m",   # Cyan
-        "\x1b[38;5;45m",   # Sky Blue
-        "\x1b[38;5;39m",   # Blue
-        "\x1b[38;5;21m",   # Blue
-        "\x1b[38;5;93m",   # Purple
+        "\x1b[38;5;46m",  # Green
+        "\x1b[38;5;47m",  # Spring Green
+        "\x1b[38;5;48m",  # Cyan-Green
+        "\x1b[38;5;51m",  # Cyan
+        "\x1b[38;5;45m",  # Sky Blue
+        "\x1b[38;5;39m",  # Blue
+        "\x1b[38;5;21m",  # Blue
+        "\x1b[38;5;93m",  # Purple
         "\x1b[38;5;129m",  # Medium Purple
         "\x1b[38;5;165m",  # Purple
         "\x1b[38;5;201m",  # Magenta
         "\x1b[38;5;198m",  # Pink
     ]
     GREEN = [
-        "\x1b[38;5;46m",   # Bright green
-        "\x1b[38;5;47m",   # Green
-        "\x1b[38;5;48m",   # Green-cyan
-        "\x1b[38;5;49m",   # Green
-        "\x1b[38;5;50m",   # Green
-        "\x1b[38;5;82m",   # Green
-        "\x1b[38;5;83m",   # Green
-        "\x1b[38;5;84m",   # Green
-        "\x1b[38;5;85m",   # Green
+        "\x1b[38;5;46m",  # Bright green
+        "\x1b[38;5;47m",  # Green
+        "\x1b[38;5;48m",  # Green-cyan
+        "\x1b[38;5;49m",  # Green
+        "\x1b[38;5;50m",  # Green
+        "\x1b[38;5;82m",  # Green
+        "\x1b[38;5;83m",  # Green
+        "\x1b[38;5;84m",  # Green
+        "\x1b[38;5;85m",  # Green
         "\x1b[38;5;120m",  # Light green
         "\x1b[38;5;121m",  # Light green
         "\x1b[38;5;155m",  # Light green
@@ -317,7 +344,13 @@ class DemoApp:
         "\x1b[38;5;228m",  # Pale green
         "\x1b[38;5;229m",  # Pale green
     ]
-    A = {"rs": "\x1b[0m", "bd": "\x1b[1m", "w": "\x1b[97m", "K": "\x1b[90m", "dim": "\x1b[2m"}
+    A = {
+        "rs": "\x1b[0m",
+        "bd": "\x1b[1m",
+        "w": "\x1b[97m",
+        "K": "\x1b[90m",
+        "dim": "\x1b[2m",
+    }
 
     # Character sets for matrix rain
     CHARS_KATAKANA = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン"
@@ -347,12 +380,16 @@ class DemoApp:
             self._matrix_char_width = 1
 
         # Select color palette
-        self._matrix_palette = self.RAINBOW if self._matrix_color == "rainbow" else self.GREEN
+        self._matrix_palette = (
+            self.RAINBOW if self._matrix_color == "rainbow" else self.GREEN
+        )
 
         w, h = self.terminal.get_size()
         # Grid width depends on character width
         self.matrix_w = max(20, w // self._matrix_char_width)
-        self.matrix_h = max(10, h - 5)  # Reserve 5 lines for UI (header + footer)
+        self.matrix_h = max(
+            10, h - 5
+        )  # Reserve 5 lines for UI (header + footer)
         self.terminal_w = w  # Store actual terminal width for padding
 
         # Sparse columns - density depends on mode
@@ -363,28 +400,39 @@ class DemoApp:
         self.matrix_columns = []
         for x in range(self.matrix_w):
             if random.random() < density:
-                self.matrix_columns.append({
-                    "x": x,
-                    "y": random.uniform(-20, self.matrix_h),  # Spread initial positions
-                    "speed": random.uniform(0.4, 1.0),
-                    "length": random.randint(12, 30),
-                    "color_offset": random.randint(0, len(self._matrix_palette) - 1),  # Phase offset for rainbow
-                    "active": True,
-                })
+                self.matrix_columns.append(
+                    {
+                        "x": x,
+                        "y": random.uniform(
+                            -20, self.matrix_h
+                        ),  # Spread initial positions
+                        "speed": random.uniform(0.4, 1.0),
+                        "length": random.randint(12, 30),
+                        "color_offset": random.randint(
+                            0, len(self._matrix_palette) - 1
+                        ),  # Phase offset for rainbow
+                        "active": True,
+                    }
+                )
             else:
-                self.matrix_columns.append({
-                    "x": x,
-                    "y": -100,
-                    "speed": 0,
-                    "length": 0,
-                    "color_offset": 0,
-                    "active": False,
-                })
+                self.matrix_columns.append(
+                    {
+                        "x": x,
+                        "y": -100,
+                        "speed": 0,
+                        "length": 0,
+                        "color_offset": 0,
+                        "active": False,
+                    }
+                )
 
         # Grid: (char, brightness, color_idx, age)
         # brightness: 0-10 (10 = head, fades down)
         # age: for fade timing
-        self.matrix_grid = [[(" ", 0, 0, 0) for _ in range(self.matrix_h)] for _ in range(self.matrix_w)]
+        self.matrix_grid = [
+            [(" ", 0, 0, 0) for _ in range(self.matrix_h)]
+            for _ in range(self.matrix_w)
+        ]
 
         # Global color cycle for smooth rainbow movement
         self._color_cycle = 0.0
@@ -447,19 +495,37 @@ class DemoApp:
             for dy in range(col["length"]):
                 y = head_y - dy
                 if 0 <= y < h:
-                    _existing_char, existing_bright, _, _ = self.matrix_grid[col["x"]][y]
+                    _existing_char, existing_bright, _, _ = self.matrix_grid[
+                        col["x"]
+                    ][y]
 
                     if dy == 0:
                         # HEAD: Always write new character with max brightness
                         char = random.choice(self._matrix_chars)
-                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self._matrix_palette))
-                        self.matrix_grid[col["x"]][y] = (char, 10, color_idx, 0)
+                        color_idx = int(
+                            (col["color_offset"] + self._color_cycle + y * 0.3)
+                            % len(self._matrix_palette)
+                        )
+                        self.matrix_grid[col["x"]][y] = (
+                            char,
+                            10,
+                            color_idx,
+                            0,
+                        )
                     elif existing_bright == 0:
                         # Empty cell in trail zone: seed it with character and brightness based on position
                         char = random.choice(self._matrix_chars)
                         brightness = max(1, 10 - dy)
-                        color_idx = int((col["color_offset"] + self._color_cycle + y * 0.3) % len(self._matrix_palette))
-                        self.matrix_grid[col["x"]][y] = (char, brightness, color_idx, 0)
+                        color_idx = int(
+                            (col["color_offset"] + self._color_cycle + y * 0.3)
+                            % len(self._matrix_palette)
+                        )
+                        self.matrix_grid[col["x"]][y] = (
+                            char,
+                            brightness,
+                            color_idx,
+                            0,
+                        )
                     # else: Cell already has content - leave it alone, let fade handle it
 
             # Reset column when it exits screen
@@ -467,7 +533,9 @@ class DemoApp:
                 col["y"] = random.uniform(-30, -5)
                 col["speed"] = random.uniform(0.4, 1.0)
                 col["length"] = random.randint(12, 30)
-                col["color_offset"] = random.randint(0, len(self._matrix_palette) - 1)
+                col["color_offset"] = random.randint(
+                    0, len(self._matrix_palette) - 1
+                )
 
         # Randomly activate inactive columns (lower rate for ASCII since more columns)
         activate_rate = 0.003 if self._matrix_mode == "ascii" else 0.005
@@ -477,7 +545,9 @@ class DemoApp:
                 col["y"] = random.uniform(-20, -5)
                 col["speed"] = random.uniform(0.4, 1.0)
                 col["length"] = random.randint(12, 30)
-                col["color_offset"] = random.randint(0, len(self._matrix_palette) - 1)
+                col["color_offset"] = random.randint(
+                    0, len(self._matrix_palette) - 1
+                )
 
         # Deactivate some columns occasionally for variety
         for col in self.matrix_columns:
@@ -489,12 +559,19 @@ class DemoApp:
             for y in range(h):
                 char, bright, color_idx, age = self.matrix_grid[x][y]
                 if bright > 0:
-                    new_bright = bright - 1 if random.random() < 0.12 else bright
+                    new_bright = (
+                        bright - 1 if random.random() < 0.12 else bright
+                    )
                     if new_bright == 0:
                         # Fully faded - clear the cell completely
                         self.matrix_grid[x][y] = (" ", 0, 0, 0)
                     else:
-                        self.matrix_grid[x][y] = (char, new_bright, color_idx, age + 1)
+                        self.matrix_grid[x][y] = (
+                            char,
+                            new_bright,
+                            color_idx,
+                            age + 1,
+                        )
 
         # Build output with smooth color gradient
         lines = []
@@ -504,7 +581,9 @@ class DemoApp:
                 char, bright, color_idx, _ = self.matrix_grid[x][y]
                 if bright >= 9:
                     # Bright white head with subtle color tint
-                    row.append(f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}")
+                    row.append(
+                        f"{self.A['w']}{self.A['bd']}{char}{self.A['rs']}"
+                    )
                 elif bright >= 7:
                     # Bright bold color
                     color = self._matrix_palette[color_idx]
@@ -523,13 +602,17 @@ class DemoApp:
                     row.append(f"{color}\x1b[2;22m{char}{self.A['rs']}")
                 else:
                     # Empty cell - pad with spaces based on character width
-                    row.append(f"{self.A['rs']}{' ' * self._matrix_char_width}")
+                    row.append(
+                        f"{self.A['rs']}{' ' * self._matrix_char_width}"
+                    )
             # Build the row - each element is 1 visible column
             lines.append("".join(row))
 
         # Add FPS header line at top with mode indicator
         fps_text = f"{self._fps:5.1f} FPS"
-        mode_text = f"[{self._matrix_mode.upper()} | {self._matrix_color.upper()}]"
+        mode_text = (
+            f"[{self._matrix_mode.upper()} | {self._matrix_color.upper()}]"
+        )
         header_content = f" {fps_text} {mode_text} "
         header_pad = (self.terminal_w - len(header_content)) // 2
         header = f"{self.A['K']}{'─' * header_pad}{self.A['rs']}{self.A['w']}{self.A['bd']}{header_content}{self.A['rs']}{self.A['K']}{'─' * header_pad}{self.A['rs']}"
@@ -538,7 +621,9 @@ class DemoApp:
         # Scrolling banner at bottom
         self._scroll_accumulator += dt * 15
         if self._scroll_accumulator >= 1.0:
-            self.scroll_pos = (self.scroll_pos + int(self._scroll_accumulator)) % len(self.scroll_text)
+            self.scroll_pos = (
+                self.scroll_pos + int(self._scroll_accumulator)
+            ) % len(self.scroll_text)
             self._scroll_accumulator -= int(self._scroll_accumulator)
 
         visible_banner = ""
@@ -549,8 +634,12 @@ class DemoApp:
         # Colored banner (uses current palette)
         banner_line = ""
         for i, ch in enumerate(visible_banner):
-            cidx = int((self._color_cycle * 2 + i * 0.5) % len(self._matrix_palette))
-            banner_line += f"{self.A['bd']}{self._matrix_palette[cidx]}{ch}{self.A['rs']}"
+            cidx = int(
+                (self._color_cycle * 2 + i * 0.5) % len(self._matrix_palette)
+            )
+            banner_line += (
+                f"{self.A['bd']}{self._matrix_palette[cidx]}{ch}{self.A['rs']}"
+            )
 
         # Add UI lines (full terminal width)
         lines.append(f"{self.A['K']}{'─' * self.terminal_w}{self.A['rs']}")
@@ -562,28 +651,50 @@ class DemoApp:
 
     def _toggle_matrix_mode(self) -> None:
         """Toggle between Katakana and ASCII character modes."""
-        self._matrix_mode = "ascii" if self._matrix_mode == "katakana" else "katakana"
+        self._matrix_mode = (
+            "ascii" if self._matrix_mode == "katakana" else "katakana"
+        )
         # Rebuild matrix with new mode
         self.switch_screen(self._build_matrix)
 
     def _toggle_matrix_color(self) -> None:
         """Toggle between rainbow and green color modes."""
-        self._matrix_color = "green" if self._matrix_color == "rainbow" else "rainbow"
+        self._matrix_color = (
+            "green" if self._matrix_color == "rainbow" else "rainbow"
+        )
         # Rebuild matrix with new color mode
         self.switch_screen(self._build_matrix)
 
     def _show_matrix_help(self) -> None:
         """Show help overlay with keybinds."""
         t = self._theme()
-        help_box = BorderedBox(padding_x=2, max_width=45, title="Matrix Rain Controls")
+        help_box = BorderedBox(
+            padding_x=2, max_width=45, title="Matrix Rain Controls"
+        )
         help_box.add_child(RichText(""))
-        help_box.add_child(RichText(f"  [{t.primary}]T[/{t.primary}]  Toggle character mode (Katakana/ASCII)"))
-        help_box.add_child(RichText(f"  [{t.primary}]G[/{t.primary}]  Toggle color mode (Rainbow/Green)"))
-        help_box.add_child(RichText(f"  [{t.primary}]H[/{t.primary}]  Show this help"))
-        help_box.add_child(RichText(f"  [{t.primary}]ESC[/{t.primary}]  Exit matrix rain"))
+        help_box.add_child(
+            RichText(
+                f"  [{t.primary}]T[/{t.primary}]  Toggle character mode (Katakana/ASCII)"
+            )
+        )
+        help_box.add_child(
+            RichText(
+                f"  [{t.primary}]G[/{t.primary}]  Toggle color mode (Rainbow/Green)"
+            )
+        )
+        help_box.add_child(
+            RichText(f"  [{t.primary}]H[/{t.primary}]  Show this help")
+        )
+        help_box.add_child(
+            RichText(f"  [{t.primary}]ESC[/{t.primary}]  Exit matrix rain")
+        )
         help_box.add_child(RichText(""))
-        help_box.add_child(RichText(f"  [{t.muted}]Press any key to close[/{t.muted}]"))
-        self.overlay_handle = self.tui.show_overlay(help_box, OverlayOptions(width=45, anchor="center"))
+        help_box.add_child(
+            RichText(f"  [{t.muted}]Press any key to close[/{t.muted}]")
+        )
+        self.overlay_handle = self.tui.show_overlay(
+            help_box, OverlayOptions(width=45, anchor="center")
+        )
 
     # =========================================================================
     # COMPONENTS DEMO
@@ -598,30 +709,46 @@ class DemoApp:
         t = self._theme()
 
         header = BorderedBox(padding_x=2, max_width=50)
-        header.set_rich_title(f"[bold {t.primary}]Component Showcase[/bold {t.primary}]")
+        header.set_rich_title(
+            f"[bold {t.primary}]Component Showcase[/bold {t.primary}]"
+        )
         self.root.add_child(header)
         self.root.add_child(Spacer(1))
 
         # Text
-        self.root.add_child(RichText(f"[bold {t.primary}]Text:[/bold {t.primary}] Auto-wraps content. [{t.muted}]This is muted.[/{t.muted}]"))
+        self.root.add_child(
+            RichText(
+                f"[bold {t.primary}]Text:[/bold {t.primary}] Auto-wraps content. [{t.muted}]This is muted.[/{t.muted}]"
+            )
+        )
         self.root.add_child(Spacer(1))
 
         # Box
-        self.root.add_child(RichText(f"[bold {t.primary}]Box (padding):[/bold {t.primary}]"))
+        self.root.add_child(
+            RichText(f"[bold {t.primary}]Box (padding):[/bold {t.primary}]")
+        )
         box = Box(padding_x=2)
-        box.add_child(RichText(f"[{t.secondary}]Content with padding[/{t.secondary}]"))
+        box.add_child(
+            RichText(f"[{t.secondary}]Content with padding[/{t.secondary}]")
+        )
         self.root.add_child(box)
         self.root.add_child(Spacer(1))
 
         # BorderedBox
-        self.root.add_child(RichText(f"[bold {t.primary}]BorderedBox:[/bold {t.primary}]"))
+        self.root.add_child(
+            RichText(f"[bold {t.primary}]BorderedBox:[/bold {t.primary}]")
+        )
         bordered = BorderedBox(padding_x=2, max_width=35, title="Panel")
-        bordered.add_child(RichText(f"[{t.accent}]Draws borders, wraps content[/{t.accent}]"))
+        bordered.add_child(
+            RichText(f"[{t.accent}]Draws borders, wraps content[/{t.accent}]")
+        )
         self.root.add_child(bordered)
         self.root.add_child(Spacer(1))
 
         # Input
-        self.root.add_child(RichText(f"[bold {t.primary}]Input:[/bold {t.primary}]"))
+        self.root.add_child(
+            RichText(f"[bold {t.primary}]Input:[/bold {t.primary}]")
+        )
         inp = Input(placeholder="Type and press Enter...")
         inp.on_submit = lambda v: self._show_result(f"You typed: {v}")
         self.root.add_child(inp)
@@ -646,40 +773,60 @@ class DemoApp:
         # Header with step name
         names = ["Welcome", "Profile", "Theme", "Complete"]
         header = BorderedBox(padding_x=2, max_width=50)
-        header.set_rich_title(f"[bold {t.primary}]Wizard: {names[step]}[/bold {t.primary}]")
+        header.set_rich_title(
+            f"[bold {t.primary}]Wizard: {names[step]}[/bold {t.primary}]"
+        )
         self.root.add_child(header)
 
         # Progress
         progress = " → ".join(
-            f"[bold {t.primary}]{n}[/bold {t.primary}]" if i == step else f"[{t.muted}]{n}[/{t.muted}]"
+            f"[bold {t.primary}]{n}[/bold {t.primary}]"
+            if i == step
+            else f"[{t.muted}]{n}[/{t.muted}]"
             for i, n in enumerate(names)
         )
         self.root.add_child(RichText(progress))
         self.root.add_child(Spacer(2))
 
         if step == 0:
-            self.root.add_child(RichText(f"[{t.secondary}]This wizard demonstrates forms.[/{t.secondary}]"))
+            self.root.add_child(
+                RichText(
+                    f"[{t.secondary}]This wizard demonstrates forms.[/{t.secondary}]"
+                )
+            )
             self.root.add_child(Spacer(1))
-            self.root.add_child(RichText(f"[{t.muted}]Press Enter to start[/{t.muted}]"))
+            self.root.add_child(
+                RichText(f"[{t.muted}]Press Enter to start[/{t.muted}]")
+            )
 
         elif step == 1:
-            self.root.add_child(RichText(f"[bold {t.primary}]Name:[/bold {t.primary}]"))
+            self.root.add_child(
+                RichText(f"[bold {t.primary}]Name:[/bold {t.primary}]")
+            )
             self.name_input = Input(placeholder="Your name")
             self.name_input.set_value(self.form_data["name"])
             self.root.add_child(self.name_input)
 
             self.root.add_child(Spacer(1))
-            self.root.add_child(RichText(f"[bold {t.primary}]Email:[/bold {t.primary}]"))
+            self.root.add_child(
+                RichText(f"[bold {t.primary}]Email:[/bold {t.primary}]")
+            )
             self.email_input = Input(placeholder="Your email")
             self.email_input.set_value(self.form_data["email"])
             self.root.add_child(self.email_input)
 
             self.root.add_child(Spacer(1))
-            self.root.add_child(RichText(f"[{t.muted}]Tab: switch • Enter: continue[/{t.muted}]"))
+            self.root.add_child(
+                RichText(
+                    f"[{t.muted}]Tab: switch • Enter: continue[/{t.muted}]"
+                )
+            )
             self.tui.set_focus(self.name_input)
 
         elif step == 2:
-            self.root.add_child(RichText(f"[bold {t.primary}]Choose Theme:[/bold {t.primary}]"))
+            self.root.add_child(
+                RichText(f"[bold {t.primary}]Choose Theme:[/bold {t.primary}]")
+            )
             items = [SelectItem(k, v.name) for k, v in THEMES.items()]
             lst = SelectList(items, 3, create_select_theme(t))
             lst.on_select = lambda i: self._wizard_next(theme=i.value)
@@ -687,12 +834,24 @@ class DemoApp:
             self.tui.set_focus(lst)
 
         else:  # Complete
-            self.root.add_child(RichText(f"[bold {t.success}]✓ Setup Complete![/bold {t.success}]"))
+            self.root.add_child(
+                RichText(
+                    f"[bold {t.success}]✓ Setup Complete![/bold {t.success}]"
+                )
+            )
             self.root.add_child(Spacer(1))
-            self.root.add_child(RichText(f"Name: {self.form_data['name'] or '(none)'}"))
-            self.root.add_child(RichText(f"Email: {self.form_data['email'] or '(none)'}"))
-            theme_name = THEMES.get(self.form_data.get('theme', 'neon'), THEMES['neon']).name
-            self.root.add_child(RichText(f"Theme: [{t.accent}]{theme_name}[/{t.accent}]"))
+            self.root.add_child(
+                RichText(f"Name: {self.form_data['name'] or '(none)'}")
+            )
+            self.root.add_child(
+                RichText(f"Email: {self.form_data['email'] or '(none)'}")
+            )
+            theme_name = THEMES.get(
+                self.form_data.get("theme", "neon"), THEMES["neon"]
+            ).name
+            self.root.add_child(
+                RichText(f"Theme: [{t.accent}]{theme_name}[/{t.accent}]")
+            )
 
     def _wizard_next(self, **kwargs) -> None:
         """Advance wizard."""
@@ -717,8 +876,12 @@ class DemoApp:
         t = self._theme()
 
         header = BorderedBox(padding_x=2, max_width=50)
-        header.set_rich_title(f"[bold {t.primary}]Overlay System[/bold {t.primary}]")
-        header.add_child(RichText(f"[{t.muted}]Floating panels & dialogs[/{t.muted}]"))
+        header.set_rich_title(
+            f"[bold {t.primary}]Overlay System[/bold {t.primary}]"
+        )
+        header.add_child(
+            RichText(f"[{t.muted}]Floating panels & dialogs[/{t.muted}]")
+        )
         self.root.add_child(header)
         self.root.add_child(Spacer(1))
 
@@ -743,14 +906,27 @@ class DemoApp:
             self.overlay_handle.hide()
 
         t = self._theme()
-        anchors = {"center": "center", "top": "top", "bottom": "bottom", "top-right": "top-right"}
+        anchors = {
+            "center": "center",
+            "top": "top",
+            "bottom": "bottom",
+            "top-right": "top-right",
+        }
         anchor = anchors.get(item.value, "center")
 
-        content = BorderedBox(padding_x=2, max_width=35, title=f"{anchor.title()} Overlay")
-        content.add_child(RichText(f"[{t.primary}]Positioned at {anchor}[/{t.primary}]"))
-        content.add_child(RichText(f"[{t.muted}]Press ESC to close[/{t.muted}]"))
+        content = BorderedBox(
+            padding_x=2, max_width=35, title=f"{anchor.title()} Overlay"
+        )
+        content.add_child(
+            RichText(f"[{t.primary}]Positioned at {anchor}[/{t.primary}]")
+        )
+        content.add_child(
+            RichText(f"[{t.muted}]Press ESC to close[/{t.muted}]")
+        )
 
-        self.overlay_handle = self.tui.show_overlay(content, OverlayOptions(width=35, anchor=anchor))
+        self.overlay_handle = self.tui.show_overlay(
+            content, OverlayOptions(width=35, anchor=anchor)
+        )
 
     # =========================================================================
     # ABOUT
@@ -765,23 +941,53 @@ class DemoApp:
         t = self._theme()
 
         header = BorderedBox(padding_x=2, max_width=50)
-        header.set_rich_title(f"[bold {t.primary}]About PyPiTUI[/bold {t.primary}]")
+        header.set_rich_title(
+            f"[bold {t.primary}]About PyPiTUI[/bold {t.primary}]"
+        )
         self.root.add_child(header)
         self.root.add_child(Spacer(1))
 
-        self.root.add_child(RichText(f"[{t.secondary}]Python terminal UI library with differential rendering.[/{t.secondary}]"))
+        self.root.add_child(
+            RichText(
+                f"[{t.secondary}]Python terminal UI library with differential rendering.[/{t.secondary}]"
+            )
+        )
         self.root.add_child(Spacer(1))
 
-        self.root.add_child(RichText(f"[bold {t.primary}]Features:[/bold {t.primary}]"))
-        self.root.add_child(RichText(f"  • [{t.primary}]Component-based architecture[/{t.primary}]"))
-        self.root.add_child(RichText(f"  • [{t.primary}]Differential rendering[/{t.primary}]"))
-        self.root.add_child(RichText(f"  • [{t.primary}]DEC 2026 synchronized output[/{t.primary}]"))
-        self.root.add_child(RichText(f"  • [{t.primary}]Relative cursor movement[/{t.primary}]"))
-        self.root.add_child(RichText(f"  • [{t.primary}]Overlay system[/{t.primary}]"))
-        self.root.add_child(RichText(f"  • [{t.primary}]Rich integration[/{t.primary}]"))
+        self.root.add_child(
+            RichText(f"[bold {t.primary}]Features:[/bold {t.primary}]")
+        )
+        self.root.add_child(
+            RichText(
+                f"  • [{t.primary}]Component-based architecture[/{t.primary}]"
+            )
+        )
+        self.root.add_child(
+            RichText(f"  • [{t.primary}]Differential rendering[/{t.primary}]")
+        )
+        self.root.add_child(
+            RichText(
+                f"  • [{t.primary}]DEC 2026 synchronized output[/{t.primary}]"
+            )
+        )
+        self.root.add_child(
+            RichText(
+                f"  • [{t.primary}]Relative cursor movement[/{t.primary}]"
+            )
+        )
+        self.root.add_child(
+            RichText(f"  • [{t.primary}]Overlay system[/{t.primary}]")
+        )
+        self.root.add_child(
+            RichText(f"  • [{t.primary}]Rich integration[/{t.primary}]")
+        )
 
         self.root.add_child(Spacer(1))
-        self.root.add_child(RichText(f"[{t.muted}]https://github.com/jeremysball/pypitui[/{t.muted}]"))
+        self.root.add_child(
+            RichText(
+                f"[{t.muted}]https://github.com/jeremysball/pypitui[/{t.muted}]"
+            )
+        )
         self.root.add_child(Spacer(1))
         self.root.add_child(RichText(f"[{t.muted}]ESC to go back[/{t.muted}]"))
 
@@ -799,7 +1005,9 @@ class DemoApp:
 
         self.root.add_child(RichText(f"[{t.success}]{message}[/{t.success}]"))
         self.root.add_child(Spacer(1))
-        self.root.add_child(RichText(f"[{t.muted}]Press Enter or ESC to go back[/{t.muted}]"))
+        self.root.add_child(
+            RichText(f"[{t.muted}]Press Enter or ESC to go back[/{t.muted}]")
+        )
 
     # =========================================================================
     # INPUT HANDLING
@@ -873,7 +1081,11 @@ class DemoApp:
 
             if self.wizard_step == 1 and hasattr(self, "name_input"):
                 if matches_key(data, Key.tab):
-                    new_focus = self.email_input if self.tui._focused_component == self.name_input else self.name_input
+                    new_focus = (
+                        self.email_input
+                        if self.tui._focused_component == self.name_input
+                        else self.name_input
+                    )
                     self.tui.set_focus(new_focus)
                     return
                 if matches_key(data, Key.enter):

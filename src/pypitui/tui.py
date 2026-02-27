@@ -588,9 +588,7 @@ class TUI(Container):
 
         return (width, row, col, max_height)
 
-    def _get_overlay_margins(
-        self, options: OverlayOptions
-    ) -> tuple[int, int]:
+    def _get_overlay_margins(self, options: OverlayOptions) -> tuple[int, int]:
         """Get left and right margins from options."""
         margin = options.margin
         if isinstance(margin, int):
@@ -830,9 +828,10 @@ class TUI(Container):
                 if content_row >= len(lines):
                     break
                 prev = self._previous_lines
-                if content_row >= len(prev) or prev[content_row] != lines[
-                    content_row
-                ]:
+                if (
+                    content_row >= len(prev)
+                    or prev[content_row] != lines[content_row]
+                ):
                     buffer += self._move_cursor_relative(screen_row)
                     buffer += "\r\x1b[2K"
                     buffer += lines[content_row]
