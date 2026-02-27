@@ -72,3 +72,6 @@ node_modules/
 AGENTS.md
 # Screenshots from interactive terminal testing
 screenshots/
+
+# Kitty protocol reference files
+.agents/kitty-keyboard-protocol.*
