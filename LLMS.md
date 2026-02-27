@@ -455,6 +455,212 @@ def update_size(self):
 
 ---
 
+## Scrollback Mechanics and Renderer Internals
+
+### How Scrollback Works
+
+The TUI maintains a virtual canvas that can exceed terminal height. When content grows beyond the visible area, older lines flow into the terminal's native scrollback buffer (accessible via Shift+PgUp).
+
+**Key State Variables** (from `tui.py`):
+
+```python
+self._max_lines_rendered: int = 0  # Maximum lines ever rendered
+self._previous_lines: list[str] = []  # Last frame's rendered lines
+self._hardware_cursor_row: int = 0  # Virtual cursor position
+```
+
+**First Visible Row Calculation**:
+
+```python
+def _calculate_first_visible_row(self, term_height: int) -> int:
+    return max(0, self._max_lines_rendered - term_height)
+```
+
+Example: If `_max_lines_rendered=100` and `term_height=24`:
+- Returns 76 (lines 0-75 in scrollback, lines 76-99 visible)
+
+**Content Growth** (`_handle_content_growth`):
+
+When content grows from 20 to 25 lines in a 24-row terminal:
+1. Detects `current_count > previous_count`
+2. Emits newlines to scroll the terminal
+3. Updates `_hardware_cursor_row` to bottom
+
+**Scrollback Immutability**:
+
+Lines in scrollback cannot be updated after scrolling. From `test_scrollback.py`:
+
+```python
+def test_scrollback_lines_frozen(self):
+    # Modify line 2 (in scrollback)
+    # Assert: modification does NOT appear in output
+    assert "MODIFIED Line 2" not in output
+```
+
+### Differential Rendering
+
+The renderer compares current frame against `_previous_lines` to update only changed lines.
+
+**Line Comparison** (`_render_changed_lines`):
+
+```python
+# For content fitting in terminal:
+for i, line in enumerate(lines):
+    if i >= len(prev) or prev[i] != line:
+        buffer += self._move_cursor_relative(i)
+        buffer += "\r\x1b[2K"  # Clear line
+        buffer += line
+
+# For content exceeding terminal:
+first_visible = current_count - term_height
+for screen_row in range(term_height):
+    content_row = first_visible + screen_row
+    if content_row >= len(prev) or prev[content_row] != lines[content_row]:
+        # Update only visible portion
+```
+
+**Shrink Handling**:
+
+When content shrinks (`clear_on_shrink=True`):
+```python
+if current_count < previous_count:
+    for i in range(current_count, previous_count):
+        buffer += self._move_cursor_relative(i)
+        buffer += "\r\x1b[2K"  # Clear orphaned lines
+```
+
+### Relative Cursor Movement
+
+The renderer uses relative positioning (`\x1b[nA`/`\x1b[nB`) instead of absolute (`\x1b[row;colH`). This allows content to flow into scrollback.
+
+**Movement Logic** (`_move_cursor_relative`):
+
+```python
+def _move_cursor_relative(self, target_row: int) -> str:
+    delta = target_row - self._hardware_cursor_row
+    if delta == 0:
+        return ""
+    if delta > 0:
+        self._hardware_cursor_row = target_row
+        return self.terminal.move_cursor_down(delta)  # "\x1b[nB"
+    else:
+        self._hardware_cursor_row = target_row
+        return self.terminal.move_cursor_up(-delta)   # "\x1b[nA"
+```
+
+**Terminal Methods** (`terminal.py`):
+
+```python
+def move_cursor_up(self, n: int = 1) -> str:
+    if n <= 0:
+        return ""
+    return f"\x1b[{n}A"
+
+def move_cursor_down(self, n: int = 1) -> str:
+    if n <= 0:
+        return ""
+    return f"\x1b[{n}B"
+```
+
+### Synchronized Output (DEC 2026)
+
+Prevents flickering by buffering output until frame is complete.
+
+**Sequences**:
+
+```python
+def _begin_sync(self) -> str:
+    return "\x1b[?2026h"  # Begin buffered mode
+
+def _end_sync(self) -> str:
+    return "\x1b[?2026l"  # Flush buffer
+```
+
+**Frame Structure** (`render_frame`):
+
+```python
+buffer = self._begin_sync()
+# ... render all changes ...
+buffer += self._end_sync()
+self.terminal.write(buffer)
+```
+
+Terminals without DEC 2026 support ignore these sequences (graceful degradation).
+
+### Line Reset Sequence
+
+Each rendered line ends with a reset sequence to prevent style bleeding:
+
+```python
+_SEGMENT_RESET = "\x1b[0m\x1b[K\x1b]8;;\x07"
+# \x1b[0m    - Reset all attributes
+# \x1b[K     - Clear to end of line
+# \x1b]8;;\x07 - End hyperlink
+```
+
+Applied in `_apply_line_resets`:
+
+```python
+def _apply_line_resets(self, lines: list[str]) -> list[str]:
+    return [line + self._SEGMENT_RESET for line in lines]
+```
+
+### Resize Handling
+
+On terminal resize, clears both screen and scrollback to prevent corrupted output:
+
+```python
+def _check_resize(self, term_width: int, term_height: int) -> None:
+    if (term_width, term_height) != self._last_terminal_size:
+        self._previous_lines = []
+        self._hardware_cursor_row = -1
+        self.terminal.write("\x1b[2J\x1b[3J\x1b[H")  # Clear screen + scrollback
+        self.invalidate()
+```
+
+### Hardware Cursor Positioning
+
+For IME candidate window positioning. Focusable components emit `CURSOR_MARKER` (`"\x1b_pi:c\x07"`) in rendered output.
+
+**Extraction** (`_extract_cursor_position`):
+
+```python
+# Scan from bottom up (viewport area only)
+start_line = max(0, len(lines) - height)
+for i in range(len(lines) - 1, start_line - 1, -1):
+    pos = lines[i].find(CURSOR_MARKER)
+    if pos != -1:
+        col = visible_width(lines[i][:pos])
+        return (i, col)
+```
+
+**Positioning** (`_position_hardware_cursor_relative`):
+
+```python
+self.terminal.write(self._move_cursor_relative(row))
+self.terminal.write(f"\r\x1b[{col}C")  # Move to column
+self.terminal.show_cursor()
+```
+
+### Frame Rendering Flow
+
+Complete `render_frame()` sequence:
+
+1. Check `_force_full_redraw` → clear screen if needed
+2. `_check_resize()` → invalidate on size change
+3. `render(term_width)` → get base lines from children
+4. `_calculate_first_visible_row()` → determine scrollback offset
+5. `_composite_overlays()` → overlay content onto base
+6. `_apply_line_resets()` → append reset to each line
+7. `_extract_cursor_position()` → find and strip cursor marker
+8. `_begin_sync()` → start buffered output
+9. `_handle_content_growth()` → emit newlines if content grew
+10. `_render_changed_lines()` → differential update
+11. `_end_sync()` → flush buffered output
+12. `_position_hardware_cursor_relative()` → place IME cursor
+
+---
+
 ## Edge Cases
 
 | Issue | Solution |
