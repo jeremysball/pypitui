@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo-batch/v6b-5-neon.png" alt="PyPiTUI Logo" width="400">
+  <img src="assets/logo-batch/v6b2-1-green-bold.png" alt="PyPiTUI Logo" width="400">
 </p>
 
 <h1 align="center">PyPiTUI</h1>
