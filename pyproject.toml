@@ -47,6 +47,7 @@ build-backend = "hatchling.build"
 [tool.ruff]
 target-version = "py312"
 line-length = 79
+extend-exclude = ["*.pyi"]
 
 [tool.ruff.lint.per-file-ignores]
 "*.pyi" = ["E501", "I001"]  # Line too long, unsorted imports in stubs
