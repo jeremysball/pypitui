@@ -905,21 +905,35 @@ class TUI(Container):
     ) -> None:
         """Position the hardware cursor for IME candidate window.
 
-        Uses relative positioning.
+        Uses relative positioning. Always positions cursor correctly
+        even when hidden (needed for proper input handling).
         """
-        if not self._show_hardware_cursor:
-            self.terminal.hide_cursor()
-            return
+        _, term_height = self.terminal.get_size()
 
         if cursor_pos:
             row, col = cursor_pos
             if row < total_lines:
+                # Convert absolute row to screen row when content
+                # exceeds terminal height
+                if total_lines > term_height:
+                    screen_row = row - (total_lines - term_height)
+                    if screen_row < 0 or screen_row >= term_height:
+                        # Cursor is in scrollback area, hide it
+                        self.terminal.hide_cursor()
+                        return
+                else:
+                    screen_row = row
+
                 # Move to cursor row using relative positioning
-                self.terminal.write(self._move_cursor_relative(row))
+                self.terminal.write(self._move_cursor_relative(screen_row))
                 # Move to column (absolute column, relative row)
                 self.terminal.write(f"\r\x1b[{col}C")
-                self.terminal.show_cursor()
-                self._hardware_cursor_row = row
+                # Update hardware cursor row to screen position
+                self._hardware_cursor_row = screen_row
+                if self._show_hardware_cursor:
+                    self.terminal.show_cursor()
+                else:
+                    self.terminal.hide_cursor()
                 return
 
         self.terminal.hide_cursor()

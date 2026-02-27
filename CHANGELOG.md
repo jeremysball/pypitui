@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2025-02-27
+
+### Fixed
+
+- **Hardware cursor positioning with scrollback** — Cursor now positions correctly when content exceeds terminal height. Previously, the hardware cursor was placed at the absolute row position instead of the screen row position, causing typed characters to appear at wrong positions after content scrolled into scrollback buffer.
+
+## [0.2.1] - 2025-02-27
+
+### Changed
+
+- **LLMS.md documentation** — Updated with scrollback mechanics, renderer internals, and cursor positioning details
+
 ## [0.2.0] - 2025-02-26
 
 ### Added
