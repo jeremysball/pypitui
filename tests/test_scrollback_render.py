@@ -1,12 +1,13 @@
-"""Tests for scrollback rendering bug - top border not rendered when content grows."""
+"""Tests for scrollback rendering - top border missing when content grows."""
 
-from pypitui import BorderedBox, MockTerminal, TUI, Text
+from pypitui import TUI, BorderedBox, MockTerminal, Text
 
 
 class TestScrollbackRenderBug:
-    """Tests for the bug where scrollback lines aren't rendered when content grows.
+    """Tests for scrollback lines not rendered when content grows.
 
-    When a large component (e.g., 25+ line BorderedBox) is added to an empty TUI:
+    When a large component (e.g., 25+ line BorderedBox) is added to an
+    empty TUI:
     - Top border lines are missing (blank instead of rendered)
     - Root cause: _handle_content_growth emits blank newlines, then
       _render_changed_lines only renders visible portion
@@ -65,5 +66,5 @@ class TestScrollbackRenderBug:
         tui.stop()
 
         # Lines 0-4 should be rendered before scrolling
-        assert "Content line 0" in output, "First scrollback line should be rendered"
-        assert "Content line 4" in output, "Last scrollback line should be rendered"
+        assert "Content line 0" in output
+        assert "Content line 4" in output
