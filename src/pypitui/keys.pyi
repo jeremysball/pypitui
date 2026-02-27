@@ -1,18 +1,12 @@
-"""Keyboard input handling for terminal applications."""
-
 from typing import Final
 
 type KeyId = str
-
 def set_kitty_protocol_active(active: bool) -> None: ...
 def is_kitty_protocol_active() -> bool: ...
 def is_key_release(data: str) -> bool: ...
 def is_key_repeat(data: str) -> bool: ...
 
 class _KeyAccessor:
-    """Accessor class for key identifiers with autocomplete support."""
-
-    # Special keys
     escape: KeyId
     esc: KeyId
     enter: KeyId
@@ -43,7 +37,6 @@ class _KeyAccessor:
     f10: KeyId
     f11: KeyId
     f12: KeyId
-    # Symbol keys
     backtick: KeyId
     hyphen: KeyId
     equals: KeyId
@@ -75,7 +68,6 @@ class _KeyAccessor:
     less_than: KeyId
     greater_than: KeyId
     question: KeyId
-
     @staticmethod
     def ctrl(key: str) -> KeyId: ...
     @staticmethod

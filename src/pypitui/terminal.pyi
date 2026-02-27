@@ -1,10 +1,7 @@
-"""Terminal abstraction for TUI applications."""
-
+import abc
 from abc import ABC, abstractmethod
 
-class Terminal(ABC):
-    """Abstract base class for terminal implementations."""
-
+class Terminal(ABC, metaclass=abc.ABCMeta):
     @abstractmethod
     def write(self, data: str) -> None: ...
     @abstractmethod
@@ -31,8 +28,6 @@ class Terminal(ABC):
     def move_cursor_down(self, n: int = ...) -> str: ...
 
 class ProcessTerminal(Terminal):
-    """Terminal implementation for actual process stdin/stdout."""
-
     def __init__(self) -> None: ...
     def write(self, data: str) -> None: ...
     def read(self, timeout: float = ...) -> str | None: ...
@@ -48,12 +43,9 @@ class ProcessTerminal(Terminal):
     def move_cursor_down(self, n: int = ...) -> str: ...
 
 class MockTerminal(Terminal):
-    """Mock terminal for testing."""
-
     cols: int
     rows: int
     cursor_visible: bool
-
     def __init__(self, cols: int = ..., rows: int = ...) -> None: ...
     def write(self, data: str) -> None: ...
     def read(self, timeout: float = ...) -> str | None: ...
