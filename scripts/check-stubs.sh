@@ -13,27 +13,34 @@ trap "rm -rf $TEMP_DIR" EXIT
 # Generate fresh stubs to temp location
 uv run stubgen src/pypitui -o "$TEMP_DIR" --no-import 2>/dev/null || true
 
-# Compare each generated stub with existing
-STUBS_DIR="src/pypitui/stubs/pypitui"
+# Compare each generated stub with existing (root-level .pyi files)
+STUBS_DIR="src/pypitui"
 MISSING=0
 OUTDATED=0
 
-if [ -d "$STUBS_DIR" ]; then
-    for stub in "$STUBS_DIR"/*.pyi; do
-        if [ -f "$stub" ]; then
-            filename=$(basename "$stub")
-            temp_stub="$TEMP_DIR/pypitui/$filename"
-            
-            if [ ! -f "$temp_stub" ]; then
-                echo "  ✗ $filename - source file may have been removed"
-                MISSING=$((MISSING + 1))
-            elif ! diff -q "$stub" "$temp_stub" > /dev/null 2>&1; then
-                echo "  ✗ $filename - out of date (run: uv run stubgen src/pypitui -o src/pypitui/stubs)"
-                OUTDATED=$((OUTDATED + 1))
-            fi
+# Check existing stubs in root of package
+for stub in "$STUBS_DIR"/*.pyi; do
+    if [ -f "$stub" ]; then
+        filename=$(basename "$stub")
+        # Skip the pypitui.pyi top-level re-export file
+        if [ "$filename" = "pypitui.pyi" ]; then
+            continue
         fi
-    done
-fi
+        temp_stub="$TEMP_DIR/pypitui/$filename"
+        
+        if [ ! -f "$temp_stub" ]; then
+            # __init__.pyi is hand-written, stubgen doesn't generate it
+            if [ "$filename" = "__init__.pyi" ]; then
+                continue
+            fi
+            echo "  ✗ $filename - source file may have been removed"
+            MISSING=$((MISSING + 1))
+        elif ! diff -q "$stub" "$temp_stub" > /dev/null 2>&1; then
+            echo "  ✗ $filename - out of date (run: uv run stubgen src/pypitui -o src/pypitui/stubs, then copy and refine)"
+            OUTDATED=$((OUTDATED + 1))
+        fi
+    fi
+done
 
 # Check for new source files without stubs
 for source in src/pypitui/*.py; do
@@ -53,8 +60,9 @@ if [ $MISSING -gt 0 ] || [ $OUTDATED -gt 0 ]; then
     echo ""
     echo "Stubs need updating. Run:"
     echo "  uv run stubgen src/pypitui -o src/pypitui/stubs"
+    echo "  cp src/pypitui/stubs/pypitui/*.pyi src/pypitui/"
     echo ""
-    echo "Then refine manually if needed before committing."
+    echo "Then refine manually before committing."
     exit 1
 fi
 
