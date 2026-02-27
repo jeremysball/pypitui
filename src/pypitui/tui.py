@@ -793,10 +793,27 @@ class TUI(Container):
         current_count: int,
         previous_count: int,
         term_height: int,
+        lines: list[str],
     ) -> str:
-        """Handle content growth by emitting newlines to scroll."""
+        """Handle content growth by emitting newlines to scroll.
+
+        Renders lines that will flow into scrollback BEFORE scrolling,
+        ensuring they appear in terminal history.
+        """
         if current_count <= term_height or current_count <= previous_count:
             return buffer
+
+        # Render lines that will flow into scrollback BEFORE scrolling
+        first_visible = current_count - term_height
+        for i in range(first_visible):
+            prev_changed = (
+                i >= len(self._previous_lines)
+                or self._previous_lines[i] != lines[i]
+            )
+            if prev_changed:
+                buffer += self._move_cursor_relative(i)
+                buffer += "\r\x1b[2K"
+                buffer += lines[i]
 
         new_lines = current_count - previous_count
         last_rendered = min(previous_count, term_height)
@@ -887,7 +904,7 @@ class TUI(Container):
         current_count = len(lines)
 
         buffer = self._handle_content_growth(
-            buffer, current_count, previous_count, term_height
+            buffer, current_count, previous_count, term_height, lines
         )
         buffer += self._render_changed_lines(lines, term_height)
 
