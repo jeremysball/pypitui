@@ -3,6 +3,9 @@ set -e
 
 echo "Running pre-commit hooks..."
 
+# Check type stubs are up-to-date
+./scripts/check-stubs.sh
+
 # Run ruff check
 echo "Running ruff check..."
 uv run ruff check src/
