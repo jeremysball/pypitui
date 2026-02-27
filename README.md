@@ -1,31 +1,148 @@
-# PyPiTUI
+<p align="center">
+  <img src="assets/logo-batch/logo-01-snake-terminal.png" alt="PyPiTUI Logo" width="300">
+</p>
 
-A Python port of [@mariozechner/pi-tui](https://github.com/badlogic/pi-mono/tree/main/packages/tui) - a terminal UI library with differential rendering.
+<h1 align="center">PyPiTUI</h1>
+
+<p align="center">
+  <b>Build terminal UIs in Python with React-like components</b><br>
+  Differential rendering · Scrollback support · Kitty protocol · Rich integration
+</p>
+
+<p align="center">
+  <a href="https://github.com/jeremysball/pypitui/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
+  </a>
+  <a href="https://pypi.org/project/pypitui/">
+    <img src="https://img.shields.io/pypi/v/pypitui.svg" alt="PyPI version">
+  </a>
+  <a href="https://pypi.org/project/pypitui/">
+    <img src="https://img.shields.io/pypi/pyversions/pypitui.svg" alt="Python versions">
+  </a>
+</p>
+
+---
+
+## About
+
+PyPiTUI is a Python terminal UI library inspired by [pi-tui](https://github.com/badlogic/pi-mono/tree/main/packages/tui). It brings React's component model to terminal applications with **differential rendering**—only changed lines update, eliminating flicker.
+
+Unlike curses-based TUIs that clip content, PyPiTUI uses the terminal's native scrollback buffer. Your content flows naturally, accessible with Shift+PgUp or mouse wheel.
+
+**Key differentiators:**
+- 🚀 **Differential rendering** - Flicker-free updates at 60fps
+- 📜 **Native scrollback** - Content flows into terminal history
+- 🎨 **Rich integration** - Markdown, tables, syntax highlighting (optional)
+- ⌨️ **Kitty protocol** - Key release/repeat events
+- 🪟 **Overlays** - Modal dialogs with flexible positioning
+
+---
 
 ## Installation
 
 ```bash
 pip install pypitui
 
-# With Rich integration for markdown, tables, etc.
+# With Rich integration for markdown, tables, and markup
 pip install pypitui[rich]
 ```
 
-## Rich Integration
+**Requirements:** Python 3.10+
 
-PyPiTUI works seamlessly with [Rich](https://github.com/Textualize/rich) for advanced formatting:
+---
 
-- **Markdown rendering** - Headers, lists, code blocks, links
-- **Tables** - Beautiful bordered tables
-- **Syntax highlighting** - Code blocks with pygments
-- **Text markup** - `[bold red]Hello[/bold red]`
-- **Panels, progress bars, trees** - Any Rich renderable
+## Quick Start
+
+```python
+from pypitui import TUI, Text, Input, ProcessTerminal, Key, matches_key
+
+# Create terminal and TUI
+terminal = ProcessTerminal()
+tui = TUI(terminal)
+
+# Add components
+tui.add_child(Text("Hello, World!"))
+
+input_field = Input(placeholder="Type something...")
+input_field.on_submit = lambda text: print(f"You typed: {text}")
+tui.add_child(input_field)
+tui.set_focus(input_field)
+
+# Run the TUI
+tui.start()
+try:
+    while True:
+        data = terminal.read_sequence(timeout=0.1)
+        if data:
+            if matches_key(data, Key.ctrl("c")):
+                break
+            tui.handle_input(data)
+        tui.request_render()
+        tui.render_frame()
+finally:
+    tui.stop()
+```
+
+**Or use the built-in loop:**
+
+```python
+tui.run()  # Handles everything at ~60fps
+```
+
+---
+
+## Features
+
+### Differential Rendering
+
+Only changed lines are redrawn. No flickering, even with rapid updates.
+
+```python
+# Status updates are smooth
+status = Text("Processing...")
+tui.add_child(status)
+
+# Update without flicker
+status.set_text("Done!")
+tui.request_render()
+```
+
+### Native Scrollback
+
+Content flows into the terminal's scrollback buffer. No artificial clipping.
+
+```python
+# Log streaming - all history accessible
+for line in log_lines:
+    tui.add_child(Text(line))  # Flows into scrollback naturally
+```
+
+Use **Shift+PgUp** or mouse wheel to scroll through history.
+
+### Component-Based Architecture
+
+Build UIs with composable components:
+
+```python
+from pypitui import Container, Text, Input, SelectList, SelectItem
+
+# Compose a form
+form = Container()
+form.add_child(Text("User Registration"))
+form.add_child(Input(placeholder="Username"))
+form.add_child(Input(placeholder="Email", max_length=100))
+form.add_child(SelectList(items, max_visible=5, theme=theme))
+
+tui.add_child(form)
+```
+
+### Rich Integration (Optional)
 
 ```python
 from pypitui.rich_components import Markdown, RichTable, RichText
 
-# Markdown
-md = Markdown("# Hello\n\n**Bold** and *italic* text.")
+# Markdown rendering
+md = Markdown("# Hello\n\n- Item 1\n- Item 2")
 
 # Rich text markup
 text = RichText("[bold cyan]Hello[/bold cyan] [red]World[/red]!")
@@ -39,240 +156,253 @@ table.add_row("Item 1", "100")
 
 See `examples/rich_integration.py` for the full demo.
 
-## Running the Examples
-
-```bash
-# Clone the repository
-git clone https://github.com/user/pypitui.git
-cd pypitui
-
-# Install with dev dependencies
-uv sync --extra dev
-
-# Run the simple menu example
-uv run python examples/simple_menu.py
-
-# Run the full demo
-uv run python examples/demo.py
-```
-
-## Features
-
-- **Differential Rendering** - Only updates changed lines for flicker-free UI
-- **Scrollback Support** - Content flows into terminal's native scrollback buffer (use Shift+PgUp to view history)
-- **Component-based** - Simple Component interface similar to React
-- **Built-in Components** - Text, Box, Input, SelectList, Spacer, Container
-- **Overlay System** - Modal dialogs and overlays with flexible positioning
-- **Keyboard Input** - Cross-platform key detection with Kitty protocol support
-- **IME Support** - Proper cursor positioning for CJK input methods
-
-## Quick Start
-
-```python
-from pypitui import TUI, Text, Input, ProcessTerminal
-
-# Create terminal and TUI
-terminal = ProcessTerminal()
-tui = TUI(terminal)
-
-# Add components
-tui.add_child(Text("Welcome to PyPiTUI!"))
-
-input_field = Input(placeholder="Type something...")
-input_field.on_submit = lambda text: print(f"You typed: {text}")
-tui.add_child(input_field)
-
-# Set focus
-tui.set_focus(input_field)
-
-# Main loop
-tui.start()
-try:
-    while True:
-        data = terminal.read_sequence(timeout=0.1)
-        if data:
-            tui.handle_input(data)  # Or: input_field.handle_input(data)
-        tui.request_render()
-        tui.render_frame()
-finally:
-    tui.stop()
-```
-
-## Scrollback Support
-
-PyPiTUI uses the main terminal buffer by default, enabling native scrollback support. When content exceeds the terminal height, it flows into the terminal's scrollback buffer instead of being clipped.
-
-```python
-# Scrollback is always enabled
-tui = TUI(terminal)
-
-# Use Shift+PgUp or mouse wheel to scroll back through history
-```
-
-**How it works:**
-- Uses relative cursor movement (`\x1b[nA/B`) instead of absolute positioning
-- Content that scrolls off-screen remains accessible via terminal scrollback
-- Synchronized output (DEC 2026) prevents flickering during updates
-- Overlays position correctly relative to the visible viewport
+---
 
 ## Components
 
 ### Text
 
-```python
-from pypitui import Text
+Multi-line text with word wrapping and padding.
 
+```python
 text = Text("Hello World", padding_x=1, padding_y=1)
-lines = text.render(width=40)
+text.set_text("Updated content")
+text.set_custom_bg_fn(lambda line: f"\x1b[44m{line}\x1b[0m")  # Blue background
 ```
 
 ### Input
 
+Text input with cursor and validation.
+
 ```python
-from pypitui import Input
-
-input_field = Input(placeholder="Enter text...")
+input_field = Input(
+    placeholder="Enter text...",
+    password=False,
+    max_length=100  # Optional validation
+)
 input_field.on_submit = lambda value: print(f"Submitted: {value}")
+input_field.on_cancel = lambda: print("Cancelled")
 
-# Handle input
-input_field.handle_input("h")
-input_field.handle_input("i")
-input_field.handle_input("\r")  # Enter
-
-print(input_field.get_value())  # "hi"
+tui.set_focus(input_field)
 ```
 
+**Key bindings:** ←/→ move, Home/Ctrl+A start, End/Ctrl+E end, Backspace/Delete, Ctrl+U delete to start, Ctrl+K delete to end, Enter submit, Escape cancel.
+
 ### SelectList
+
+Interactive selection with filtering.
 
 ```python
 from pypitui import SelectList, SelectItem, SelectListTheme
 
 items = [
-    SelectItem(value="a", label="Option A", description="First option"),
-    SelectItem(value="b", label="Option B"),
+    SelectItem("a", "Option A", "Description here"),
+    SelectItem("b", "Option B"),
 ]
 
-theme = SelectListTheme()
-select = SelectList(items, max_visible=5, theme=theme)
-
+select = SelectList(items, max_visible=5, theme=SelectListTheme())
 select.on_select = lambda item: print(f"Selected: {item.value}")
 select.on_cancel = lambda: print("Cancelled")
 
-# Navigate and select
-select.handle_input("\x1b[B")  # Down
-select.handle_input("\r")     # Enter
+tui.set_focus(select)
+```
+
+**Key bindings:** ↑/↓ navigate, Enter select, Escape cancel/clear filter, type to filter.
+
+### BorderedBox
+
+Panel with borders and automatic content wrapping.
+
+```python
+box = BorderedBox(
+    padding_x=1,
+    padding_y=0,
+    title="My Panel"
+)
+box.add_child(Text("Content wraps automatically"))
+```
+
+Renders as:
+```
+┌─────────────────────────────┐
+│ My Panel                    │
+├─────────────────────────────┤
+│ Content wraps automatically │
+└─────────────────────────────┘
 ```
 
 ### Container
 
-```python
-from pypitui import Container, Text, Spacer
+Groups components vertically. Essential for screen switching.
 
-container = Container()
-container.add_child(Text("Line 1"))
-container.add_child(Spacer(1))
-container.add_child(Text("Line 2"))
+```python
+root = Container()
+root.add_child(Text("Screen 1"))
+
+# Switch screens (REUSE the TUI instance!)
+root.children.clear()
+root.add_child(Text("Screen 2"))
 ```
 
-### Box
+**⚠️ Important:** Reuse the TUI instance when switching screens. Creating new TUI instances loses differential rendering state and causes ghost content.
+
+### Overlays
+
+Floating panels for dialogs and modals.
 
 ```python
-from pypitui import Box, Text
+from pypitui import OverlayOptions, OverlayMargin
 
-box = Box(padding_x=2, padding_y=1)
-box.add_child(Text("Content"))
-```
+dialog = BorderedBox(title="Confirm")
+dialog.add_child(Text("Are you sure?"))
 
-### BorderedBox
-
-**Recommended** for panels and overlays with borders. Automatically wraps content and maintains proper box shape:
-
-```python
-from pypitui import BorderedBox, Text
-
-# BorderedBox draws borders and wraps content automatically
-box = BorderedBox(
-    padding_x=1,      # Horizontal padding inside borders
-    padding_y=0,      # Vertical padding inside borders  
-    title="My Panel"  # Optional title with separator
+options = OverlayOptions(
+    width="50%",           # or absolute: 40
+    min_width=20,
+    max_height=10,
+    anchor="center",       # "center", "top", "top-left", etc.
+    margin=OverlayMargin(2, 4, 2, 4)  # top, right, bottom, left
 )
-box.add_child(Text("Long content that will wrap automatically"))
 
-# Renders as:
-# ┌─────────────────────────────┐
-# │ My Panel                    │
-# ├─────────────────────────────┤
-# │ Long content that will wrap │
-# │ automatically               │
-# └─────────────────────────────┘
+handle = tui.show_overlay(dialog, options)
+handle.hide()              # Permanently remove
+handle.set_hidden(True)    # Temporarily hide
 ```
 
-> **Note:** Do not create your own box borders using Text components. Use `BorderedBox` instead - it handles content wrapping, maintains proper box shape at any width, and provides consistent styling.
+---
 
 ## Keyboard Input
 
 ```python
-from pypitui import matches_key, Key
+from pypitui import matches_key, Key, parse_key
+from pypitui import EVENT_PRESS, EVENT_RELEASE, EVENT_REPEAT
 
-# Check for specific keys
-if matches_key(data, Key.up):
-    move_up()
-elif matches_key(data, Key.enter):
-    submit()
-elif matches_key(data, Key.ctrl("c")):
-    exit()
+# Match specific keys
+if matches_key(data, Key.escape): ...
+if matches_key(data, Key.ctrl("c")): ...
+if matches_key(data, Key.ctrl_shift("p")): ...
+
+# Parse for advanced handling
+key_id, event_type = parse_key(data)
+if event_type == EVENT_RELEASE:
+    return  # Ignore key releases
 ```
 
-**Important:** When reading input, use `read_sequence()` instead of `read()` to properly handle arrow keys and other escape sequences:
+**Available keys:** `Key.up`, `Key.down`, `Key.left`, `Key.right`, `Key.enter`, `Key.escape`, `Key.tab`, `Key.backspace`, `Key.f1` through `Key.f12`, and modifier methods `Key.ctrl()`, `Key.shift()`, `Key.alt()`, `Key.ctrl_shift()`, etc.
+
+### Kitty Keyboard Protocol
+
+Enable for key release/repeat events:
 
 ```python
-# In your main loop:
-data = terminal.read_sequence(timeout=0.1)
-if data:
-    component.handle_input(data)
+from pypitui.keys import set_kitty_protocol_active
+
+set_kitty_protocol_active(True)
+
+# In component
+@property
+def wants_key_release(self) -> bool:
+    return True
 ```
 
-## Overlays
+---
 
-```python
-from pypitui import TUI, Text, OverlayOptions
+## Examples
 
-# Show overlay
-options = OverlayOptions(
-    width="50%",
-    anchor="center",
-)
-handle = tui.show_overlay(Text("Overlay content"), options)
+Clone and run the examples:
 
-# Hide overlay
-handle.hide()
+```bash
+git clone https://github.com/jeremysball/pypitui.git
+cd pypitui
+uv sync --extra dev
+
+# Simple menu
+uv run python examples/simple_menu.py
+
+# Full feature demo
+uv run python examples/demo.py
+
+# Rich integration
+uv run python examples/rich_integration.py
+
+# Scrollback demo
+uv run python examples/scrollback_demo.py
 ```
+
+---
 
 ## Utilities
 
 ```python
-from pypitui import visible_width, truncate_to_width, wrap_text_with_ansi
+from pypitui import (
+    visible_width,      # Width ignoring ANSI codes
+    truncate_to_width,  # Truncate with ellipsis
+    wrap_text_with_ansi # Word wrap preserving colors
+)
 
 # Get visible width (ANSI codes don't count)
-w = visible_width("\x1b[31mhello\x1b[0m")  # 5
+visible_width("\x1b[31mhello\x1b[0m")  # 5
 
 # Truncate to width
-truncated = truncate_to_width("hello world", 8)  # "hello..."
+truncate_to_width("hello world", 8)  # "hello..."
 
 # Wrap text preserving ANSI codes
-lines = wrap_text_with_ansi("long text here", width=10)
+lines = wrap_text_with_ansi("colored text here", width=20)
 ```
 
-## Running Tests
+---
+
+## Documentation
+
+- **[LLMS.md](LLMS.md)** - Comprehensive API reference and patterns
+- **[examples/](examples/)** - Working code examples
+- **[tests/](tests/)** - Test suite demonstrating usage
+
+---
+
+## Development
 
 ```bash
+# Clone repository
+git clone https://github.com/jeremysball/pypitui.git
+cd pypitui
+
+# Install with dev dependencies
+uv sync --extra dev
+
+# Run tests
 uv run pytest -v
+
+# Run linting
+uv run ruff check .
+
+# Type checking
+uv run mypy src/
 ```
 
-## Known Limitations
+---
 
-- **Apple Emoji Font** - The Apple Emoji Font is known to cause alignment issues in some terminals. This is a font/terminal rendering issue, not a PyPiTUI bug. If you experience misaligned emoji characters, try using a different font (e.g., Noto Color Emoji) or terminal emulator.
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`uv run pytest`)
+5. Commit (`git commit -m 'Add amazing feature'`)
+6. Push (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+---
+
+## Acknowledgments
+
+- Inspired by [pi-tui](https://github.com/badlogic/pi-mono/tree/main/packages/tui) by [@mariozechner](https://github.com/mariozechner)
+- [Rich](https://github.com/Textualize/rich) for text rendering and markup
+
+---
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file.
