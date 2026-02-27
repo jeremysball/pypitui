@@ -775,11 +775,18 @@ class TUI(Container):
         self._previous_lines = []
 
     def _check_resize(self, term_width: int, term_height: int) -> None:
-        """Check for terminal resize and invalidate if needed."""
+        """Check for terminal resize and invalidate if needed.
+
+        On resize, clears both screen and scrollback to prevent corrupted
+        output from old-width content mixing with new-width content.
+        """
         current_size = (term_width, term_height)
         if current_size != self._last_terminal_size:
             self._last_terminal_size = current_size
             self._previous_lines = []
+            self._hardware_cursor_row = -1
+            # Clear screen + scrollback, move cursor home
+            self.terminal.write("\x1b[2J\x1b[3J\x1b[H")
             self.invalidate()
 
     def _handle_content_growth(
