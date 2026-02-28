@@ -795,34 +795,47 @@ class TUI(Container):
         term_height: int,
         lines: list[str],
     ) -> str:
-        """Handle content growth by emitting newlines to scroll.
+        """Handle content growth by rendering scrollback lines and scrolling.
 
-        Renders lines that will flow into scrollback BEFORE scrolling,
-        ensuring they appear in terminal history.
+        When content grows beyond terminal height:
+        1. Render lines that will flow into scrollback at current cursor
+           position (they naturally flow into scrollback history)
+        2. Emit newlines to scroll the terminal, making room for visible
+           content
+        3. Visible lines are then rendered by _render_changed_lines
+
+        This ensures scrollback lines (like top borders) appear in terminal
+        history without overwriting visible content.
         """
         if current_count <= term_height or current_count <= previous_count:
             return buffer
 
-        # Render lines that will flow into scrollback BEFORE scrolling
+        # Calculate scrollback and growth
         first_visible = current_count - term_height
+        new_lines = current_count - previous_count
+
+        # Ensure cursor is at bottom of screen so scrollback lines flow
+        # into history naturally as we emit them
+        if self._hardware_cursor_row < term_height - 1:
+            buffer += self._move_cursor_relative(term_height - 1)
+
+        # Render lines that will flow into scrollback.
+        # Emit them at current position (bottom of screen) so they flow
+        # into scrollback history without overwriting visible content.
         for i in range(first_visible):
             prev_changed = (
                 i >= len(self._previous_lines)
                 or self._previous_lines[i] != lines[i]
             )
             if prev_changed:
-                buffer += self._move_cursor_relative(i)
-                buffer += "\r\x1b[2K"
-                buffer += lines[i]
+                buffer += "\r\x1b[2K"  # Clear current line
+                buffer += lines[i]      # Render the scrollback line
+            # Always emit newline to scroll this line into history
+            buffer += "\r\n"
 
-        new_lines = current_count - previous_count
-        last_rendered = min(previous_count, term_height)
-        if last_rendered > 0:
-            buffer += self._move_cursor_relative(last_rendered - 1)
-        else:
-            buffer += self._move_cursor_relative(term_height - 1)
-
-        for _ in range(new_lines):
+        # Emit remaining newlines for lines that don't fit in scrollback
+        remaining_newlines = max(0, new_lines - first_visible)
+        for _ in range(remaining_newlines):
             buffer += "\r\n"
 
         self._hardware_cursor_row = term_height - 1
