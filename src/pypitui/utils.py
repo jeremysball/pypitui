@@ -10,8 +10,13 @@ from collections.abc import Callable
 
 import wcwidth
 
-# ANSI escape sequence pattern
-ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+# ANSI escape sequence patterns
+# CSI sequences: ESC [ ... m (colors, styles)
+CSI_PATTERN = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+# APC sequences: ESC _ ... BEL (application program commands)
+APC_PATTERN = re.compile(r"\x1b_[^\x07]*\x07")
+# Combined pattern for stripping
+ANSI_PATTERN = re.compile(r"\x1b(?:\[[0-9;]*[a-zA-Z]|_[^\x07]*\x07)")
 
 # Grapheme segmenter cache
 _segmenter: object | None = None
