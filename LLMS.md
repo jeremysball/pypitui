@@ -9,8 +9,8 @@
 ```python
 from pypitui import (
     TUI, Container, Text, Input, SelectList, SelectItem,
-    ProcessTerminal, Key, matches_key, parse_key,
-    EVENT_PRESS, EVENT_RELEASE,
+    SelectListTheme, ProcessTerminal, Key, matches_key, parse_key,
+    EVENT_PRESS, EVENT_RELEASE, FRAME_TIME,
 )
 
 # Setup
@@ -35,7 +35,8 @@ inp.on_submit = lambda v: print(f"Hello {v}")
 
 # Selection list
 items = [SelectItem("a", "Option A"), SelectItem("b", "Option B")]
-select = SelectList(items, max_visible=5, theme=default_theme)
+theme = SelectListTheme()  # Create theme (customize as needed)
+select = SelectList(items, max_visible=5, theme=theme)
 select.on_select = lambda item: print(item.value)
 
 # Main loop
@@ -151,6 +152,7 @@ items = [
     SelectItem("val2", "Label 2", "Description 2"),
 ]
 
+# Create a theme (all fields optional, defaults to plain text)
 theme = SelectListTheme(
     selected_prefix=lambda s: f"\x1b[32m{s}\x1b[0m",
     selected_text=lambda s: f"\x1b[1m{s}\x1b[0m",
@@ -263,8 +265,7 @@ Key.ctrl_shift("a"), Key.ctrl_alt("a"), Key.shift_alt("a")
 For key release/repeat events (Kitty terminal only):
 
 ```python
-from pypitui.keys import set_kitty_protocol_active
-from pypitui import EVENT_PRESS, EVENT_REPEAT, EVENT_RELEASE
+from pypitui import set_kitty_protocol_active, EVENT_PRESS, EVENT_REPEAT, EVENT_RELEASE
 
 set_kitty_protocol_active(True)  # Enable after terminal setup
 
@@ -703,22 +704,25 @@ from pypitui import (
     TUI, Component, Container, Focusable,
     OverlayOptions, OverlayMargin, OverlayHandle,
     CURSOR_MARKER, is_focusable, FRAME_TIME,
-    
+
     # Components
     Text, Box, BorderedBox, Spacer,
     SelectList, SelectItem, SelectListTheme, Input,
-    
+
     # Keys
-    Key, matches_key, parse_key,
+    Key, matches_key, parse_key, set_kitty_protocol_active,
     EVENT_PRESS, EVENT_RELEASE, EVENT_REPEAT,
-    
+
     # Terminal
     Terminal, ProcessTerminal, MockTerminal,
-    
+
     # Utils
     visible_width, truncate_to_width, wrap_text_with_ansi,
-    slice_by_column, get_terminal_size,
+    slice_by_column, get_terminal_size, strip_ansi,
 )
+
+# Rich components (requires: pip install pypitui[rich])
+from pypitui.rich_components import rich_to_ansi, rich_color_to_ansi
 ```
 
 ### TUI Methods

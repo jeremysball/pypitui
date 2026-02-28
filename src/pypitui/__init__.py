@@ -21,10 +21,12 @@ from .keys import (
     Key,
     matches_key,
     parse_key,
+    set_kitty_protocol_active,
 )
 from .terminal import MockTerminal, ProcessTerminal, Terminal
 from .tui import (
     CURSOR_MARKER,
+    FRAME_TIME,
     TUI,
     Component,
     Container,
@@ -35,7 +37,9 @@ from .tui import (
     is_focusable,
 )
 from .utils import (
+    get_terminal_size,
     slice_by_column,
+    strip_ansi,
     truncate_to_width,
     visible_width,
     wrap_text_with_ansi,
@@ -43,11 +47,10 @@ from .utils import (
 
 __all__ = [
     "CURSOR_MARKER",
-    # Keys
     "EVENT_PRESS",
     "EVENT_RELEASE",
     "EVENT_REPEAT",
-    # Core
+    "FRAME_TIME",
     "TUI",
     "BorderedBox",
     "Box",
@@ -65,18 +68,18 @@ __all__ = [
     "SelectList",
     "SelectListTheme",
     "Spacer",
-    # Terminal
     "Terminal",
-    # Components
     "Text",
+    "get_terminal_size",
     "is_focusable",
     "matches_key",
     "parse_key",
+    "set_kitty_protocol_active",
     "slice_by_column",
+    "strip_ansi",
     "truncate_to_width",
-    # Utils
     "visible_width",
     "wrap_text_with_ansi",
 ]
 
-__version__ = "0.2.3"
+__version__ = "0.2.5"
