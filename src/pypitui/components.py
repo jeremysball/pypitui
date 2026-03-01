@@ -36,6 +36,7 @@ class Text(Component):
         padding_y: int = 1,
         custom_bg_fn: Callable[[str], str] | None = None,
     ) -> None:
+        super().__init__()
         self._text = text
         self._padding_x = padding_x
         self._padding_y = padding_y
@@ -132,6 +133,7 @@ class Box(Component):
         padding_y: int = 1,
         bg_fn: Callable[[str], str] | None = None,
     ) -> None:
+        super().__init__()
         self.children: list[Component] = []
         self._padding_x = padding_x
         self._padding_y = padding_y
@@ -242,6 +244,7 @@ class BorderedBox(Component):
         max_width: int | None = None,
         title: str | None = None,
     ) -> None:
+        super().__init__()
         """Initialize bordered box.
 
         Args:
@@ -472,6 +475,7 @@ class Spacer(Component):
     """Spacer component - empty vertical space."""
 
     def __init__(self, height: int = 1) -> None:
+        super().__init__()
         self._height = height
 
     def invalidate(self) -> None:
@@ -509,6 +513,7 @@ class SelectList(Component):
     def __init__(
         self, items: list[SelectItem], max_visible: int, theme: SelectListTheme
     ) -> None:
+        super().__init__()
         self._items = items
         self._filtered_items = list(items)
         self._selected_index = 0
@@ -682,6 +687,7 @@ class Input(Component, Focusable):
         password: bool = False,
         max_length: int | None = None,
     ) -> None:
+        super().__init__()
         self._text = ""
         self._placeholder = placeholder
         self._password = password

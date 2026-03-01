@@ -31,6 +31,9 @@ class Component(ABC):
     Each component is responsible for rendering itself to a list of strings.
     """
 
+    def __init__(self) -> None:
+        self._parent: Container | None = None
+
     @abstractmethod
     def render(self, width: int) -> list[str]:
         """Render the component to lines for the given viewport width.
@@ -172,16 +175,19 @@ class Container(Component):
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self.children: list[Component] = []
 
     def add_child(self, component: Component) -> None:
         """Add a child component."""
         self.children.append(component)
+        component._parent = self
 
     def remove_child(self, component: Component) -> None:
         """Remove a child component."""
         if component in self.children:
             self.children.remove(component)
+            component._parent = None
 
     def clear(self) -> None:
         """Remove all child components.
@@ -227,6 +233,8 @@ class Container(Component):
             - clear() + re-add forces full re-render of all lines
             - Proper patterns only update what actually changed
         """
+        for child in self.children:
+            child._parent = None
         self.children.clear()
 
     def invalidate(self) -> None:
