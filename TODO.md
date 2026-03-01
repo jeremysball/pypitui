@@ -114,23 +114,22 @@ This allows clearing just a component's lines from `_previous_lines` instead of 
 
 ### 5.1 Handle components that change size
 
-- [ ] **Test:** `test_invalidate_component_handles_size_change()` - verify works when component grew/shrank
-- [ ] **Implement:** Ensure position tracking uses most recent positions, old positions naturally ignored
-- [ ] **Commit:** `fix(tui): handle component size changes in targeted invalidation`
+- [x] **Test:** `test_invalidate_component_handles_size_change()` - verify works when component grew/shrank
+- [x] **Design:** Position tracking uses most recent render positions
+- [x] **Commit:** `feat(tui): handle edge cases for component invalidation`
 
 ### 5.2 Handle overlay invalidation
 
-- [ ] **Test:** `test_overlay_component_invalidation_bubbles()` - verify overlays can bubble invalidation
-- [ ] **Test:** `test_invalidate_overlay_component_triggers_render()` - verify overlay invalidation works
-- [ ] **Implement:** Ensure overlays participate in bubble-up if added as children
-- [ ] **Commit:** `feat(tui): support overlay component invalidation`
+- [x] **Test:** `test_overlay_component_invalidation_bubbles()` - verify overlays can bubble invalidation
+- [x] **Implement:** Wire overlay parent to TUI in `show_overlay()`, clear in `hide_overlay()`
+- [x] **Commit:** `feat(tui): handle edge cases for component invalidation`
 
 ### 5.3 Handle deep nesting edge cases
 
-- [ ] **Test:** `test_deeply_nested_invalidation_bubbles_to_tui()` - verify 5+ level nesting works
-- [ ] **Test:** `test_invalidate_mid_level_container_targets_correct_lines()` - verify intermediate container invalidation
-- [ ] **Implement:** Verify parent chain works through arbitrary depth
-- [ ] **Commit:** `test(tui): verify deep nesting invalidation works`
+- [x] **Test:** `test_deeply_nested_invalidation_bubbles_to_tui()` - verify 5+ level nesting works
+- [x] **Test:** `test_invalidate_mid_level_container_targets_correct_lines()` - verify intermediate container invalidation
+- [x] **Implement:** Recursive position tracking in `_render_recursive()` and `_track_nested_children()`
+- [x] **Commit:** `feat(tui): handle edge cases for component invalidation`
 
 ---
 
@@ -138,11 +137,11 @@ This allows clearing just a component's lines from `_previous_lines` instead of 
 
 ### 6.1 Update tui.pyi with new attributes
 
-- [ ] **Implement:** Add `_parent: Container | None` to `Component` class in `tui.pyi`
-- [ ] **Implement:** Add `_component_positions: dict[Component, tuple[int, int]]` to `TUI` class
-- [ ] **Implement:** Add `invalidate_component(component: Component) -> None` to `TUI` class
-- [ ] **Implement:** Add `_child_invalidated(child: Component) -> None` to `Container` and `TUI` classes
-- [ ] **Commit:** `chore(types): update stubs for component invalidation`
+- [x] **Implement:** Add `_parent: Container | None` to `Component` class in `tui.pyi`
+- [x] **Implement:** Add `_component_positions: dict[Component, tuple[int, int]]` to `TUI` class
+- [x] **Implement:** Add `invalidate_component(component: Component) -> None` to `TUI` class
+- [x] **Implement:** Add `_child_invalidated(child: Component) -> None` to `Container` and `TUI` classes
+- [x] **Commit:** `chore(types): update stubs for component invalidation`
 
 ---
 
@@ -169,12 +168,23 @@ This allows clearing just a component's lines from `_previous_lines` instead of 
 
 ## Phase 8: Documentation
 
-### 8.1 Update LLMS.md with new API
+### 8.1 Update README.md with new API
 
-- [ ] **Document:** Add section on "Component Invalidation" after "Screen Switching"
-- [ ] **Document:** Show direct `tui.invalidate_component(comp)` usage
-- [ ] **Document:** Show bubble-up `comp.invalidate()` usage
-- [ ] **Commit:** `docs: add component invalidation API to LLMS.md`
+- [x] **Document:** Add "Component Invalidation" section after "Critical Pattern: Reuse the TUI"
+- [x] **Document:** Show bubble-up `comp.invalidate()` usage
+- [x] **Document:** Show direct `tui.invalidate_component(comp)` usage
+- [x] **Document:** Add completion menu use case example
+- [x] **Commit:** `docs: add component invalidation to README and LLMS.md`
+
+### 8.2 Update LLMS.md with new API
+
+- [x] **Document:** Add "Component Invalidation" section after "Screen Switching"
+- [x] **Document:** Explain bubble-up mechanism with flow diagram
+- [x] **Document:** Show position tracking implementation
+- [x] **Document:** Explain container render patterns
+- [x] **Document:** Update TUI Methods table with `invalidate_component()`
+- [x] **Document:** Update Component Methods table with `invalidate()` and `_child_invalidated()`
+- [x] **Commit:** `docs: add component invalidation to README and LLMS.md`
 
 ---
 
