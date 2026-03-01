@@ -1,7 +1,6 @@
 """Tests for component-aware invalidation with parent references."""
 
-import pytest
-from pypitui import TUI, Container, Text, Component, Spacer, Input, OverlayOptions
+from pypitui import TUI, Container, Input, OverlayOptions, Spacer, Text
 from pypitui.terminal import MockTerminal
 
 
@@ -77,7 +76,7 @@ class TestBubbleUpInvalidation:
     """Phase 2: Bubble-up invalidation API."""
 
     def test_component_invalidate_bubbles_to_parent(self):
-        """Component.invalidate() should bubble up to parent._child_invalidated()."""
+        """Component.invalidate() should bubble up to parent."""
         container = Container()
         text = Text("hello")
         container.add_child(text)
@@ -160,7 +159,7 @@ class TestPositionTracking:
         tui.add_child(text2)
 
         # Render to trigger position tracking
-        lines = tui.render(40)
+        tui.render(40)
 
         # Text with default padding renders 3 lines each
         # text1: lines 0-2, text2: lines 3-5
@@ -202,7 +201,7 @@ class TestPositionTracking:
         outer.add_child(inner)
         tui.add_child(outer)
 
-        lines = tui.render(40)
+        tui.render(40)
 
         # Should track outer container position
         # outer: lines 0-2 (3 lines of text with padding)
@@ -219,7 +218,7 @@ class TestPositionTracking:
         spacer = Spacer(height=5)
         tui.add_child(spacer)
 
-        lines = tui.render(40)
+        tui.render(40)
 
         # Spacer should be tracked with correct line count
         assert tui._component_positions[spacer] == (0, 5)
@@ -245,7 +244,7 @@ class TestTargetedInvalidation:
 
         # Verify content was rendered
         assert len(tui._previous_lines) > 0
-        original_line_count = len(tui._previous_lines)
+        len(tui._previous_lines)
 
         # Invalidate only text1
         tui.invalidate_component(text1)
@@ -263,7 +262,7 @@ class TestTargetedInvalidation:
         assert tui._previous_lines[5] != ""
 
     def test_invalidate_component_unknown_component_ignored(self):
-        """invalidate_component() should gracefully ignore unknown components."""
+        """invalidate_component() should ignore unknown components."""
         terminal = MockTerminal(cols=40, rows=10)
         tui = TUI(terminal)
 
@@ -322,7 +321,7 @@ class TestTargetedInvalidation:
         tui.stop()
 
         # Store original line count
-        original_count = len(tui._previous_lines)
+        len(tui._previous_lines)
 
         # Change text to be shorter
         text.set_text("Short")
@@ -406,7 +405,6 @@ class TestEdgeCases:
         tui.add_child(base_text)
 
         # Show overlay with input
-        from pypitui import OverlayOptions
         overlay_input = Input(placeholder="Type here...")
         tui.show_overlay(overlay_input, OverlayOptions())
 
@@ -435,14 +433,14 @@ class TestEdgeCases:
 
         # First render
         tui.render(40)
-        first_pos = tui._component_positions[text]
+        tui._component_positions[text]
 
         # Change content size
         text.set_text("Much longer text that might wrap differently")
 
         # Second render
         tui.render(40)
-        second_pos = tui._component_positions[text]
+        tui._component_positions[text]
 
         # Positions should be tracked (may be same or different)
         assert text in tui._component_positions
