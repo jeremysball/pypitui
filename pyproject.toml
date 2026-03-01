@@ -6,7 +6,7 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12"
 authors = [
-    {name = "Developer", email = "dev@example.com"}
+    {name = "Jeremy Ball", email = "jeremysball@pm.me"}
 ]
 keywords = ["tui", "terminal", "ui", "cli", "component"]
 classifiers = [
@@ -22,9 +22,9 @@ classifiers = [
 dependencies = ["wcwidth>=0.2.13"]
 
 [project.urls]
-Homepage = "https://github.com/user/pypitui"
-Repository = "https://github.com/user/pypitui"
-Issues = "https://github.com/user/pypitui/issues"
+Homepage = "https://github.com/jeremysball/pypitui"
+Repository = "https://github.com/jeremysball/pypitui"
+Issues = "https://github.com/jeremysball/pypitui/issues"
 
 [project.scripts]
 # No CLI - this is a library
