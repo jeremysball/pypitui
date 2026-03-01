@@ -62,7 +62,7 @@ class Text(Component):
         self._cached_text = None
         self._cached_width = None
         self._cached_lines = None
-        super().invalidate()
+        self._child_invalidated(self)
 
     def _strip_trailing_reset(self, line: str) -> str:
         """Strip trailing ANSI reset codes from a line."""
@@ -171,7 +171,7 @@ class Box(Component):
         self._invalidate_cache()
         for child in self.children:
             child.invalidate()
-        super().invalidate()
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render box with children."""
@@ -319,7 +319,7 @@ class BorderedBox(Component):
         self._invalidate_cache()
         for child in self.children:
             child.invalidate()
-        super().invalidate()
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render bordered box with wrapped content.
@@ -483,7 +483,7 @@ class Spacer(Component):
 
     def invalidate(self) -> None:
         """No cache to invalidate."""
-        super().invalidate()
+        self._child_invalidated(self)
 
     def render(self, _width: int) -> list[str]:
         """Render empty lines."""
@@ -564,7 +564,7 @@ class SelectList(Component):
 
     def invalidate(self) -> None:
         """No cache to invalidate."""
-        super().invalidate()
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render the select list."""
@@ -720,7 +720,7 @@ class Input(Component, Focusable):
 
     def invalidate(self) -> None:
         """No cache."""
-        super().invalidate()
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render input with cursor."""

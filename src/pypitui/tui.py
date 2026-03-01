@@ -63,14 +63,24 @@ class Component(ABC):
         """
         return False
 
+    @abstractmethod
     def invalidate(self) -> None:
-        """Invalidate this component and bubble up to parent for handling.
+        """Invalidate any cached rendering state.
 
-        Subclasses should override to clear their own cache, then call
-        super().invalidate() to bubble up to the parent.
+        Called when theme changes or when component needs to re-render
+        from scratch. Subclasses should clear their local cache, then
+        call _child_invalidated(self) to bubble up for targeted invalidation.
+        """
+        pass
+
+    def _child_invalidated(self, child: Component) -> None:
+        """Handle a child component requesting targeted invalidation.
+
+        Bubbles up to the parent until it reaches the TUI root,
+        which will handle the actual line-wise invalidation.
         """
         if self._parent:
-            self._parent._child_invalidated(self)
+            self._parent._child_invalidated(child)
 
 
 class Focusable(ABC):
@@ -188,14 +198,6 @@ class Container(Component):
         if component in self.children:
             self.children.remove(component)
             component._parent = None
-
-    def _child_invalidated(self, child: Component) -> None:
-        """Handle a child component being invalidated.
-
-        Bubbles up to parent Container or TUI for targeted invalidation.
-        """
-        if self._parent:
-            self._parent._child_invalidated(child)
 
     def clear(self) -> None:
         """Remove all child components.
