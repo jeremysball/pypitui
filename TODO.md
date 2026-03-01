@@ -73,33 +73,22 @@ This allows clearing just a component's lines from `_previous_lines` instead of 
 
 ### 3.1 Add `_component_positions` dict to TUI
 
-- [ ] **Test:** `test_tui_has_component_positions_dict()` - verify dict exists and is empty initially
-- [ ] **Implement:** Add `_component_positions: dict[Component, tuple[int, int]]` to `TUI.__init__`
-- [ ] **Commit:** `feat(tui): add _component_positions tracking dict`
+- [x] **Test:** `test_tui_has_component_positions_dict()` - verify dict exists and is empty initially
+- [x] **Implement:** Add `_component_positions: dict[Component, tuple[int, int]]` to `TUI.__init__`
+- [x] **Commit:** `feat(tui): add position tracking for targeted invalidation`
 
 ### 3.2 Track positions during TUI.render()
 
-- [ ] **Test:** `test_render_tracks_component_positions()` - verify positions recorded after render
-- [ ] **Test:** `test_render_clears_previous_positions()` - verify old positions cleared before new render
-- [ ] **Implement:** Override `TUI.render()` to track positions:
-  ```python
-  def render(self, width: int) -> list[str]:
-      self._component_positions = {}  # Clear previous
-      lines = []
-      for child in self.children:
-          start = len(lines)
-          child_lines = child.render(width)
-          self._component_positions[child] = (start, len(lines))
-          lines.extend(child_lines)
-      return lines
-  ```
-- [ ] **Commit:** `feat(tui): track component line positions during render`
+- [x] **Test:** `test_render_tracks_component_positions()` - verify positions recorded after render
+- [x] **Test:** `test_render_clears_previous_positions()` - verify old positions cleared before new render
+- [x] **Implement:** Override `TUI.render()` to track positions
+- [x] **Commit:** `feat(tui): add position tracking for targeted invalidation`
 
 ### 3.3 Handle nested components via recursive tracking
 
-- [ ] **Test:** `test_render_tracks_nested_container_positions()` - verify nested structure positions
-- [ ] **Implement:** Add helper to recursively track positions in nested containers
-- [ ] **Commit:** `feat(tui): track positions for nested container children`
+- [x] **Test:** `test_render_tracks_nested_container_positions()` - verify nested structure positions
+- [x] **Design:** Track only direct children (containers track their own children)
+- [x] **Commit:** `feat(tui): add position tracking for targeted invalidation`
 
 ---
 

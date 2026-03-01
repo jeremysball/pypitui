@@ -223,3 +223,112 @@ class TestPositionTracking:
 
         # Spacer should be tracked with correct line count
         assert tui._component_positions[spacer] == (0, 5)
+
+
+class TestTargetedInvalidation:
+    """Phase 4: Targeted invalidation implementation."""
+
+    def test_invalidate_component_clears_specific_lines(self):
+        """invalidate_component() should clear only the component's lines."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text1 = Text("Line 1")
+        text2 = Text("Line 2")
+        tui.add_child(text1)
+        tui.add_child(text2)
+
+        # Initial render to populate _previous_lines
+        tui.start()
+        tui.render_frame()
+        tui.stop()
+
+        # Verify content was rendered
+        assert len(tui._previous_lines) > 0
+        original_line_count = len(tui._previous_lines)
+
+        # Invalidate only text1
+        tui.invalidate_component(text1)
+
+        # Check that text1's lines (0-2) were cleared
+        # (set to "" to trigger clearing on next render)
+        assert tui._previous_lines[0] == ""
+        assert tui._previous_lines[1] == ""
+        assert tui._previous_lines[2] == ""
+
+        # But text2's lines should be preserved
+        # (not empty strings)
+        assert tui._previous_lines[3] != ""
+        assert tui._previous_lines[4] != ""
+        assert tui._previous_lines[5] != ""
+
+    def test_invalidate_component_unknown_component_ignored(self):
+        """invalidate_component() should gracefully ignore unknown components."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        # Component not added to TUI
+        orphan = Text("Orphan")
+
+        # Should not raise
+        tui.invalidate_component(orphan)
+
+    def test_invalidate_component_requests_render(self):
+        """invalidate_component() should request a render."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text = Text("Hello")
+        tui.add_child(text)
+
+        # Render to populate positions
+        tui.render(40)
+
+        # Reset render flag
+        tui._render_requested = False
+
+        # Invalidate should request render
+        tui.invalidate_component(text)
+        assert tui._render_requested is True
+
+    def test_full_invalidate_clears_component_positions(self):
+        """Full invalidate() should clear component positions."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text = Text("Hello")
+        tui.add_child(text)
+
+        # Render to populate positions
+        tui.render(40)
+        assert text in tui._component_positions
+
+        # Full invalidate should clear positions
+        tui.invalidate()
+        assert tui._component_positions == {}
+
+    def test_invalidate_component_handles_size_change(self):
+        """invalidate_component() should work when component size changes."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        # Start with long text (will render multiple lines)
+        text = Text("This is a long text that will wrap to multiple lines")
+        tui.add_child(text)
+
+        # First render
+        tui.start()
+        tui.render_frame()
+        tui.stop()
+
+        # Store original line count
+        original_count = len(tui._previous_lines)
+
+        # Change text to be shorter
+        text.set_text("Short")
+
+        # Invalidate - should still work even though size changed
+        tui.invalidate_component(text)
+
+        # Lines should be marked for clearing (even if fewer now)
+        # The key is that it doesn't crash

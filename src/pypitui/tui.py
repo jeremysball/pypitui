@@ -426,6 +426,7 @@ class TUI(Container):
         """Invalidate the TUI and all children."""
         self._previous_lines = []
         self._emitted_scrollback_lines = 0
+        self._component_positions = {}
         for child in self.children:
             child.invalidate()
         for entry in self._overlay_stack:
@@ -439,15 +440,17 @@ class TUI(Container):
         """
         self.invalidate_component(child)
 
-    def invalidate_component(self, _component: Component) -> None:
+    def invalidate_component(self, component: Component) -> None:
         """Invalidate a specific component by clearing its lines from cache.
 
-        This is a placeholder implementation that falls back to full
-        invalidation. The full implementation with position tracking
-        will be added in Phase 4.
+        Uses position tracking to mark only the component's lines for
+        clearing on the next render, rather than redrawing everything.
         """
-        # For now, just request a render
-        # Full implementation will clear specific lines from _previous_lines
+        if component in self._component_positions:
+            start, end = self._component_positions[component]
+            for i in range(start, end):
+                if i < len(self._previous_lines):
+                    self._previous_lines[i] = ""  # Mark for clearing
         self.request_render()
 
     def render(self, width: int) -> list[str]:
