@@ -1,4 +1,5 @@
 """Test for scrollback explosion bug fix."""
+
 from pypitui import TUI, Container, Text
 from pypitui.terminal import MockTerminal
 
