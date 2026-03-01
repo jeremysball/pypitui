@@ -29,10 +29,11 @@ class Component(ABC):
 
     Components are the building blocks of the TUI, similar to React components.
     Each component is responsible for rendering itself to a list of strings.
-    """
 
-    def __init__(self) -> None:
-        self._parent: Container | None = None
+    Note: _parent is set by Container.add_child() when this component
+    is added to a container. Accessing _parent before add_child() will
+    raise AttributeError.
+    """
 
     @abstractmethod
     def render(self, width: int) -> list[str]:
@@ -78,9 +79,14 @@ class Component(ABC):
 
         Bubbles up to the parent until it reaches the TUI root,
         which will handle the actual line-wise invalidation.
+
+        Raises:
+            AttributeError: If component has no parent.
         """
-        if self._parent:
-            self._parent._child_invalidated(child)
+        # _parent is set by Container.add_child()
+        parent: Container | None = getattr(self, "_parent", None)
+        if parent:
+            parent._child_invalidated(child)
 
 
 class Focusable(ABC):
@@ -185,19 +191,26 @@ class Container(Component):
     """
 
     def __init__(self) -> None:
-        super().__init__()
+        # Note: super().__init__() not needed - Component has no __init__
         self.children: list[Component] = []
 
     def add_child(self, component: Component) -> None:
-        """Add a child component."""
+        """Add a child component.
+
+        Sets component._parent = self so the component can bubble
+        up invalidation requests.
+        """
         self.children.append(component)
         component._parent = self
 
     def remove_child(self, component: Component) -> None:
-        """Remove a child component."""
+        """Remove a child component.
+
+        Removes component._parent to clean up the reference.
+        """
         if component in self.children:
             self.children.remove(component)
-            component._parent = None
+            del component._parent
 
     def clear(self) -> None:
         """Remove all child components.
@@ -244,7 +257,7 @@ class Container(Component):
             - Proper patterns only update what actually changed
         """
         for child in self.children:
-            child._parent = None
+            del child._parent
         self.children.clear()
 
     def invalidate(self) -> None:

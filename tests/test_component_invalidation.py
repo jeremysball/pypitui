@@ -7,18 +7,18 @@ from pypitui.terminal import MockTerminal
 class TestParentAttribute:
     """Phase 1.1: Component._parent attribute."""
 
-    def test_component_has_parent_attribute(self):
-        """Component should have _parent attribute initialized to None."""
+    def test_component_no_parent_before_add(self):
+        """Component should NOT have _parent attribute before add_child()."""
         # Text is a concrete Component subclass
         text = Text("hello")
-        assert hasattr(text, "_parent")
-        assert text._parent is None
+        # _parent should not exist until added to a container
+        assert not hasattr(text, "_parent")
 
-    def test_container_has_parent_attribute(self):
-        """Container should also have _parent attribute."""
+    def test_container_no_parent_before_add(self):
+        """Container should NOT have _parent attribute before add_child()."""
         container = Container()
-        assert hasattr(container, "_parent")
-        assert container._parent is None
+        # _parent should not exist until added to another container
+        assert not hasattr(container, "_parent")
 
 
 class TestParentWiring:
@@ -46,7 +46,7 @@ class TestParentWiring:
         assert inner._parent is outer
 
     def test_container_clears_parent_on_remove_child(self):
-        """Container.remove_child() should clear child's _parent."""
+        """Container.remove_child() should remove child's _parent attribute."""
         container = Container()
         text = Text("hello")
 
@@ -54,10 +54,11 @@ class TestParentWiring:
         assert text._parent is container
 
         container.remove_child(text)
-        assert text._parent is None
+        # _parent should be deleted, not set to None
+        assert not hasattr(text, "_parent")
 
     def test_container_clear_clears_all_parent_refs(self):
-        """Container.clear() should clear all children's _parent."""
+        """Container.clear() should remove all children's _parent attributes."""
         container = Container()
         text1 = Text("hello")
         text2 = Text("world")
@@ -68,8 +69,9 @@ class TestParentWiring:
         assert text2._parent is container
 
         container.clear()
-        assert text1._parent is None
-        assert text2._parent is None
+        # _parent should be deleted, not set to None
+        assert not hasattr(text1, "_parent")
+        assert not hasattr(text2, "_parent")
 
 
 class TestBubbleUpInvalidation:
@@ -83,8 +85,10 @@ class TestBubbleUpInvalidation:
 
         # Track if _child_invalidated was called
         called_with = []
+
         def mock_child_invalidated(child):
             called_with.append(child)
+
         container._child_invalidated = mock_child_invalidated
 
         text.invalidate()
@@ -109,8 +113,10 @@ class TestBubbleUpInvalidation:
 
         # Track if outer's _child_invalidated was called
         called_with = []
+
         def mock_child_invalidated(child):
             called_with.append(child)
+
         outer._child_invalidated = mock_child_invalidated
 
         text.invalidate()
@@ -127,8 +133,10 @@ class TestBubbleUpInvalidation:
 
         # Track if invalidate_component was called
         called_with = []
+
         def mock_invalidate_component(component):
             called_with.append(component)
+
         tui.invalidate_component = mock_invalidate_component
 
         text.invalidate()
@@ -356,8 +364,10 @@ class TestEdgeCases:
 
         # Track if TUI's invalidate_component was called
         called_with = []
+
         def mock_invalidate_component(component):
             called_with.append(component)
+
         tui.invalidate_component = mock_invalidate_component
 
         text.invalidate()
@@ -413,8 +423,10 @@ class TestEdgeCases:
 
         # Track if invalidate_component was called
         called_with = []
+
         def mock_invalidate_component(component):
             called_with.append(component)
+
         tui.invalidate_component = mock_invalidate_component
 
         # Invalidate overlay component
