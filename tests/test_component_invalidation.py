@@ -58,7 +58,7 @@ class TestParentWiring:
         assert not hasattr(text, "_parent")
 
     def test_container_clear_clears_all_parent_refs(self):
-        """Container.clear() should remove all children's _parent attributes."""
+        """Container.clear() should remove all _parent attributes."""
         container = Container()
         text1 = Text("hello")
         text2 = Text("world")
