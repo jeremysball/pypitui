@@ -83,8 +83,10 @@ class TestBubbleUpInvalidation:
 
         # Track if _child_invalidated was called
         called_with = []
+
         def mock_child_invalidated(child):
             called_with.append(child)
+
         container._child_invalidated = mock_child_invalidated
 
         text.invalidate()
@@ -109,8 +111,10 @@ class TestBubbleUpInvalidation:
 
         # Track if outer's _child_invalidated was called
         called_with = []
+
         def mock_child_invalidated(child):
             called_with.append(child)
+
         outer._child_invalidated = mock_child_invalidated
 
         text.invalidate()
@@ -127,8 +131,10 @@ class TestBubbleUpInvalidation:
 
         # Track if invalidate_component was called
         called_with = []
+
         def mock_invalidate_component(component):
             called_with.append(component)
+
         tui.invalidate_component = mock_invalidate_component
 
         text.invalidate()
@@ -356,8 +362,10 @@ class TestEdgeCases:
 
         # Track if TUI's invalidate_component was called
         called_with = []
+
         def mock_invalidate_component(component):
             called_with.append(component)
+
         tui.invalidate_component = mock_invalidate_component
 
         text.invalidate()
@@ -413,8 +421,10 @@ class TestEdgeCases:
 
         # Track if invalidate_component was called
         called_with = []
+
         def mock_invalidate_component(component):
             called_with.append(component)
+
         tui.invalidate_component = mock_invalidate_component
 
         # Invalidate overlay component
