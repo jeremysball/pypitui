@@ -63,14 +63,14 @@ class Component(ABC):
         """
         return False
 
-    @abstractmethod
     def invalidate(self) -> None:
-        """Invalidate any cached rendering state.
+        """Invalidate this component and bubble up to parent for handling.
 
-        Called when theme changes or when component needs to re-render
-        from scratch.
+        Subclasses should override to clear their own cache, then call
+        super().invalidate() to bubble up to the parent.
         """
-        pass
+        if self._parent:
+            self._parent._child_invalidated(self)
 
 
 class Focusable(ABC):
@@ -188,6 +188,14 @@ class Container(Component):
         if component in self.children:
             self.children.remove(component)
             component._parent = None
+
+    def _child_invalidated(self, child: Component) -> None:
+        """Handle a child component being invalidated.
+
+        Bubbles up to parent Container or TUI for targeted invalidation.
+        """
+        if self._parent:
+            self._parent._child_invalidated(child)
 
     def clear(self) -> None:
         """Remove all child components.
@@ -417,6 +425,25 @@ class TUI(Container):
             child.invalidate()
         for entry in self._overlay_stack:
             entry.component.invalidate()
+
+    def _child_invalidated(self, child: Component) -> None:
+        """Handle a child component being invalidated.
+
+        Called when a child component's invalidate() method is invoked.
+        This triggers targeted invalidation for that specific component.
+        """
+        self.invalidate_component(child)
+
+    def invalidate_component(self, _component: Component) -> None:
+        """Invalidate a specific component by clearing its lines from cache.
+
+        This is a placeholder implementation that falls back to full
+        invalidation. The full implementation with position tracking
+        will be added in Phase 4.
+        """
+        # For now, just request a render
+        # Full implementation will clear specific lines from _previous_lines
+        self.request_render()
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""

@@ -21,28 +21,28 @@ This allows clearing just a component's lines from `_previous_lines` instead of 
 
 ### 1.1 Add `_parent` attribute to Component base class
 
-- [ ] **Test:** `test_component_has_parent_attribute()` - verify `_parent` initialized to `None`
-- [ ] **Implement:** Add `_parent: Container | None = None` to `Component.__init__` in `tui.py`
-- [ ] **Commit:** `feat(tui): add _parent attribute to Component base class`
+- [x] **Test:** `test_component_has_parent_attribute()` - verify `_parent` initialized to `None`
+- [x] **Implement:** Add `_parent: Container | None = None` to `Component.__init__` in `tui.py`
+- [x] **Commit:** `feat(tui): add _parent attribute to Component base class`
 
 ### 1.2 Wire parent reference in Container.add_child()
 
-- [ ] **Test:** `test_container_sets_parent_on_add_child()` - verify parent is set when adding child
-- [ ] **Test:** `test_nested_container_parent_chain()` - verify parent chain through nested containers
-- [ ] **Implement:** In `Container.add_child()`, set `component._parent = self`
-- [ ] **Commit:** `feat(tui): wire parent reference in Container.add_child()`
+- [x] **Test:** `test_container_sets_parent_on_add_child()` - verify parent is set when adding child
+- [x] **Test:** `test_nested_container_parent_chain()` - verify parent chain through nested containers
+- [x] **Implement:** In `Container.add_child()`, set `component._parent = self`
+- [x] **Commit:** `feat(tui): wire parent reference in Container.add_child()`
 
 ### 1.3 Clear parent reference in Container.remove_child()
 
-- [ ] **Test:** `test_container_clears_parent_on_remove_child()` - verify parent set to `None` on removal
-- [ ] **Implement:** In `Container.remove_child()`, set `component._parent = None`
-- [ ] **Commit:** `fix(tui): clear parent reference on child removal`
+- [x] **Test:** `test_container_clears_parent_on_remove_child()` - verify parent set to `None` on removal
+- [x] **Implement:** In `Container.remove_child()`, set `component._parent = None`
+- [x] **Commit:** `fix(tui): clear parent reference on child removal`
 
 ### 1.4 Clear parent references in Container.clear()
 
-- [ ] **Test:** `test_container_clear_clears_all_parent_refs()` - verify all children have `_parent = None`
-- [ ] **Implement:** In `Container.clear()`, iterate and set `_parent = None` before clearing list
-- [ ] **Commit:** `fix(tui): clear parent references in Container.clear()`
+- [x] **Test:** `test_container_clear_clears_all_parent_refs()` - verify all children have `_parent = None`
+- [x] **Implement:** In `Container.clear()`, iterate and set `_parent = None` before clearing list
+- [x] **Commit:** `fix(tui): clear parent references in Container.clear()`
 
 ---
 
