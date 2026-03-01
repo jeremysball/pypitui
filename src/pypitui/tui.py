@@ -377,6 +377,9 @@ class TUI(Container):
         )
         self._overlay_stack.append(entry)
 
+        # Wire parent so invalidation bubbles to TUI
+        component._parent = self
+
         # Set focus to overlay component if it's focusable
         if is_focusable(component):
             self.set_focus(component)
@@ -395,6 +398,9 @@ class TUI(Container):
         if self._overlay_stack:
             entry = self._overlay_stack.pop()
             entry.closed = True
+
+            # Clear parent reference
+            entry.component._parent = None
 
             # Restore previous focus
             if entry.previous_focus:
@@ -457,17 +463,56 @@ class TUI(Container):
         """Render all children and track their positions.
 
         Overrides Container.render() to track each child's line range
-        for targeted invalidation.
+        for targeted invalidation. Tracks all components recursively.
         """
         self._component_positions = {}  # Clear previous positions
         lines: list[str] = []
-        for child in self.children:
-            start = len(lines)
-            child_lines = child.render(width)
-            end = start + len(child_lines)
-            self._component_positions[child] = (start, end)
-            lines.extend(child_lines)
+        self._render_recursive(self.children, width, lines)
         return lines
+
+    def _render_recursive(
+        self, components: list[Component], width: int, lines: list[str]
+    ) -> None:
+        """Recursively render components and track positions.
+
+        For containers, we render and track the container itself, but we also
+        track the children's positions based on where they appear within the
+        container's output.
+        """
+        for component in components:
+            start = len(lines)
+            component_lines = component.render(width)
+            end = start + len(component_lines)
+            self._component_positions[component] = (start, end)
+            lines.extend(component_lines)
+
+            # Track container children by calculating their positions
+            # within the container's rendered output
+            if isinstance(component, Container):
+                child_offset = start
+                for child in component.children:
+                    child_lines = child.render(width)
+                    child_start = child_offset
+                    child_end = child_start + len(child_lines)
+                    self._component_positions[child] = (child_start, child_end)
+                    child_offset = child_end
+                    # Recurse for nested containers
+                    if isinstance(child, Container):
+                        self._track_nested_children(child, child_start, width)
+
+    def _track_nested_children(
+        self, container: Container, offset: int, width: int
+    ) -> None:
+        """Track positions for nested container children."""
+        child_offset = offset
+        for child in container.children:
+            child_lines = child.render(width)
+            child_start = child_offset
+            child_end = child_start + len(child_lines)
+            self._component_positions[child] = (child_start, child_end)
+            child_offset = child_end
+            if isinstance(child, Container):
+                self._track_nested_children(child, child_start, width)
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""

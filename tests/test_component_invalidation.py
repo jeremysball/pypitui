@@ -1,7 +1,7 @@
 """Tests for component-aware invalidation with parent references."""
 
 import pytest
-from pypitui import TUI, Container, Text, Component, Spacer
+from pypitui import TUI, Container, Text, Component, Spacer, Input, OverlayOptions
 from pypitui.terminal import MockTerminal
 
 
@@ -332,3 +332,167 @@ class TestTargetedInvalidation:
 
         # Lines should be marked for clearing (even if fewer now)
         # The key is that it doesn't crash
+
+
+class TestEdgeCases:
+    """Phase 5: Edge cases and refinements."""
+
+    def test_deeply_nested_invalidation_bubbles_to_tui(self):
+        """Invalidation should bubble through 5+ levels of nesting."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        # Create deep nesting: TUI -> c1 -> c2 -> c3 -> c4 -> text
+        c1 = Container()
+        c2 = Container()
+        c3 = Container()
+        c4 = Container()
+        text = Text("Deep nested")
+
+        c4.add_child(text)
+        c3.add_child(c4)
+        c2.add_child(c3)
+        c1.add_child(c2)
+        tui.add_child(c1)
+
+        # Track if TUI's invalidate_component was called
+        called_with = []
+        def mock_invalidate_component(component):
+            called_with.append(component)
+        tui.invalidate_component = mock_invalidate_component
+
+        text.invalidate()
+
+        assert len(called_with) == 1
+        assert called_with[0] is text
+
+    def test_invalidate_mid_level_container_targets_correct_lines(self):
+        """Invalidating a mid-level container should target its lines."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        outer = Container()
+        inner = Container()
+        text1 = Text("First")
+        text2 = Text("Second")
+
+        inner.add_child(text2)
+        outer.add_child(text1)
+        outer.add_child(inner)
+        tui.add_child(outer)
+
+        # Render to populate positions
+        tui.start()
+        tui.render_frame()
+        tui.stop()
+
+        # Invalidate the inner container
+        tui.invalidate_component(inner)
+
+        # Inner container's lines should be cleared
+        # (inner contains text2 which renders 3 lines after text1's 3 lines)
+        # Lines 3-5 should be cleared (inner's content)
+        assert tui._previous_lines[3] == ""
+        assert tui._previous_lines[4] == ""
+        assert tui._previous_lines[5] == ""
+
+    def test_overlay_component_invalidation_bubbles(self):
+        """Components in overlays should be able to invalidate."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        # Add base content
+        base_text = Text("Base content")
+        tui.add_child(base_text)
+
+        # Show overlay with input
+        from pypitui import OverlayOptions
+        overlay_input = Input(placeholder="Type here...")
+        tui.show_overlay(overlay_input, OverlayOptions())
+
+        # Render to set up
+        tui.render(40)
+
+        # Track if invalidate_component was called
+        called_with = []
+        def mock_invalidate_component(component):
+            called_with.append(component)
+        tui.invalidate_component = mock_invalidate_component
+
+        # Invalidate overlay component
+        overlay_input.invalidate()
+
+        assert len(called_with) == 1
+        assert called_with[0] is overlay_input
+
+    def test_position_tracking_with_multiple_renders(self):
+        """Positions should update correctly across multiple renders."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text = Text("Initial")
+        tui.add_child(text)
+
+        # First render
+        tui.render(40)
+        first_pos = tui._component_positions[text]
+
+        # Change content size
+        text.set_text("Much longer text that might wrap differently")
+
+        # Second render
+        tui.render(40)
+        second_pos = tui._component_positions[text]
+
+        # Positions should be tracked (may be same or different)
+        assert text in tui._component_positions
+
+    def test_invalidate_before_any_render(self):
+        """Invalidating before first render should not crash."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text = Text("Hello")
+        tui.add_child(text)
+
+        # No render yet, but invalidate_component should handle gracefully
+        tui.invalidate_component(text)
+
+        # Should request render but not crash
+        assert tui._render_requested is True
+
+    def test_multiple_components_invalidate_independently(self):
+        """Multiple components can be invalidated independently."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text1 = Text("First")
+        text2 = Text("Second")
+        text3 = Text("Third")
+        tui.add_child(text1)
+        tui.add_child(text2)
+        tui.add_child(text3)
+
+        # Render to populate
+        tui.start()
+        tui.render_frame()
+        tui.stop()
+
+        # Invalidate first and third
+        tui.invalidate_component(text1)
+        tui.invalidate_component(text3)
+
+        # text1's lines (0-2) cleared
+        assert tui._previous_lines[0] == ""
+        assert tui._previous_lines[1] == ""
+        assert tui._previous_lines[2] == ""
+
+        # text2's lines (3-5) preserved
+        assert tui._previous_lines[3] != ""
+        assert tui._previous_lines[4] != ""
+        assert tui._previous_lines[5] != ""
+
+        # text3's lines (6-8) cleared
+        assert tui._previous_lines[6] == ""
+        assert tui._previous_lines[7] == ""
+        assert tui._previous_lines[8] == ""

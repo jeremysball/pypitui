@@ -96,26 +96,17 @@ This allows clearing just a component's lines from `_previous_lines` instead of 
 
 ### 4.1 Add `invalidate_component()` method to TUI
 
-- [ ] **Test:** `test_invalidate_component_clears_specific_lines()` - verify only target lines cleared
-- [ ] **Test:** `test_invalidate_component_unknown_component_ignored()` - verify graceful handling
-- [ ] **Test:** `test_invalidate_component_requests_render()` - verify render requested after invalidation
-- [ ] **Implement:** Add `invalidate_component(component)`:
-  ```python
-  def invalidate_component(self, component: Component) -> None:
-      if component in self._component_positions:
-          start, end = self._component_positions[component]
-          for i in range(start, end):
-              if i < len(self._previous_lines):
-                  self._previous_lines[i] = ""  # Mark for clearing
-      self.request_render()
-  ```
-- [ ] **Commit:** `feat(tui): implement targeted invalidate_component()`
+- [x] **Test:** `test_invalidate_component_clears_specific_lines()` - verify only target lines cleared
+- [x] **Test:** `test_invalidate_component_unknown_component_ignored()` - verify graceful handling
+- [x] **Test:** `test_invalidate_component_requests_render()` - verify render requested after invalidation
+- [x] **Implement:** Add `invalidate_component(component)` to clear specific lines from `_previous_lines`
+- [x] **Commit:** `feat(tui): implement targeted component invalidation`
 
 ### 4.2 Clear position tracking on full invalidate()
 
-- [ ] **Test:** `test_full_invalidate_clears_component_positions()` - verify positions cleared on full invalidate
-- [ ] **Implement:** Add `self._component_positions = {}` to `TUI.invalidate()`
-- [ ] **Commit:** `fix(tui): clear position tracking on full invalidate()`
+- [x] **Test:** `test_full_invalidate_clears_component_positions()` - verify positions cleared on full invalidate
+- [x] **Implement:** Add `self._component_positions = {}` to `TUI.invalidate()`
+- [x] **Commit:** `feat(tui): implement targeted component invalidation`
 
 ---
 
