@@ -1,5 +1,4 @@
 """Test for scrollback explosion bug fix."""
-import pytest
 from pypitui import TUI, Container, Text
 from pypitui.terminal import MockTerminal
 
@@ -22,7 +21,7 @@ def test_scrollback_lines_emitted_once():
     first_output = terminal.get_output()
     scrollback_count_1 = first_output.count("\r\n")
 
-    # Second render (no content change) - should NOT emit more scrollback newlines
+    # Second render (no change) - should NOT emit more scrollback newlines
     terminal.clear_buffer()
     tui.render_frame()
     second_output = terminal.get_output()
