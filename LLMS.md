@@ -23,6 +23,10 @@ tui.add_child(root)
 root.children.clear()  # Clear container, not TUI
 root.add_child(Text("New Screen"))
 
+# Component invalidation (targeted - clears only that component's lines)
+input_field.invalidate()  # Bubbles up to TUI automatically
+tui.invalidate_component(input_field)  # Direct approach
+
 # Keyboard handling
 data = terminal.read_sequence(timeout=0.05)
 key_id, event_type = parse_key(data)  # Returns tuple!
@@ -445,6 +449,112 @@ class App:
         self.root.add_child(Text("Settings"))
 ```
 
+### Component Invalidation
+
+Targeted invalidation clears only a specific component's lines instead of full redraw.
+
+**Bubble-up approach (no TUI reference needed):**
+
+```python
+# In a component or addon - invalidates just this component
+input_field.invalidate()  # Bubbles up to TUI automatically
+```
+
+**Direct approach (with TUI reference):**
+
+```python
+# Direct invalidation of any component
+tui.invalidate_component(input_field)
+```
+
+**How it works:**
+
+```
+Component.invalidate()
+    → clears local cache
+    → calls _child_invalidated(self)
+    
+_child_invalidated(child) bubbles up through parents...
+    → Container._child_invalidated() passes to parent
+    → TUI._child_invalidated() receives at root
+    → calls invalidate_component(child)
+    
+TUI.invalidate_component(component)
+    → looks up component's line range in _component_positions
+    → clears those lines in _previous_lines (sets to "")
+    → calls request_render()
+    
+Next render_frame()
+    → differential rendering sees empty lines
+    → redraws only the changed lines
+```
+
+**Use case: Completion menu closing**
+
+```python
+class CompletionAddon:
+    def __init__(self, input_field: Input):
+        self.input_field = input_field  # Just the input, no TUI ref
+    
+    def on_menu_close(self):
+        # Only clears the input field's lines (3 lines with padding)
+        # Other content on screen is preserved
+        self.input_field.invalidate()
+```
+
+**Position Tracking:**
+
+TUI tracks each component's line range during render:
+
+```python
+def render(self, width: int) -> list[str]:
+    self._component_positions = {}  # Clear previous
+    lines: list[str] = []
+    for child in self.children:
+        start = len(lines)
+        child_lines = child.render(width)
+        end = start + len(child_lines)
+        self._component_positions[child] = (start, end)
+        lines.extend(child_lines)
+    return lines
+```
+
+This enables `invalidate_component()` to know exactly which lines to clear.
+
+**Container Render Pattern:**
+
+Containers embed children within their own rendered output:
+
+```python
+# Container - simple stacking
+def render(self, width):
+    lines = []
+    for child in self.children:
+        lines.extend(child.render(width))
+    return lines
+
+# Box - adds padding around children  
+def render(self, width):
+    lines = []
+    lines.extend(top_padding_lines)
+    for child in self.children:
+        lines.extend(padded_child_lines)
+    lines.extend(bottom_padding_lines)
+    return lines
+
+# BorderedBox - draws borders around children
+def render(self, width):
+    lines = []
+    lines.append(top_border)
+    for child in self.children:
+        for line in child.render(content_width):
+            lines.append(side_border + line + side_border)
+    lines.append(bottom_border)
+    return lines
+```
+
+The parent component controls how children are embedded. Position tracking records where each component appears in the final output.
+
 ### Terminal Resize
 
 ```python
@@ -739,6 +849,16 @@ from pypitui.rich_components import rich_to_ansi, rich_color_to_ansi
 | `render_frame()` | Render current frame |
 | `run()` | Built-in main loop (~60fps) |
 | `start()` / `stop()` | Enter/exit TUI mode |
+| `invalidate_component(component)` | Targeted invalidation of specific component |
+
+### Component Methods
+
+| Method | Description |
+|--------|-------------|
+| `render(width) -> list[str]` | Render component to lines |
+| `invalidate()` | Clear local cache, bubble up for targeted invalidation |
+| `handle_input(data)` | Handle keyboard input (optional) |
+| `_child_invalidated(child)` | Bubble-up handler (usually don't override) |
 
 ### Component Interface
 

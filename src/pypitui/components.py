@@ -36,6 +36,7 @@ class Text(Component):
         padding_y: int = 1,
         custom_bg_fn: Callable[[str], str] | None = None,
     ) -> None:
+        super().__init__()
         self._text = text
         self._padding_x = padding_x
         self._padding_y = padding_y
@@ -61,6 +62,7 @@ class Text(Component):
         self._cached_text = None
         self._cached_width = None
         self._cached_lines = None
+        self._child_invalidated(self)
 
     def _strip_trailing_reset(self, line: str) -> str:
         """Strip trailing ANSI reset codes from a line."""
@@ -132,6 +134,7 @@ class Box(Component):
         padding_y: int = 1,
         bg_fn: Callable[[str], str] | None = None,
     ) -> None:
+        super().__init__()
         self.children: list[Component] = []
         self._padding_x = padding_x
         self._padding_y = padding_y
@@ -168,6 +171,7 @@ class Box(Component):
         self._invalidate_cache()
         for child in self.children:
             child.invalidate()
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render box with children."""
@@ -242,6 +246,7 @@ class BorderedBox(Component):
         max_width: int | None = None,
         title: str | None = None,
     ) -> None:
+        super().__init__()
         """Initialize bordered box.
 
         Args:
@@ -314,6 +319,7 @@ class BorderedBox(Component):
         self._invalidate_cache()
         for child in self.children:
             child.invalidate()
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render bordered box with wrapped content.
@@ -472,11 +478,12 @@ class Spacer(Component):
     """Spacer component - empty vertical space."""
 
     def __init__(self, height: int = 1) -> None:
+        super().__init__()
         self._height = height
 
     def invalidate(self) -> None:
         """No cache to invalidate."""
-        pass
+        self._child_invalidated(self)
 
     def render(self, _width: int) -> list[str]:
         """Render empty lines."""
@@ -509,6 +516,7 @@ class SelectList(Component):
     def __init__(
         self, items: list[SelectItem], max_visible: int, theme: SelectListTheme
     ) -> None:
+        super().__init__()
         self._items = items
         self._filtered_items = list(items)
         self._selected_index = 0
@@ -556,7 +564,7 @@ class SelectList(Component):
 
     def invalidate(self) -> None:
         """No cache to invalidate."""
-        pass
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render the select list."""
@@ -682,6 +690,7 @@ class Input(Component, Focusable):
         password: bool = False,
         max_length: int | None = None,
     ) -> None:
+        super().__init__()
         self._text = ""
         self._placeholder = placeholder
         self._password = password
@@ -711,7 +720,7 @@ class Input(Component, Focusable):
 
     def invalidate(self) -> None:
         """No cache."""
-        pass
+        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render input with cursor."""

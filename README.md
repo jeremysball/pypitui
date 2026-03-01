@@ -144,6 +144,44 @@ class App:
         self.root.add_child(Text("New Screen"))
 ```
 
+## Component Invalidation
+
+When a component changes (e.g., a completion menu closes), you can invalidate just that component instead of redrawing everything.
+
+**Direct approach (with TUI reference):**
+
+```python
+# Clear only the input field's lines from the cache
+tui.invalidate_component(input_field)
+```
+
+**Bubble-up approach (no TUI reference needed):**
+
+```python
+# Component invalidates itself, bubbles up to TUI automatically
+input_field.invalidate()
+```
+
+**How it works:**
+
+1. `Component.invalidate()` clears local cache and calls `_child_invalidated(self)`
+2. `_child_invalidated()` bubbles up through parent containers
+3. `TUI._child_invalidated()` receives the call and invokes `invalidate_component()`
+4. `TUI.invalidate_component()` clears only that component's lines from `_previous_lines`
+5. Next render redraws only the changed lines
+
+**Use case: Completion menu**
+
+```python
+class CompletionAddon:
+    def __init__(self, input_field: Input):
+        self.input_field = input_field
+
+    def on_menu_close(self):
+        # Only the input field (and its completion dropdown) gets cleared
+        self.input_field.invalidate()
+```
+
 ## Rich Integration
 
 Optional [Rich](https://github.com/Textualize/rich) support for markdown and tables:

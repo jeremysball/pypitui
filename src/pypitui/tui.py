@@ -31,6 +31,9 @@ class Component(ABC):
     Each component is responsible for rendering itself to a list of strings.
     """
 
+    def __init__(self) -> None:
+        self._parent: Container | None = None
+
     @abstractmethod
     def render(self, width: int) -> list[str]:
         """Render the component to lines for the given viewport width.
@@ -65,9 +68,19 @@ class Component(ABC):
         """Invalidate any cached rendering state.
 
         Called when theme changes or when component needs to re-render
-        from scratch.
+        from scratch. Subclasses should clear their local cache, then
+        call _child_invalidated(self) to bubble up for targeted invalidation.
         """
         pass
+
+    def _child_invalidated(self, child: Component) -> None:
+        """Handle a child component requesting targeted invalidation.
+
+        Bubbles up to the parent until it reaches the TUI root,
+        which will handle the actual line-wise invalidation.
+        """
+        if self._parent:
+            self._parent._child_invalidated(child)
 
 
 class Focusable(ABC):
@@ -172,16 +185,19 @@ class Container(Component):
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self.children: list[Component] = []
 
     def add_child(self, component: Component) -> None:
         """Add a child component."""
         self.children.append(component)
+        component._parent = self
 
     def remove_child(self, component: Component) -> None:
         """Remove a child component."""
         if component in self.children:
             self.children.remove(component)
+            component._parent = None
 
     def clear(self) -> None:
         """Remove all child components.
@@ -227,6 +243,8 @@ class Container(Component):
             - clear() + re-add forces full re-render of all lines
             - Proper patterns only update what actually changed
         """
+        for child in self.children:
+            child._parent = None
         self.children.clear()
 
     def invalidate(self) -> None:
@@ -310,6 +328,9 @@ class TUI(Container):
         # Terminal size tracking for resize detection
         self._last_terminal_size: tuple[int, int] = (0, 0)
 
+        # Component position tracking for targeted invalidation
+        self._component_positions: dict[Component, tuple[int, int]] = {}
+
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
 
@@ -356,6 +377,9 @@ class TUI(Container):
         )
         self._overlay_stack.append(entry)
 
+        # Wire parent so invalidation bubbles to TUI
+        component._parent = self
+
         # Set focus to overlay component if it's focusable
         if is_focusable(component):
             self.set_focus(component)
@@ -374,6 +398,9 @@ class TUI(Container):
         if self._overlay_stack:
             entry = self._overlay_stack.pop()
             entry.closed = True
+
+            # Clear parent reference
+            entry.component._parent = None
 
             # Restore previous focus
             if entry.previous_focus:
@@ -405,10 +432,87 @@ class TUI(Container):
         """Invalidate the TUI and all children."""
         self._previous_lines = []
         self._emitted_scrollback_lines = 0
+        self._component_positions = {}
         for child in self.children:
             child.invalidate()
         for entry in self._overlay_stack:
             entry.component.invalidate()
+
+    def _child_invalidated(self, child: Component) -> None:
+        """Handle a child component being invalidated.
+
+        Called when a child component's invalidate() method is invoked.
+        This triggers targeted invalidation for that specific component.
+        """
+        self.invalidate_component(child)
+
+    def invalidate_component(self, component: Component) -> None:
+        """Invalidate a specific component by clearing its lines from cache.
+
+        Uses position tracking to mark only the component's lines for
+        clearing on the next render, rather than redrawing everything.
+        """
+        if component in self._component_positions:
+            start, end = self._component_positions[component]
+            for i in range(start, end):
+                if i < len(self._previous_lines):
+                    self._previous_lines[i] = ""  # Mark for clearing
+        self.request_render()
+
+    def render(self, width: int) -> list[str]:
+        """Render all children and track their positions.
+
+        Overrides Container.render() to track each child's line range
+        for targeted invalidation. Tracks all components recursively.
+        """
+        self._component_positions = {}  # Clear previous positions
+        lines: list[str] = []
+        self._render_recursive(self.children, width, lines)
+        return lines
+
+    def _render_recursive(
+        self, components: list[Component], width: int, lines: list[str]
+    ) -> None:
+        """Recursively render components and track positions.
+
+        For containers, we render and track the container itself, but we also
+        track the children's positions based on where they appear within the
+        container's output.
+        """
+        for component in components:
+            start = len(lines)
+            component_lines = component.render(width)
+            end = start + len(component_lines)
+            self._component_positions[component] = (start, end)
+            lines.extend(component_lines)
+
+            # Track container children by calculating their positions
+            # within the container's rendered output
+            if isinstance(component, Container):
+                child_offset = start
+                for child in component.children:
+                    child_lines = child.render(width)
+                    child_start = child_offset
+                    child_end = child_start + len(child_lines)
+                    self._component_positions[child] = (child_start, child_end)
+                    child_offset = child_end
+                    # Recurse for nested containers
+                    if isinstance(child, Container):
+                        self._track_nested_children(child, child_start, width)
+
+    def _track_nested_children(
+        self, container: Container, offset: int, width: int
+    ) -> None:
+        """Track positions for nested container children."""
+        child_offset = offset
+        for child in container.children:
+            child_lines = child.render(width)
+            child_start = child_offset
+            child_end = child_start + len(child_lines)
+            self._component_positions[child] = (child_start, child_end)
+            child_offset = child_end
+            if isinstance(child, Container):
+                self._track_nested_children(child, child_start, width)
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""
