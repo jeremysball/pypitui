@@ -328,6 +328,9 @@ class TUI(Container):
         # Terminal size tracking for resize detection
         self._last_terminal_size: tuple[int, int] = (0, 0)
 
+        # Component position tracking for targeted invalidation
+        self._component_positions: dict[Component, tuple[int, int]] = {}
+
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
 
@@ -446,6 +449,22 @@ class TUI(Container):
         # For now, just request a render
         # Full implementation will clear specific lines from _previous_lines
         self.request_render()
+
+    def render(self, width: int) -> list[str]:
+        """Render all children and track their positions.
+
+        Overrides Container.render() to track each child's line range
+        for targeted invalidation.
+        """
+        self._component_positions = {}  # Clear previous positions
+        lines: list[str] = []
+        for child in self.children:
+            start = len(lines)
+            child_lines = child.render(width)
+            end = start + len(child_lines)
+            self._component_positions[child] = (start, end)
+            lines.extend(child_lines)
+        return lines
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""

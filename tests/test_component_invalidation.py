@@ -1,7 +1,7 @@
 """Tests for component-aware invalidation with parent references."""
 
 import pytest
-from pypitui import TUI, Container, Text, Component
+from pypitui import TUI, Container, Text, Component, Spacer
 from pypitui.terminal import MockTerminal
 
 
@@ -136,3 +136,90 @@ class TestBubbleUpInvalidation:
 
         assert len(called_with) == 1
         assert called_with[0] is text
+
+
+class TestPositionTracking:
+    """Phase 3: Position tracking during render."""
+
+    def test_tui_has_component_positions_dict(self):
+        """TUI should have _component_positions dict initialized empty."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        assert hasattr(tui, "_component_positions")
+        assert tui._component_positions == {}
+
+    def test_render_tracks_component_positions(self):
+        """TUI.render() should track each child's line range."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text1 = Text("Line 1")
+        text2 = Text("Line 2")
+        tui.add_child(text1)
+        tui.add_child(text2)
+
+        # Render to trigger position tracking
+        lines = tui.render(40)
+
+        # Text with default padding renders 3 lines each
+        # text1: lines 0-2, text2: lines 3-5
+        assert tui._component_positions[text1] == (0, 3)
+        assert tui._component_positions[text2] == (3, 6)
+
+    def test_render_clears_previous_positions(self):
+        """TUI.render() should clear previous positions before tracking."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        text1 = Text("Line 1")
+        tui.add_child(text1)
+
+        # First render
+        tui.render(40)
+        assert text1 in tui._component_positions
+
+        # Remove and add different child
+        tui.remove_child(text1)
+        text2 = Text("Line 2")
+        tui.add_child(text2)
+
+        # Second render should clear old positions
+        tui.render(40)
+        assert text1 not in tui._component_positions
+        assert text2 in tui._component_positions
+
+    def test_render_tracks_nested_container_positions(self):
+        """TUI.render() should track positions for nested containers."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        outer = Container()
+        inner = Container()
+        text = Text("Nested text")
+
+        inner.add_child(text)
+        outer.add_child(inner)
+        tui.add_child(outer)
+
+        lines = tui.render(40)
+
+        # Should track outer container position
+        # outer: lines 0-2 (3 lines of text with padding)
+        assert outer in tui._component_positions
+        start, end = tui._component_positions[outer]
+        assert end - start == 3  # Text renders 3 lines
+
+    def test_position_tracks_content_size(self):
+        """Positions should reflect actual rendered content size."""
+        terminal = MockTerminal(cols=40, rows=10)
+        tui = TUI(terminal)
+
+        # Spacer with height 5
+        spacer = Spacer(height=5)
+        tui.add_child(spacer)
+
+        lines = tui.render(40)
+
+        # Spacer should be tracked with correct line count
+        assert tui._component_positions[spacer] == (0, 5)

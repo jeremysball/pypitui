@@ -50,22 +50,22 @@ This allows clearing just a component's lines from `_previous_lines` instead of 
 
 ### 2.1 Add `invalidate()` method to Component base class
 
-- [ ] **Test:** `test_component_invalidate_bubbles_to_parent()` - verify bubble-up behavior
-- [ ] **Test:** `test_component_invalidate_no_parent_does_nothing()` - verify no error when no parent
-- [ ] **Implement:** Add `invalidate()` to `Component` that calls `self._parent._child_invalidated(self)` if parent exists
-- [ ] **Commit:** `feat(tui): add bubble-up invalidate() to Component base class`
+- [x] **Test:** `test_component_invalidate_bubbles_to_parent()` - verify bubble-up behavior
+- [x] **Test:** `test_component_invalidate_no_parent_does_nothing()` - verify no error when no parent
+- [x] **Design:** `invalidate()` clears local cache, calls `_child_invalidated(self)` to bubble up
+- [x] **Commit:** `refactor(tui): clean component invalidation design`
 
 ### 2.2 Add `_child_invalidated()` to Container
 
-- [ ] **Test:** `test_container_child_invalidated_bubbles_up()` - verify container passes to its parent
-- [ ] **Implement:** Add `_child_invalidated(child)` to `Container` that bubbles to `self._parent`
-- [ ] **Commit:** `feat(tui): add _child_invalidated() bubble-up to Container`
+- [x] **Test:** `test_container_child_invalidated_bubbles_up()` - verify container passes to its parent
+- [x] **Design:** Container inherits `_child_invalidated()` from Component (just bubbles up)
+- [x] **Commit:** `refactor(tui): clean component invalidation design`
 
 ### 2.3 Add `_child_invalidated()` to TUI (target handler)
 
-- [ ] **Test:** `test_tui_child_invalidated_calls_invalidate_component()` - verify TUI receives and handles
-- [ ] **Implement:** Add `_child_invalidated(child)` to `TUI` that calls `self.invalidate_component(child)`
-- [ ] **Commit:** `feat(tui): add _child_invalidated() handler to TUI`
+- [x] **Test:** `test_tui_child_invalidated_calls_invalidate_component()` - verify TUI receives and handles
+- [x] **Design:** TUI overrides `_child_invalidated(child)` to call `invalidate_component(child)`
+- [x] **Commit:** `refactor(tui): clean component invalidation design`
 
 ---
 
