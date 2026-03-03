@@ -23,10 +23,6 @@ tui.add_child(root)
 root.children.clear()  # Clear container, not TUI
 root.add_child(Text("New Screen"))
 
-# Component invalidation (targeted - clears only that component's lines)
-input_field.invalidate()  # Bubbles up to TUI automatically
-tui.invalidate_component(input_field)  # Direct approach
-
 # Keyboard handling
 data = terminal.read_sequence(timeout=0.05)
 key_id, event_type = parse_key(data)  # Returns tuple!
@@ -75,13 +71,12 @@ self.root.add_child(Text("New Screen"))
 
 All components inherit from `Component`:
 - `render(width: int) -> list[str]` - Render to lines
-- `invalidate()` - Clear render cache
 - `handle_input(data: str)` - Optional input handler
 - `wants_key_release: bool` - Set True for Kitty release events
 
 ### Differential Rendering
 
-TUI only updates changed lines. The `_previous_lines` state enables efficient updates. Creating new TUI instances loses this state.
+TUI only updates changed lines by comparing the current frame against the previous frame. No explicit invalidation is needed - just call `request_render()` and the differential renderer handles the rest.
 
 ---
 
@@ -449,112 +444,6 @@ class App:
         self.root.add_child(Text("Settings"))
 ```
 
-### Component Invalidation
-
-Targeted invalidation clears only a specific component's lines instead of full redraw.
-
-**Bubble-up approach (no TUI reference needed):**
-
-```python
-# In a component or addon - invalidates just this component
-input_field.invalidate()  # Bubbles up to TUI automatically
-```
-
-**Direct approach (with TUI reference):**
-
-```python
-# Direct invalidation of any component
-tui.invalidate_component(input_field)
-```
-
-**How it works:**
-
-```
-Component.invalidate()
-    → clears local cache
-    → calls _child_invalidated(self)
-    
-_child_invalidated(child) bubbles up through parents...
-    → Container._child_invalidated() passes to parent
-    → TUI._child_invalidated() receives at root
-    → calls invalidate_component(child)
-    
-TUI.invalidate_component(component)
-    → looks up component's line range in _component_positions
-    → clears those lines in _previous_lines (sets to "")
-    → calls request_render()
-    
-Next render_frame()
-    → differential rendering sees empty lines
-    → redraws only the changed lines
-```
-
-**Use case: Completion menu closing**
-
-```python
-class CompletionAddon:
-    def __init__(self, input_field: Input):
-        self.input_field = input_field  # Just the input, no TUI ref
-    
-    def on_menu_close(self):
-        # Only clears the input field's lines (3 lines with padding)
-        # Other content on screen is preserved
-        self.input_field.invalidate()
-```
-
-**Position Tracking:**
-
-TUI tracks each component's line range during render:
-
-```python
-def render(self, width: int) -> list[str]:
-    self._component_positions = {}  # Clear previous
-    lines: list[str] = []
-    for child in self.children:
-        start = len(lines)
-        child_lines = child.render(width)
-        end = start + len(child_lines)
-        self._component_positions[child] = (start, end)
-        lines.extend(child_lines)
-    return lines
-```
-
-This enables `invalidate_component()` to know exactly which lines to clear.
-
-**Container Render Pattern:**
-
-Containers embed children within their own rendered output:
-
-```python
-# Container - simple stacking
-def render(self, width):
-    lines = []
-    for child in self.children:
-        lines.extend(child.render(width))
-    return lines
-
-# Box - adds padding around children  
-def render(self, width):
-    lines = []
-    lines.extend(top_padding_lines)
-    for child in self.children:
-        lines.extend(padded_child_lines)
-    lines.extend(bottom_padding_lines)
-    return lines
-
-# BorderedBox - draws borders around children
-def render(self, width):
-    lines = []
-    lines.append(top_border)
-    for child in self.children:
-        for line in child.render(content_width):
-            lines.append(side_border + line + side_border)
-    lines.append(bottom_border)
-    return lines
-```
-
-The parent component controls how children are embedded. Position tracking records where each component appears in the final output.
-
 ### Terminal Resize
 
 ```python
@@ -610,7 +499,7 @@ def test_scrollback_lines_frozen(self):
 
 ### Differential Rendering
 
-The renderer compares current frame against `_previous_lines` to update only changed lines.
+The renderer compares current frame against `_previous_lines` to update only changed lines. No explicit invalidation is needed - components simply update their state and the next `render_frame()` call detects changes automatically.
 
 **Line Comparison** (`_render_changed_lines`):
 
@@ -623,7 +512,7 @@ for i, line in enumerate(lines):
         buffer += line
 
 # For content exceeding terminal:
-first_visible = current_count - term_height
+first_visible = max(0, current_count - term_height)
 for screen_row in range(term_height):
     content_row = first_visible + screen_row
     if content_row >= len(prev) or prev[content_row] != lines[content_row]:
@@ -726,7 +615,6 @@ def _check_resize(self, term_width: int, term_height: int) -> None:
         self._previous_lines = []
         self._hardware_cursor_row = -1
         self.terminal.write("\x1b[2J\x1b[3J\x1b[H")  # Clear screen + scrollback
-        self.invalidate()
 ```
 
 ### Hardware Cursor Positioning
@@ -758,7 +646,7 @@ self.terminal.show_cursor()
 Complete `render_frame()` sequence:
 
 1. Check `_force_full_redraw` → clear screen if needed
-2. `_check_resize()` → invalidate on size change
+2. `_check_resize()` → reset state on size change
 3. `render(term_width)` → get base lines from children
 4. `_calculate_first_visible_row()` → determine scrollback offset
 5. `_composite_overlays()` → overlay content onto base
@@ -849,23 +737,12 @@ from pypitui.rich_components import rich_to_ansi, rich_color_to_ansi
 | `render_frame()` | Render current frame |
 | `run()` | Built-in main loop (~60fps) |
 | `start()` / `stop()` | Enter/exit TUI mode |
-| `invalidate_component(component)` | Targeted invalidation of specific component |
-
-### Component Methods
-
-| Method | Description |
-|--------|-------------|
-| `render(width) -> list[str]` | Render component to lines |
-| `invalidate()` | Clear local cache, bubble up for targeted invalidation |
-| `handle_input(data)` | Handle keyboard input (optional) |
-| `_child_invalidated(child)` | Bubble-up handler (usually don't override) |
 
 ### Component Interface
 
 | Method | Description |
 |--------|-------------|
 | `render(width) -> list[str]` | Render to lines |
-| `invalidate()` | Clear cache |
 | `handle_input(data)` | Handle input (optional) |
 | `wants_key_release` | Receive Kitty release events |
 
@@ -887,6 +764,70 @@ from pypitui.rich_components import rich_to_ansi, rich_color_to_ansi
 | `EVENT_RELEASE` | `"release"` | Key release event |
 | `EVENT_REPEAT` | `"repeat"` | Key repeat event |
 | `ANSI_RESET` | `"\x1b[0m"` | ANSI reset code |
+
+---
+
+## Rendering Control Flow
+
+### TUI Main Loop
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TUI MAIN LOOP                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  while running:                                                              │
+│      1. Read terminal input (terminal.read_sequence)                        │
+│      2. Handle input (tui.handle_input → component.handle_input)            │
+│      3. tui.request_render()                                                │
+│      4. tui.render_frame()                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### render_frame() Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      render_frame() FLOW                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+            ┌─────────────────────────────────────────┐
+            │  base_lines = self.render(term_width)   │
+            └─────────────────────────────────────────┘
+                                    │
+                                    ▼
+        ┌─────────────────────────────────────────────────────────┐
+        │  FOR EACH child in children:                            │
+        │    component_lines = child.render(width)                 │
+        │    lines.extend(component_lines)                          │
+        └─────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    lines = _composite_overlays(base_lines, ...)                             │
+│    lines = _apply_line_resets(lines)                                         │
+│    cursor_pos = _extract_cursor_position(lines)                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              DIFFERENTIAL RENDERING: _render_changed_lines()                │
+│                                                                              │
+│    Compare current lines vs _previous_lines                                  │
+│    Update only changed lines                                                 │
+│    Clear orphaned lines if content shrank                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    buffer = _begin_sync() + changes + _end_sync()                           │
+│    terminal.write(buffer)                                                    │
+│    _previous_lines = lines  (save for next frame)                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
