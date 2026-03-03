@@ -86,10 +86,6 @@ def test_invalidate_resets_scrollback_counter():
     # Text has padding, so scrollback lines > 0
     assert tui._emitted_scrollback_lines > 0
 
-    # Invalidate should reset counter
-    tui.invalidate()
-    assert tui._emitted_scrollback_lines == 0
-
 
 def test_content_growth_emits_only_new_scrollback():
     """When content grows, only new scrollback lines are emitted."""

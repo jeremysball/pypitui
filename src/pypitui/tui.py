@@ -64,30 +64,6 @@ class Component(ABC):
         """
         return False
 
-    @abstractmethod
-    def invalidate(self) -> None:
-        """Invalidate any cached rendering state.
-
-        Called when theme changes or when component needs to re-render
-        from scratch. Subclasses should clear their local cache, then
-        call _child_invalidated(self) to bubble up for targeted invalidation.
-        """
-        pass
-
-    def _child_invalidated(self, child: Component) -> None:
-        """Handle a child component requesting targeted invalidation.
-
-        Bubbles up to the parent until it reaches the TUI root,
-        which will handle the actual line-wise invalidation.
-
-        Raises:
-            AttributeError: If component has no parent.
-        """
-        # _parent is set by Container.add_child()
-        parent: Container | None = getattr(self, "_parent", None)
-        if parent:
-            parent._child_invalidated(child)
-
 
 class Focusable(ABC):
     """Interface for components that can receive focus and display a
@@ -242,7 +218,6 @@ class Container(Component):
 
                 def switch_to(self, screen):
                     self.current = screen
-                    self.invalidate()
 
                 def render(self, width):
                     return self.current.render(width) if self.current else []
@@ -259,11 +234,6 @@ class Container(Component):
         for child in self.children:
             del child._parent
         self.children.clear()
-
-    def invalidate(self) -> None:
-        """Invalidate all children."""
-        for child in self.children:
-            child.invalidate()
 
     def render(self, width: int) -> list[str]:
         """Render all children vertically."""
@@ -341,9 +311,6 @@ class TUI(Container):
         # Terminal size tracking for resize detection
         self._last_terminal_size: tuple[int, int] = (0, 0)
 
-        # Component position tracking for targeted invalidation
-        self._component_positions: dict[Component, tuple[int, int]] = {}
-
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
 
@@ -385,9 +352,7 @@ class TUI(Container):
             Handle to control the overlay's visibility
         """
         opts = options or OverlayOptions()
-        entry = _OverlayEntry(
-            component, opts, previous_focus=self._focused_component
-        )
+        entry = _OverlayEntry(component, opts, previous_focus=self._focused_component)
         self._overlay_stack.append(entry)
 
         # Wire parent so invalidation bubbles to TUI
@@ -426,8 +391,7 @@ class TUI(Container):
     def has_overlay(self) -> bool:
         """Check if there are any visible overlays."""
         return any(
-            not entry.hidden and not entry.closed
-            for entry in self._overlay_stack
+            not entry.hidden and not entry.closed for entry in self._overlay_stack
         )
 
     def _is_overlay_visible(self, entry: _OverlayEntry) -> bool:
@@ -441,91 +405,13 @@ class TUI(Container):
                 return entry
         return None
 
-    def invalidate(self) -> None:
-        """Invalidate the TUI and all children."""
-        self._previous_lines = []
-        self._emitted_scrollback_lines = 0
-        self._component_positions = {}
-        for child in self.children:
-            child.invalidate()
-        for entry in self._overlay_stack:
-            entry.component.invalidate()
-
-    def _child_invalidated(self, child: Component) -> None:
-        """Handle a child component being invalidated.
-
-        Called when a child component's invalidate() method is invoked.
-        This triggers targeted invalidation for that specific component.
-        """
-        self.invalidate_component(child)
-
-    def invalidate_component(self, component: Component) -> None:
-        """Invalidate a specific component by clearing its lines from cache.
-
-        Uses position tracking to mark only the component's lines for
-        clearing on the next render, rather than redrawing everything.
-        """
-        if component in self._component_positions:
-            start, end = self._component_positions[component]
-            for i in range(start, end):
-                if i < len(self._previous_lines):
-                    self._previous_lines[i] = ""  # Mark for clearing
-        self.request_render()
-
     def render(self, width: int) -> list[str]:
-        """Render all children and track their positions.
-
-        Overrides Container.render() to track each child's line range
-        for targeted invalidation. Tracks all components recursively.
-        """
-        self._component_positions = {}  # Clear previous positions
+        """Render all children."""
         lines: list[str] = []
-        self._render_recursive(self.children, width, lines)
-        return lines
-
-    def _render_recursive(
-        self, components: list[Component], width: int, lines: list[str]
-    ) -> None:
-        """Recursively render components and track positions.
-
-        For containers, we render and track the container itself, but we also
-        track the children's positions based on where they appear within the
-        container's output.
-        """
-        for component in components:
-            start = len(lines)
-            component_lines = component.render(width)
-            end = start + len(component_lines)
-            self._component_positions[component] = (start, end)
-            lines.extend(component_lines)
-
-            # Track container children by calculating their positions
-            # within the container's rendered output
-            if isinstance(component, Container):
-                child_offset = start
-                for child in component.children:
-                    child_lines = child.render(width)
-                    child_start = child_offset
-                    child_end = child_start + len(child_lines)
-                    self._component_positions[child] = (child_start, child_end)
-                    child_offset = child_end
-                    # Recurse for nested containers
-                    if isinstance(child, Container):
-                        self._track_nested_children(child, child_start, width)
-
-    def _track_nested_children(
-        self, container: Container, offset: int, width: int
-    ) -> None:
-        """Track positions for nested container children."""
-        child_offset = offset
-        for child in container.children:
+        for child in self.children:
             child_lines = child.render(width)
-            child_start = child_offset
-            child_end = child_start + len(child_lines)
-            self._component_positions[child] = (child_start, child_end)
-            child_offset = child_end
-            if isinstance(child, Container):
-                self._track_nested_children(child, child_start, width)
+            lines.extend(child_lines)
+        return lines
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""
@@ -601,9 +487,7 @@ class TUI(Container):
             return
 
         # Send to focused component
-        if self._focused_component and hasattr(
-            self._focused_component, "handle_input"
-        ):
+        if self._focused_component and hasattr(self._focused_component, "handle_input"):
             self._focused_component.handle_input(data)
 
     def _resolve_size_value(self, value: SizeValue | None, total: int) -> int:
@@ -741,9 +625,7 @@ class TUI(Container):
         """Composite a single overlay into result (modifies in place)."""
         if not self._is_overlay_visible(entry):
             return
-        if entry.options.visible and not entry.options.visible(
-            term_width, term_height
-        ):
+        if entry.options.visible and not entry.options.visible(term_width, term_height):
             return
 
         margin_left, margin_right = self._get_overlay_margins(entry.options)
@@ -905,7 +787,6 @@ class TUI(Container):
             self._hardware_cursor_row = -1
             # Clear screen + scrollback, move cursor home
             self.terminal.write("\x1b[2J\x1b[3J\x1b[H")
-            self.invalidate()
 
     def _handle_content_growth(
         self,
@@ -958,8 +839,7 @@ class TUI(Container):
         # Emit only the NEW scrollback lines
         for i in range(new_scrollback_start, first_visible):
             prev_changed = (
-                i >= len(self._previous_lines)
-                or self._previous_lines[i] != lines[i]
+                i >= len(self._previous_lines) or self._previous_lines[i] != lines[i]
             )
             if prev_changed:
                 buffer += "\r\x1b[2K"
@@ -981,32 +861,23 @@ class TUI(Container):
         current_count = len(lines)
         previous_count = len(self._previous_lines)
 
-        if current_count > term_height:
-            first_visible = current_count - term_height
+        first_visible = max(0, current_count - term_height)
+
+        if current_count < previous_count:
+            if self._clear_on_shrink:
+                for i in range(current_count, previous_count):
+                    buffer += self._move_cursor_relative(i)
+                    buffer += "\r\x1b[2K"
+        else:
             for screen_row in range(term_height):
                 content_row = first_visible + screen_row
                 if content_row >= len(lines):
                     break
                 prev = self._previous_lines
-                if (
-                    content_row >= len(prev)
-                    or prev[content_row] != lines[content_row]
-                ):
+                if content_row >= len(prev) or prev[content_row] != lines[content_row]:
                     buffer += self._move_cursor_relative(screen_row)
                     buffer += "\r\x1b[2K"
                     buffer += lines[content_row]
-        else:
-            for i, line in enumerate(lines):
-                prev = self._previous_lines
-                if i >= len(prev) or prev[i] != line:
-                    buffer += self._move_cursor_relative(i)
-                    buffer += "\r\x1b[2K"
-                    buffer += line
-
-            if self._clear_on_shrink and current_count < previous_count:
-                for i in range(current_count, previous_count):
-                    buffer += self._move_cursor_relative(i)
-                    buffer += "\r\x1b[2K"
 
         return buffer
 

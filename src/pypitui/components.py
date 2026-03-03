@@ -48,21 +48,12 @@ class Text(Component):
     def set_text(self, text: str) -> None:
         """Update the text content."""
         self._text = text
-        self.invalidate()
 
     def set_custom_bg_fn(
         self, custom_bg_fn: Callable[[str], str] | None
     ) -> None:
         """Set custom background function."""
         self._custom_bg_fn = custom_bg_fn
-        self.invalidate()
-
-    def invalidate(self) -> None:
-        """Clear render cache."""
-        self._cached_text = None
-        self._cached_width = None
-        self._cached_lines = None
-        self._child_invalidated(self)
 
     def _strip_trailing_reset(self, line: str) -> str:
         """Strip trailing ANSI reset codes from a line."""
@@ -165,13 +156,6 @@ class Box(Component):
     def _invalidate_cache(self) -> None:
         """Clear render cache."""
         self._cache = None
-
-    def invalidate(self) -> None:
-        """Invalidate box and children."""
-        self._invalidate_cache()
-        for child in self.children:
-            child.invalidate()
-        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render box with children."""
@@ -313,13 +297,6 @@ class BorderedBox(Component):
     def _invalidate_cache(self) -> None:
         """Clear render cache."""
         self._cache = None
-
-    def invalidate(self) -> None:
-        """Invalidate box and children."""
-        self._invalidate_cache()
-        for child in self.children:
-            child.invalidate()
-        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render bordered box with wrapped content.
@@ -481,10 +458,6 @@ class Spacer(Component):
         super().__init__()
         self._height = height
 
-    def invalidate(self) -> None:
-        """No cache to invalidate."""
-        self._child_invalidated(self)
-
     def render(self, _width: int) -> list[str]:
         """Render empty lines."""
         return [""] * self._height
@@ -561,10 +534,6 @@ class SelectList(Component):
         ):
             return self._filtered_items[self._selected_index]
         return None
-
-    def invalidate(self) -> None:
-        """No cache to invalidate."""
-        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render the select list."""
@@ -717,10 +686,6 @@ class Input(Component, Focusable):
         """Set input value."""
         self._text = text
         self._cursor_pos = len(text)
-
-    def invalidate(self) -> None:
-        """No cache."""
-        self._child_invalidated(self)
 
     def render(self, width: int) -> list[str]:
         """Render input with cursor."""

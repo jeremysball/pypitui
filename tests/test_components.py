@@ -169,7 +169,3 @@ class TestSpacer:
         for line in lines:
             assert line == ""
 
-    def test_invalidate(self):
-        """Invalidate does nothing."""
-        spacer = Spacer(3)
-        spacer.invalidate()  # Should not raise
