@@ -434,18 +434,26 @@ class TUI(Container):
 
         return remove
 
-    def request_render(self, force: bool = False) -> None:
+    def request_render(
+        self, force: bool = False, *, reset_scrollback: bool = False
+    ) -> None:
         """Request a render on next frame.
 
         Args:
-            force: If True, force full redraw (clears screen and
+            force: If True, force visible redraw (clears screen and
                 resets differential cache)
+            reset_scrollback: If True, reset scrollback tracking state.
+                Use this when switching content entirely (e.g., after
+                container.clear()) to ensure new content flows into
+                terminal scrollback properly.
         """
         self._render_requested = True
         if force:
             self._force_full_redraw = True
             self._previous_lines = []
             self._first_visible_row_previous = 0
+        if reset_scrollback:
+            self.reset_scrollback_state()
 
     def handle_input(self, data: str) -> None:
         """Handle keyboard input - forwards to focused component.
@@ -753,8 +761,23 @@ class TUI(Container):
 
         return None
 
-    def _handle_full_redraw(self) -> None:
-        """Handle force full redraw."""
+    def reset_scrollback_state(self) -> None:
+        """Reset scrollback tracking state.
+
+        Call this when switching content entirely (e.g., after container.clear())
+        to ensure new content flows into terminal scrollback properly. This
+        resets the internal counters that track which lines have been emitted
+        to the terminal's native scrollback buffer.
+        """
+        self._emitted_scrollback_lines = 0
+        self._max_lines_rendered = 0
+
+    def _handle_visible_redraw(self) -> None:
+        """Handle forced redraw of visible screen area only.
+
+        Clears the visible screen and resets differential rendering cache,
+        but does not affect scrollback history.
+        """
         self._force_full_redraw = False
         self.terminal.write("\x1b[2J\x1b[H")
         self._hardware_cursor_row = 0
@@ -896,7 +919,7 @@ class TUI(Container):
         term_width, term_height = self.terminal.get_size()
 
         if self._force_full_redraw:
-            self._handle_full_redraw()
+            self._handle_visible_redraw()
 
         self._check_resize(term_width, term_height)
 
