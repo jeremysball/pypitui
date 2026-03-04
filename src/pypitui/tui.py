@@ -337,7 +337,9 @@ class TUI(Container):
             Handle to control the overlay's visibility
         """
         opts = options or OverlayOptions()
-        entry = _OverlayEntry(component, opts, previous_focus=self._focused_component)
+        entry = _OverlayEntry(
+            component, opts, previous_focus=self._focused_component
+        )
         self._overlay_stack.append(entry)
 
         # Wire parent so invalidation bubbles to TUI
@@ -376,7 +378,8 @@ class TUI(Container):
     def has_overlay(self) -> bool:
         """Check if there are any visible overlays."""
         return any(
-            not entry.hidden and not entry.closed for entry in self._overlay_stack
+            not entry.hidden and not entry.closed
+            for entry in self._overlay_stack
         )
 
     def _is_overlay_visible(self, entry: _OverlayEntry) -> bool:
@@ -481,7 +484,9 @@ class TUI(Container):
             return
 
         # Send to focused component
-        if self._focused_component and hasattr(self._focused_component, "handle_input"):
+        if self._focused_component and hasattr(
+            self._focused_component, "handle_input"
+        ):
             self._focused_component.handle_input(data)
 
     def _resolve_size_value(self, value: SizeValue | None, total: int) -> int:
@@ -619,7 +624,9 @@ class TUI(Container):
         """Composite a single overlay into result (modifies in place)."""
         if not self._is_overlay_visible(entry):
             return
-        if entry.options.visible and not entry.options.visible(term_width, term_height):
+        if entry.options.visible and not entry.options.visible(
+            term_width, term_height
+        ):
             return
 
         margin_left, margin_right = self._get_overlay_margins(entry.options)
@@ -764,10 +771,11 @@ class TUI(Container):
     def reset_scrollback_state(self) -> None:
         """Reset scrollback tracking state.
 
-        Call this when switching content entirely (e.g., after container.clear())
-        to ensure new content flows into terminal scrollback properly. This
-        resets the internal counters that track which lines have been emitted
-        to the terminal's native scrollback buffer.
+        Call this when switching content entirely
+        (e.g., after container.clear()) to ensure new content
+        flows into terminal scrollback properly. This resets
+        the internal counters that track which lines have been
+        emitted to the terminal's native scrollback buffer.
         """
         self._emitted_scrollback_lines = 0
         self._max_lines_rendered = 0
