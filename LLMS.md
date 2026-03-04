@@ -466,7 +466,7 @@ The TUI maintains a virtual canvas that can exceed terminal height. When content
 ```python
 self._max_lines_rendered: int = 0  # Maximum lines ever rendered
 self._previous_lines: list[str] = []  # Last frame's rendered lines
-self._hardware_cursor_row: int = 0  # Virtual cursor position
+self._first_visible_row_previous: int = 0  # First visible row from last frame
 ```
 
 **First Visible Row Calculation**:
@@ -479,84 +479,49 @@ def _calculate_first_visible_row(self, term_height: int) -> int:
 Example: If `_max_lines_rendered=100` and `term_height=24`:
 - Returns 76 (lines 0-75 in scrollback, lines 76-99 visible)
 
-**Content Growth** (`_handle_content_growth`):
-
-When content grows from 20 to 25 lines in a 24-row terminal:
-1. Detects `current_count > previous_count`
-2. Emits newlines to scroll the terminal
-3. Updates `_hardware_cursor_row` to bottom
-
 **Scrollback Immutability**:
 
-Lines in scrollback cannot be updated after scrolling. From `test_scrollback.py`:
-
-```python
-def test_scrollback_lines_frozen(self):
-    # Modify line 2 (in scrollback)
-    # Assert: modification does NOT appear in output
-    assert "MODIFIED Line 2" not in output
-```
+Lines in scrollback cannot be updated after scrolling. Once a line scrolls off the top of the visible terminal, it's frozen in the terminal's native scrollback buffer.
 
 ### Differential Rendering
 
-The renderer compares current frame against `_previous_lines` to update only changed lines. No explicit invalidation is needed - components simply update their state and the next `render_frame()` call detects changes automatically.
+The renderer compares what's at each **screen position** (not content index) to detect changes. When `first_visible` shifts (content grows/shrinks), all visible rows are redrawn since their positions changed.
 
 **Line Comparison** (`_render_changed_lines`):
 
 ```python
-# For content fitting in terminal:
-for i, line in enumerate(lines):
-    if i >= len(prev) or prev[i] != line:
-        buffer += self._move_cursor_relative(i)
-        buffer += "\r\x1b[2K"  # Clear line
-        buffer += line
+# Calculate what content is currently visible
+if current_count > term_height:
+    first_visible = current_count - term_height
+else:
+    first_visible = 0
 
-# For content exceeding terminal:
-first_visible = max(0, current_count - term_height)
-for screen_row in range(term_height):
+# If first_visible changed, the entire viewport shifted
+viewport_shifted = (first_visible != self._first_visible_row_previous)
+
+for screen_row in range(min(term_height, current_count)):
     content_row = first_visible + screen_row
-    if content_row >= len(prev) or prev[content_row] != lines[content_row]:
-        # Update only visible portion
-```
-
-**Shrink Handling**:
-
-When content shrinks (`clear_on_shrink=True`):
-```python
-if current_count < previous_count:
-    for i in range(current_count, previous_count):
-        buffer += self._move_cursor_relative(i)
-        buffer += "\r\x1b[2K"  # Clear orphaned lines
-```
-
-### Relative Cursor Movement
-
-The renderer uses relative positioning (`\x1b[nA`/`\x1b[nB`) instead of absolute (`\x1b[row;colH`). This allows content to flow into scrollback.
-
-**Movement Logic** (`_move_cursor_relative`):
-
-```python
-def _move_cursor_relative(self, target_row: int) -> str:
-    delta = target_row - self._hardware_cursor_row
-    if delta == 0:
-        return ""
-    if delta > 0:
-        self._hardware_cursor_row = target_row
-        return self.terminal.move_cursor_down(delta)  # "\x1b[nB"
+    
+    if viewport_shifted:
+        needs_update = True
     else:
-        self._hardware_cursor_row = target_row
-        return self.terminal.move_cursor_up(-delta)   # "\x1b[nA"
+        # Compare content at this position
+        needs_update = self._previous_lines[content_row] != lines[content_row]
+    
+    if needs_update:
+        # Absolute positioning: \x1b[row;colH (1-indexed)
+        buffer += f"\x1b[{screen_row + 1};1H"
+        buffer += "\x1b[2K"
+        buffer += lines[content_row]
+
+# Clear any orphaned screen rows (content shrank)
+if current_count < term_height:
+    for screen_row in range(current_count, term_height):
+        buffer += f"\x1b[{screen_row + 1};1H"
+        buffer += "\x1b[2K"
 ```
 
-**Terminal Methods** (`terminal.py`):
-
-```python
-def move_cursor_up(self, n: int = 1) -> str:
-    if n <= 0:
-        return ""
-    return f"\x1b[{n}A"
-
-def move_cursor_down(self, n: int = 1) -> str:
+**Key Insight**: We compare screen positions, not content indices. When content grows and `first_visible` shifts from 0 to 2, content that was at screen row 0 is now at screen row 2. The old approach (comparing content indices) would miss this shift, leaving stale content on screen.
     if n <= 0:
         return ""
     return f"\x1b[{n}B"
@@ -613,7 +578,7 @@ On terminal resize, clears both screen and scrollback to prevent corrupted outpu
 def _check_resize(self, term_width: int, term_height: int) -> None:
     if (term_width, term_height) != self._last_terminal_size:
         self._previous_lines = []
-        self._hardware_cursor_row = -1
+        self._first_visible_row_previous = 0
         self.terminal.write("\x1b[2J\x1b[3J\x1b[H")  # Clear screen + scrollback
 ```
 
@@ -653,10 +618,9 @@ Complete `render_frame()` sequence:
 6. `_apply_line_resets()` → append reset to each line
 7. `_extract_cursor_position()` → find and strip cursor marker
 8. `_begin_sync()` → start buffered output
-9. `_handle_content_growth()` → emit newlines if content grew
-10. `_render_changed_lines()` → differential update
-11. `_end_sync()` → flush buffered output
-12. `_position_hardware_cursor_relative()` → place IME cursor
+9. `_render_changed_lines()` → differential update using absolute positioning
+10. `_end_sync()` → flush buffered output
+11. `_position_hardware_cursor_relative()` → place IME cursor
 
 ---
 

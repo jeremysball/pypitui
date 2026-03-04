@@ -274,12 +274,10 @@ class TUI(Container):
         self,
         terminal: Terminal,
         show_hardware_cursor: bool = False,
-        clear_on_shrink: bool = True,
     ) -> None:
         super().__init__()
         self.terminal = terminal
         self._show_hardware_cursor = show_hardware_cursor
-        self._clear_on_shrink = clear_on_shrink
 
         # State for differential rendering
         self._previous_lines: list[str] = []
@@ -314,19 +312,6 @@ class TUI(Container):
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
 
-    @property
-    def clear_on_shrink(self) -> bool:
-        return self._clear_on_shrink
-
-    @clear_on_shrink.setter
-    def clear_on_shrink(self, enabled: bool) -> None:
-        """Set whether to trigger full re-render when content shrinks.
-
-        When True (default), empty rows are cleared when content shrinks.
-        When False, empty rows remain (reduces redraws on slower terminals).
-        """
-        self._clear_on_shrink = enabled
-
     def set_focus(self, component: Component | None) -> None:
         """Set the focused component."""
         # Unfocus previous
@@ -352,9 +337,7 @@ class TUI(Container):
             Handle to control the overlay's visibility
         """
         opts = options or OverlayOptions()
-        entry = _OverlayEntry(
-            component, opts, previous_focus=self._focused_component
-        )
+        entry = _OverlayEntry(component, opts, previous_focus=self._focused_component)
         self._overlay_stack.append(entry)
 
         # Wire parent so invalidation bubbles to TUI
@@ -393,8 +376,7 @@ class TUI(Container):
     def has_overlay(self) -> bool:
         """Check if there are any visible overlays."""
         return any(
-            not entry.hidden and not entry.closed
-            for entry in self._overlay_stack
+            not entry.hidden and not entry.closed for entry in self._overlay_stack
         )
 
     def _is_overlay_visible(self, entry: _OverlayEntry) -> bool:
@@ -463,6 +445,7 @@ class TUI(Container):
         if force:
             self._force_full_redraw = True
             self._previous_lines = []
+            self._first_visible_row_previous = 0
 
     def handle_input(self, data: str) -> None:
         """Handle keyboard input - forwards to focused component.
@@ -490,9 +473,7 @@ class TUI(Container):
             return
 
         # Send to focused component
-        if self._focused_component and hasattr(
-            self._focused_component, "handle_input"
-        ):
+        if self._focused_component and hasattr(self._focused_component, "handle_input"):
             self._focused_component.handle_input(data)
 
     def _resolve_size_value(self, value: SizeValue | None, total: int) -> int:
@@ -630,9 +611,7 @@ class TUI(Container):
         """Composite a single overlay into result (modifies in place)."""
         if not self._is_overlay_visible(entry):
             return
-        if entry.options.visible and not entry.options.visible(
-            term_width, term_height
-        ):
+        if entry.options.visible and not entry.options.visible(term_width, term_height):
             return
 
         margin_left, margin_right = self._get_overlay_margins(entry.options)
@@ -780,6 +759,7 @@ class TUI(Container):
         self.terminal.write("\x1b[2J\x1b[H")
         self._hardware_cursor_row = 0
         self._previous_lines = []
+        self._first_visible_row_previous = 0
 
     def _check_resize(self, term_width: int, term_height: int) -> None:
         """Check for terminal resize and invalidate if needed.
@@ -791,7 +771,8 @@ class TUI(Container):
         if current_size != self._last_terminal_size:
             self._last_terminal_size = current_size
             self._previous_lines = []
-            self._hardware_cursor_row = -1
+            self._first_visible_row_previous = 0
+            self._emitted_scrollback_lines = 0
             # Clear screen + scrollback, move cursor home
             self.terminal.write("\x1b[2J\x1b[3J\x1b[H")
 
@@ -808,19 +789,6 @@ class TUI(Container):
         When content grows beyond terminal height, lines that scroll off the
         top are pushed into scrollback history. This method tracks which lines
         have already been emitted to avoid re-emitting them on frames.
-
-        Previously, this method emitted newlines for ALL scrollback lines on
-        every frame, causing exponential blank line growth in history.
-
-        Args:
-            buffer: Current output buffer
-            current_count: Total number of content lines
-            previous_count: Number of content lines in previous frame
-            term_height: Terminal height in rows
-            lines: All content lines to render
-
-        Returns:
-            Updated buffer with scrollback newlines added
         """
         # When anchor_top is True, skip scrollback handling
         if self._anchor_top:
@@ -864,30 +832,54 @@ class TUI(Container):
         lines: list[str],
         term_height: int,
     ) -> str:
-        """Render only changed lines. Returns buffer content."""
+        """Render changed lines using absolute cursor positioning.
+
+        Compares what's at each screen position now vs what was there before.
+        When first_visible changes (content grows/shrinks), all visible rows
+        may shift position and need redrawing.
+        """
         buffer = ""
         current_count = len(lines)
-        previous_count = len(self._previous_lines)
 
-        first_visible = max(0, current_count - term_height)
-
-        if current_count < previous_count:
-            if self._clear_on_shrink:
-                for i in range(current_count, previous_count):
-                    buffer += self._move_cursor_relative(i)
-                    buffer += "\r\x1b[2K"
+        # Calculate what content is currently visible
+        if current_count > term_height:
+            first_visible = current_count - term_height
         else:
-            for screen_row in range(term_height):
-                content_row = first_visible + screen_row
-                if content_row >= len(lines):
-                    break
-                prev = self._previous_lines
-                if content_row >= len(prev) or prev[content_row] != lines[
-                    content_row
-                ]:
-                    buffer += self._move_cursor_relative(screen_row)
-                    buffer += "\r\x1b[2K"
-                    buffer += lines[content_row]
+            first_visible = 0
+
+        # If first_visible changed, the entire viewport shifted
+        # Force redraw of all visible rows
+        viewport_shifted = first_visible != self._first_visible_row_previous
+
+        for screen_row in range(min(term_height, current_count)):
+            content_row = first_visible + screen_row
+            if content_row >= len(lines):
+                break
+
+            # Check if this screen position needs updating
+            if viewport_shifted or content_row >= len(self._previous_lines):
+                needs_update = True
+            else:
+                prev_line = self._previous_lines[content_row]
+                needs_update = prev_line != lines[content_row]
+
+            if needs_update:
+                # Absolute positioning: \x1b[row;colH (1-indexed)
+                buffer += f"\x1b[{screen_row + 1};1H"
+                buffer += "\x1b[2K"
+                buffer += lines[content_row]
+
+        # Clear any orphaned screen rows (content shrank)
+        if current_count < term_height:
+            prev_first = self._first_visible_row_previous
+            prev_count = len(self._previous_lines) - prev_first
+            end_row = min(prev_count, term_height)
+            for screen_row in range(current_count, end_row):
+                buffer += f"\x1b[{screen_row + 1};1H"
+                buffer += "\x1b[2K"
+
+        # Update tracked first_visible for next frame
+        self._first_visible_row_previous = first_visible
 
         return buffer
 
