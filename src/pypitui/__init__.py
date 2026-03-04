@@ -25,6 +25,7 @@ from .keys import (
 )
 from .terminal import MockTerminal, ProcessTerminal, Terminal
 from .tui import (
+    CURSOR_MARKER,
     FRAME_TIME,
     TUI,
     Component,
@@ -45,6 +46,7 @@ from .utils import (
 )
 
 __all__ = [
+    "CURSOR_MARKER",
     "EVENT_PRESS",
     "EVENT_RELEASE",
     "EVENT_REPEAT",
@@ -80,4 +82,4 @@ __all__ = [
     "wrap_text_with_ansi",
 ]
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
