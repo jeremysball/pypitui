@@ -111,21 +111,10 @@ def switch_screen():
     tui.add_child(new_content)  # Old content still there
 ```
 
-### Mistake 3: Calling `tui.invalidate()` when switching
-
-```python
-# ❌ WRONG - clears _previous_lines, breaks diff rendering
-def switch_screen():
-    tui.clear()
-    tui.invalidate()  # ❌ Don't do this!
-    tui.add_child(...)
-```
-
 ## Summary
 
 | Do This | Not This |
 |---------|----------|
 | Create TUI once in `__init__` | Create new TUI for each screen |
 | Call `tui.clear()` to switch | Create `TUI(terminal)` to switch |
-| Keep `_previous_lines` intact | Call `tui.invalidate()` when switching |
 | Reuse the same TUI instance | Assign `tui = TUI(...)` mid-run |

@@ -343,9 +343,9 @@ class TestDifferentialRenderingWithScrollback:
     """Tests for differential rendering when content exceeds terminal height."""  # noqa: E501
 
     def test_content_exceeds_terminal_without_growth(self):
-        """When content exceeds terminal but hasn't grown.
+        """When content exceeds terminal but hasn't changed.
 
-        Only visible portion updates.
+        Second render should be minimal since nothing changed.
         """
         terminal = MockTerminal(80, 10)
         tui = TUI(terminal)
@@ -356,22 +356,24 @@ class TestDifferentialRenderingWithScrollback:
 
         tui.start()
 
-        # First render - content grows from 0 to 15
+        # First render - content renders visible portion
         tui.render_frame()
         first_output = terminal.get_output()
 
-        # Should have emitted newlines to scroll content
-        assert "\r\n" in first_output
+        # Should have rendered content
+        assert len(first_output) > 0
 
-        # Clear buffer and tracking for second render
+        # Clear buffer for second render
         terminal.clear_buffer()
-        # Don't reset _previous_lines - we want to test the "no growth" path
 
-        # Second render - same content, no growth.
-        # This tests the new elif branch: current_count > term_height
-        # but no growth.
+        # Second render - same content, no change.
+        # Should be minimal since nothing changed (just sync codes).
         tui.render_frame()
-        terminal.get_output()
+        second_output = terminal.get_output()
+
+        # Second render should be minimal - just sync codes, no content
+        # sync codes are: \x1b[?2026h (start) + \x1b[?2026l (end) = 16 chars
+        assert len(second_output) == 16
 
         # Should not have newlines (content didn't grow)
         # Should use differential rendering on visible portion only

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-03-03
+
+### Fixed
+
+- **Critical: Differential rendering now compares screen positions, not content indices**
+  - Previously compared content at same index (e.g., `prev[134]` vs `curr[134]`)
+  - When viewport shifted (content grew/shrank), same content moved to different screen positions
+  - Old content stayed on screen because comparison said "no change"
+  - Now tracks `_first_visible_row_previous` to detect viewport shifts
+  - When viewport shifts, all visible rows are redrawn
+
+### Changed
+
+- `_render_changed_lines` uses absolute positioning (`\x1b[row;1H`) instead of relative cursor movement
+- Removed `_handle_content_growth` function (no longer needed with new approach)
+- Removed `_emitted_scrollback_lines` and `_anchor_top` state variables
+- Removed `clear_on_shrink` parameter from `TUI.__init__` (handled in `_render_changed_lines` now)
+- `request_render(force=True)` now also resets `_first_visible_row_previous`
+
+### Removed
+
+- Invalidation system (Component.invalidate, TUI.invalidate_component) - no longer needed with screen-based comparison
+
 ## [0.3.0] - 2025-03-01
 
 ### Added

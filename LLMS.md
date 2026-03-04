@@ -23,10 +23,6 @@ tui.add_child(root)
 root.children.clear()  # Clear container, not TUI
 root.add_child(Text("New Screen"))
 
-# Component invalidation (targeted - clears only that component's lines)
-input_field.invalidate()  # Bubbles up to TUI automatically
-tui.invalidate_component(input_field)  # Direct approach
-
 # Keyboard handling
 data = terminal.read_sequence(timeout=0.05)
 key_id, event_type = parse_key(data)  # Returns tuple!
@@ -75,13 +71,12 @@ self.root.add_child(Text("New Screen"))
 
 All components inherit from `Component`:
 - `render(width: int) -> list[str]` - Render to lines
-- `invalidate()` - Clear render cache
 - `handle_input(data: str)` - Optional input handler
 - `wants_key_release: bool` - Set True for Kitty release events
 
 ### Differential Rendering
 
-TUI only updates changed lines. The `_previous_lines` state enables efficient updates. Creating new TUI instances loses this state.
+TUI only updates changed lines by comparing the current frame against the previous frame. No explicit invalidation is needed - just call `request_render()` and the differential renderer handles the rest.
 
 ---
 
@@ -449,112 +444,6 @@ class App:
         self.root.add_child(Text("Settings"))
 ```
 
-### Component Invalidation
-
-Targeted invalidation clears only a specific component's lines instead of full redraw.
-
-**Bubble-up approach (no TUI reference needed):**
-
-```python
-# In a component or addon - invalidates just this component
-input_field.invalidate()  # Bubbles up to TUI automatically
-```
-
-**Direct approach (with TUI reference):**
-
-```python
-# Direct invalidation of any component
-tui.invalidate_component(input_field)
-```
-
-**How it works:**
-
-```
-Component.invalidate()
-    → clears local cache
-    → calls _child_invalidated(self)
-    
-_child_invalidated(child) bubbles up through parents...
-    → Container._child_invalidated() passes to parent
-    → TUI._child_invalidated() receives at root
-    → calls invalidate_component(child)
-    
-TUI.invalidate_component(component)
-    → looks up component's line range in _component_positions
-    → clears those lines in _previous_lines (sets to "")
-    → calls request_render()
-    
-Next render_frame()
-    → differential rendering sees empty lines
-    → redraws only the changed lines
-```
-
-**Use case: Completion menu closing**
-
-```python
-class CompletionAddon:
-    def __init__(self, input_field: Input):
-        self.input_field = input_field  # Just the input, no TUI ref
-    
-    def on_menu_close(self):
-        # Only clears the input field's lines (3 lines with padding)
-        # Other content on screen is preserved
-        self.input_field.invalidate()
-```
-
-**Position Tracking:**
-
-TUI tracks each component's line range during render:
-
-```python
-def render(self, width: int) -> list[str]:
-    self._component_positions = {}  # Clear previous
-    lines: list[str] = []
-    for child in self.children:
-        start = len(lines)
-        child_lines = child.render(width)
-        end = start + len(child_lines)
-        self._component_positions[child] = (start, end)
-        lines.extend(child_lines)
-    return lines
-```
-
-This enables `invalidate_component()` to know exactly which lines to clear.
-
-**Container Render Pattern:**
-
-Containers embed children within their own rendered output:
-
-```python
-# Container - simple stacking
-def render(self, width):
-    lines = []
-    for child in self.children:
-        lines.extend(child.render(width))
-    return lines
-
-# Box - adds padding around children  
-def render(self, width):
-    lines = []
-    lines.extend(top_padding_lines)
-    for child in self.children:
-        lines.extend(padded_child_lines)
-    lines.extend(bottom_padding_lines)
-    return lines
-
-# BorderedBox - draws borders around children
-def render(self, width):
-    lines = []
-    lines.append(top_border)
-    for child in self.children:
-        for line in child.render(content_width):
-            lines.append(side_border + line + side_border)
-    lines.append(bottom_border)
-    return lines
-```
-
-The parent component controls how children are embedded. Position tracking records where each component appears in the final output.
-
 ### Terminal Resize
 
 ```python
@@ -577,7 +466,7 @@ The TUI maintains a virtual canvas that can exceed terminal height. When content
 ```python
 self._max_lines_rendered: int = 0  # Maximum lines ever rendered
 self._previous_lines: list[str] = []  # Last frame's rendered lines
-self._hardware_cursor_row: int = 0  # Virtual cursor position
+self._first_visible_row_previous: int = 0  # First visible row from last frame
 ```
 
 **First Visible Row Calculation**:
@@ -590,84 +479,49 @@ def _calculate_first_visible_row(self, term_height: int) -> int:
 Example: If `_max_lines_rendered=100` and `term_height=24`:
 - Returns 76 (lines 0-75 in scrollback, lines 76-99 visible)
 
-**Content Growth** (`_handle_content_growth`):
-
-When content grows from 20 to 25 lines in a 24-row terminal:
-1. Detects `current_count > previous_count`
-2. Emits newlines to scroll the terminal
-3. Updates `_hardware_cursor_row` to bottom
-
 **Scrollback Immutability**:
 
-Lines in scrollback cannot be updated after scrolling. From `test_scrollback.py`:
-
-```python
-def test_scrollback_lines_frozen(self):
-    # Modify line 2 (in scrollback)
-    # Assert: modification does NOT appear in output
-    assert "MODIFIED Line 2" not in output
-```
+Lines in scrollback cannot be updated after scrolling. Once a line scrolls off the top of the visible terminal, it's frozen in the terminal's native scrollback buffer.
 
 ### Differential Rendering
 
-The renderer compares current frame against `_previous_lines` to update only changed lines.
+The renderer compares what's at each **screen position** (not content index) to detect changes. When `first_visible` shifts (content grows/shrinks), all visible rows are redrawn since their positions changed.
 
 **Line Comparison** (`_render_changed_lines`):
 
 ```python
-# For content fitting in terminal:
-for i, line in enumerate(lines):
-    if i >= len(prev) or prev[i] != line:
-        buffer += self._move_cursor_relative(i)
-        buffer += "\r\x1b[2K"  # Clear line
-        buffer += line
+# Calculate what content is currently visible
+if current_count > term_height:
+    first_visible = current_count - term_height
+else:
+    first_visible = 0
 
-# For content exceeding terminal:
-first_visible = current_count - term_height
-for screen_row in range(term_height):
+# If first_visible changed, the entire viewport shifted
+viewport_shifted = (first_visible != self._first_visible_row_previous)
+
+for screen_row in range(min(term_height, current_count)):
     content_row = first_visible + screen_row
-    if content_row >= len(prev) or prev[content_row] != lines[content_row]:
-        # Update only visible portion
-```
-
-**Shrink Handling**:
-
-When content shrinks (`clear_on_shrink=True`):
-```python
-if current_count < previous_count:
-    for i in range(current_count, previous_count):
-        buffer += self._move_cursor_relative(i)
-        buffer += "\r\x1b[2K"  # Clear orphaned lines
-```
-
-### Relative Cursor Movement
-
-The renderer uses relative positioning (`\x1b[nA`/`\x1b[nB`) instead of absolute (`\x1b[row;colH`). This allows content to flow into scrollback.
-
-**Movement Logic** (`_move_cursor_relative`):
-
-```python
-def _move_cursor_relative(self, target_row: int) -> str:
-    delta = target_row - self._hardware_cursor_row
-    if delta == 0:
-        return ""
-    if delta > 0:
-        self._hardware_cursor_row = target_row
-        return self.terminal.move_cursor_down(delta)  # "\x1b[nB"
+    
+    if viewport_shifted:
+        needs_update = True
     else:
-        self._hardware_cursor_row = target_row
-        return self.terminal.move_cursor_up(-delta)   # "\x1b[nA"
+        # Compare content at this position
+        needs_update = self._previous_lines[content_row] != lines[content_row]
+    
+    if needs_update:
+        # Absolute positioning: \x1b[row;colH (1-indexed)
+        buffer += f"\x1b[{screen_row + 1};1H"
+        buffer += "\x1b[2K"
+        buffer += lines[content_row]
+
+# Clear any orphaned screen rows (content shrank)
+if current_count < term_height:
+    for screen_row in range(current_count, term_height):
+        buffer += f"\x1b[{screen_row + 1};1H"
+        buffer += "\x1b[2K"
 ```
 
-**Terminal Methods** (`terminal.py`):
-
-```python
-def move_cursor_up(self, n: int = 1) -> str:
-    if n <= 0:
-        return ""
-    return f"\x1b[{n}A"
-
-def move_cursor_down(self, n: int = 1) -> str:
+**Key Insight**: We compare screen positions, not content indices. When content grows and `first_visible` shifts from 0 to 2, content that was at screen row 0 is now at screen row 2. The old approach (comparing content indices) would miss this shift, leaving stale content on screen.
     if n <= 0:
         return ""
     return f"\x1b[{n}B"
@@ -724,9 +578,8 @@ On terminal resize, clears both screen and scrollback to prevent corrupted outpu
 def _check_resize(self, term_width: int, term_height: int) -> None:
     if (term_width, term_height) != self._last_terminal_size:
         self._previous_lines = []
-        self._hardware_cursor_row = -1
+        self._first_visible_row_previous = 0
         self.terminal.write("\x1b[2J\x1b[3J\x1b[H")  # Clear screen + scrollback
-        self.invalidate()
 ```
 
 ### Hardware Cursor Positioning
@@ -758,17 +611,16 @@ self.terminal.show_cursor()
 Complete `render_frame()` sequence:
 
 1. Check `_force_full_redraw` → clear screen if needed
-2. `_check_resize()` → invalidate on size change
+2. `_check_resize()` → reset state on size change
 3. `render(term_width)` → get base lines from children
 4. `_calculate_first_visible_row()` → determine scrollback offset
 5. `_composite_overlays()` → overlay content onto base
 6. `_apply_line_resets()` → append reset to each line
 7. `_extract_cursor_position()` → find and strip cursor marker
 8. `_begin_sync()` → start buffered output
-9. `_handle_content_growth()` → emit newlines if content grew
-10. `_render_changed_lines()` → differential update
-11. `_end_sync()` → flush buffered output
-12. `_position_hardware_cursor_relative()` → place IME cursor
+9. `_render_changed_lines()` → differential update using absolute positioning
+10. `_end_sync()` → flush buffered output
+11. `_position_hardware_cursor_relative()` → place IME cursor
 
 ---
 
@@ -849,23 +701,12 @@ from pypitui.rich_components import rich_to_ansi, rich_color_to_ansi
 | `render_frame()` | Render current frame |
 | `run()` | Built-in main loop (~60fps) |
 | `start()` / `stop()` | Enter/exit TUI mode |
-| `invalidate_component(component)` | Targeted invalidation of specific component |
-
-### Component Methods
-
-| Method | Description |
-|--------|-------------|
-| `render(width) -> list[str]` | Render component to lines |
-| `invalidate()` | Clear local cache, bubble up for targeted invalidation |
-| `handle_input(data)` | Handle keyboard input (optional) |
-| `_child_invalidated(child)` | Bubble-up handler (usually don't override) |
 
 ### Component Interface
 
 | Method | Description |
 |--------|-------------|
 | `render(width) -> list[str]` | Render to lines |
-| `invalidate()` | Clear cache |
 | `handle_input(data)` | Handle input (optional) |
 | `wants_key_release` | Receive Kitty release events |
 
@@ -887,6 +728,70 @@ from pypitui.rich_components import rich_to_ansi, rich_color_to_ansi
 | `EVENT_RELEASE` | `"release"` | Key release event |
 | `EVENT_REPEAT` | `"repeat"` | Key repeat event |
 | `ANSI_RESET` | `"\x1b[0m"` | ANSI reset code |
+
+---
+
+## Rendering Control Flow
+
+### TUI Main Loop
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TUI MAIN LOOP                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  while running:                                                              │
+│      1. Read terminal input (terminal.read_sequence)                        │
+│      2. Handle input (tui.handle_input → component.handle_input)            │
+│      3. tui.request_render()                                                │
+│      4. tui.render_frame()                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### render_frame() Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      render_frame() FLOW                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+            ┌─────────────────────────────────────────┐
+            │  base_lines = self.render(term_width)   │
+            └─────────────────────────────────────────┘
+                                    │
+                                    ▼
+        ┌─────────────────────────────────────────────────────────┐
+        │  FOR EACH child in children:                            │
+        │    component_lines = child.render(width)                 │
+        │    lines.extend(component_lines)                          │
+        └─────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    lines = _composite_overlays(base_lines, ...)                             │
+│    lines = _apply_line_resets(lines)                                         │
+│    cursor_pos = _extract_cursor_position(lines)                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              DIFFERENTIAL RENDERING: _render_changed_lines()                │
+│                                                                              │
+│    Compare current lines vs _previous_lines                                  │
+│    Update only changed lines                                                 │
+│    Clear orphaned lines if content shrank                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    buffer = _begin_sync() + changes + _end_sync()                           │
+│    terminal.write(buffer)                                                    │
+│    _previous_lines = lines  (save for next frame)                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 

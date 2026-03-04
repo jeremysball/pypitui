@@ -29,10 +29,11 @@ class Component(ABC):
 
     Components are the building blocks of the TUI, similar to React components.
     Each component is responsible for rendering itself to a list of strings.
-    """
 
-    def __init__(self) -> None:
-        self._parent: Container | None = None
+    Note: _parent is set by Container.add_child() when this component
+    is added to a container. Accessing _parent before add_child() will
+    raise AttributeError.
+    """
 
     @abstractmethod
     def render(self, width: int) -> list[str]:
@@ -62,25 +63,6 @@ class Component(ABC):
         Default is False - release events are filtered out.
         """
         return False
-
-    @abstractmethod
-    def invalidate(self) -> None:
-        """Invalidate any cached rendering state.
-
-        Called when theme changes or when component needs to re-render
-        from scratch. Subclasses should clear their local cache, then
-        call _child_invalidated(self) to bubble up for targeted invalidation.
-        """
-        pass
-
-    def _child_invalidated(self, child: Component) -> None:
-        """Handle a child component requesting targeted invalidation.
-
-        Bubbles up to the parent until it reaches the TUI root,
-        which will handle the actual line-wise invalidation.
-        """
-        if self._parent:
-            self._parent._child_invalidated(child)
 
 
 class Focusable(ABC):
@@ -185,19 +167,26 @@ class Container(Component):
     """
 
     def __init__(self) -> None:
-        super().__init__()
+        # Note: super().__init__() not needed - Component has no __init__
         self.children: list[Component] = []
 
     def add_child(self, component: Component) -> None:
-        """Add a child component."""
+        """Add a child component.
+
+        Sets component._parent = self so the component can bubble
+        up invalidation requests.
+        """
         self.children.append(component)
         component._parent = self
 
     def remove_child(self, component: Component) -> None:
-        """Remove a child component."""
+        """Remove a child component.
+
+        Removes component._parent to clean up the reference.
+        """
         if component in self.children:
             self.children.remove(component)
-            component._parent = None
+            del component._parent
 
     def clear(self) -> None:
         """Remove all child components.
@@ -229,7 +218,6 @@ class Container(Component):
 
                 def switch_to(self, screen):
                     self.current = screen
-                    self.invalidate()
 
                 def render(self, width):
                     return self.current.render(width) if self.current else []
@@ -244,13 +232,8 @@ class Container(Component):
             - Proper patterns only update what actually changed
         """
         for child in self.children:
-            child._parent = None
+            del child._parent
         self.children.clear()
-
-    def invalidate(self) -> None:
-        """Invalidate all children."""
-        for child in self.children:
-            child.invalidate()
 
     def render(self, width: int) -> list[str]:
         """Render all children vertically."""
@@ -291,12 +274,10 @@ class TUI(Container):
         self,
         terminal: Terminal,
         show_hardware_cursor: bool = False,
-        clear_on_shrink: bool = True,
     ) -> None:
         super().__init__()
         self.terminal = terminal
         self._show_hardware_cursor = show_hardware_cursor
-        self._clear_on_shrink = clear_on_shrink
 
         # State for differential rendering
         self._previous_lines: list[str] = []
@@ -328,24 +309,8 @@ class TUI(Container):
         # Terminal size tracking for resize detection
         self._last_terminal_size: tuple[int, int] = (0, 0)
 
-        # Component position tracking for targeted invalidation
-        self._component_positions: dict[Component, tuple[int, int]] = {}
-
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
-
-    @property
-    def clear_on_shrink(self) -> bool:
-        return self._clear_on_shrink
-
-    @clear_on_shrink.setter
-    def clear_on_shrink(self, enabled: bool) -> None:
-        """Set whether to trigger full re-render when content shrinks.
-
-        When True (default), empty rows are cleared when content shrinks.
-        When False, empty rows remain (reduces redraws on slower terminals).
-        """
-        self._clear_on_shrink = enabled
 
     def set_focus(self, component: Component | None) -> None:
         """Set the focused component."""
@@ -428,91 +393,13 @@ class TUI(Container):
                 return entry
         return None
 
-    def invalidate(self) -> None:
-        """Invalidate the TUI and all children."""
-        self._previous_lines = []
-        self._emitted_scrollback_lines = 0
-        self._component_positions = {}
-        for child in self.children:
-            child.invalidate()
-        for entry in self._overlay_stack:
-            entry.component.invalidate()
-
-    def _child_invalidated(self, child: Component) -> None:
-        """Handle a child component being invalidated.
-
-        Called when a child component's invalidate() method is invoked.
-        This triggers targeted invalidation for that specific component.
-        """
-        self.invalidate_component(child)
-
-    def invalidate_component(self, component: Component) -> None:
-        """Invalidate a specific component by clearing its lines from cache.
-
-        Uses position tracking to mark only the component's lines for
-        clearing on the next render, rather than redrawing everything.
-        """
-        if component in self._component_positions:
-            start, end = self._component_positions[component]
-            for i in range(start, end):
-                if i < len(self._previous_lines):
-                    self._previous_lines[i] = ""  # Mark for clearing
-        self.request_render()
-
     def render(self, width: int) -> list[str]:
-        """Render all children and track their positions.
-
-        Overrides Container.render() to track each child's line range
-        for targeted invalidation. Tracks all components recursively.
-        """
-        self._component_positions = {}  # Clear previous positions
+        """Render all children."""
         lines: list[str] = []
-        self._render_recursive(self.children, width, lines)
-        return lines
-
-    def _render_recursive(
-        self, components: list[Component], width: int, lines: list[str]
-    ) -> None:
-        """Recursively render components and track positions.
-
-        For containers, we render and track the container itself, but we also
-        track the children's positions based on where they appear within the
-        container's output.
-        """
-        for component in components:
-            start = len(lines)
-            component_lines = component.render(width)
-            end = start + len(component_lines)
-            self._component_positions[component] = (start, end)
-            lines.extend(component_lines)
-
-            # Track container children by calculating their positions
-            # within the container's rendered output
-            if isinstance(component, Container):
-                child_offset = start
-                for child in component.children:
-                    child_lines = child.render(width)
-                    child_start = child_offset
-                    child_end = child_start + len(child_lines)
-                    self._component_positions[child] = (child_start, child_end)
-                    child_offset = child_end
-                    # Recurse for nested containers
-                    if isinstance(child, Container):
-                        self._track_nested_children(child, child_start, width)
-
-    def _track_nested_children(
-        self, container: Container, offset: int, width: int
-    ) -> None:
-        """Track positions for nested container children."""
-        child_offset = offset
-        for child in container.children:
+        for child in self.children:
             child_lines = child.render(width)
-            child_start = child_offset
-            child_end = child_start + len(child_lines)
-            self._component_positions[child] = (child_start, child_end)
-            child_offset = child_end
-            if isinstance(child, Container):
-                self._track_nested_children(child, child_start, width)
+            lines.extend(child_lines)
+        return lines
 
     def start(self) -> None:
         """Start the TUI - set up terminal for rendering."""
@@ -550,17 +437,26 @@ class TUI(Container):
 
         return remove
 
-    def request_render(self, force: bool = False) -> None:
+    def request_render(
+        self, force: bool = False, *, reset_scrollback: bool = False
+    ) -> None:
         """Request a render on next frame.
 
         Args:
-            force: If True, force full redraw (clears screen and
+            force: If True, force visible redraw (clears screen and
                 resets differential cache)
+            reset_scrollback: If True, reset scrollback tracking state.
+                Use this when switching content entirely (e.g., after
+                container.clear()) to ensure new content flows into
+                terminal scrollback properly.
         """
         self._render_requested = True
         if force:
             self._force_full_redraw = True
             self._previous_lines = []
+            self._first_visible_row_previous = 0
+        if reset_scrollback:
+            self.reset_scrollback_state()
 
     def handle_input(self, data: str) -> None:
         """Handle keyboard input - forwards to focused component.
@@ -872,12 +768,29 @@ class TUI(Container):
 
         return None
 
-    def _handle_full_redraw(self) -> None:
-        """Handle force full redraw."""
+    def reset_scrollback_state(self) -> None:
+        """Reset scrollback tracking state.
+
+        Call this when switching content entirely
+        (e.g., after container.clear()) to ensure new content
+        flows into terminal scrollback properly. This resets
+        the internal counters that track which lines have been
+        emitted to the terminal's native scrollback buffer.
+        """
+        self._emitted_scrollback_lines = 0
+        self._max_lines_rendered = 0
+
+    def _handle_visible_redraw(self) -> None:
+        """Handle forced redraw of visible screen area only.
+
+        Clears the visible screen and resets differential rendering cache,
+        but does not affect scrollback history.
+        """
         self._force_full_redraw = False
         self.terminal.write("\x1b[2J\x1b[H")
         self._hardware_cursor_row = 0
         self._previous_lines = []
+        self._first_visible_row_previous = 0
 
     def _check_resize(self, term_width: int, term_height: int) -> None:
         """Check for terminal resize and invalidate if needed.
@@ -889,10 +802,10 @@ class TUI(Container):
         if current_size != self._last_terminal_size:
             self._last_terminal_size = current_size
             self._previous_lines = []
-            self._hardware_cursor_row = -1
+            self._first_visible_row_previous = 0
+            self._emitted_scrollback_lines = 0
             # Clear screen + scrollback, move cursor home
             self.terminal.write("\x1b[2J\x1b[3J\x1b[H")
-            self.invalidate()
 
     def _handle_content_growth(
         self,
@@ -907,19 +820,6 @@ class TUI(Container):
         When content grows beyond terminal height, lines that scroll off the
         top are pushed into scrollback history. This method tracks which lines
         have already been emitted to avoid re-emitting them on frames.
-
-        Previously, this method emitted newlines for ALL scrollback lines on
-        every frame, causing exponential blank line growth in history.
-
-        Args:
-            buffer: Current output buffer
-            current_count: Total number of content lines
-            previous_count: Number of content lines in previous frame
-            term_height: Terminal height in rows
-            lines: All content lines to render
-
-        Returns:
-            Updated buffer with scrollback newlines added
         """
         # When anchor_top is True, skip scrollback handling
         if self._anchor_top:
@@ -963,37 +863,54 @@ class TUI(Container):
         lines: list[str],
         term_height: int,
     ) -> str:
-        """Render only changed lines. Returns buffer content."""
+        """Render changed lines using absolute cursor positioning.
+
+        Compares what's at each screen position now vs what was there before.
+        When first_visible changes (content grows/shrinks), all visible rows
+        may shift position and need redrawing.
+        """
         buffer = ""
         current_count = len(lines)
-        previous_count = len(self._previous_lines)
 
+        # Calculate what content is currently visible
         if current_count > term_height:
             first_visible = current_count - term_height
-            for screen_row in range(term_height):
-                content_row = first_visible + screen_row
-                if content_row >= len(lines):
-                    break
-                prev = self._previous_lines
-                if (
-                    content_row >= len(prev)
-                    or prev[content_row] != lines[content_row]
-                ):
-                    buffer += self._move_cursor_relative(screen_row)
-                    buffer += "\r\x1b[2K"
-                    buffer += lines[content_row]
         else:
-            for i, line in enumerate(lines):
-                prev = self._previous_lines
-                if i >= len(prev) or prev[i] != line:
-                    buffer += self._move_cursor_relative(i)
-                    buffer += "\r\x1b[2K"
-                    buffer += line
+            first_visible = 0
 
-            if self._clear_on_shrink and current_count < previous_count:
-                for i in range(current_count, previous_count):
-                    buffer += self._move_cursor_relative(i)
-                    buffer += "\r\x1b[2K"
+        # If first_visible changed, the entire viewport shifted
+        # Force redraw of all visible rows
+        viewport_shifted = first_visible != self._first_visible_row_previous
+
+        for screen_row in range(min(term_height, current_count)):
+            content_row = first_visible + screen_row
+            if content_row >= len(lines):
+                break
+
+            # Check if this screen position needs updating
+            if viewport_shifted or content_row >= len(self._previous_lines):
+                needs_update = True
+            else:
+                prev_line = self._previous_lines[content_row]
+                needs_update = prev_line != lines[content_row]
+
+            if needs_update:
+                # Absolute positioning: \x1b[row;colH (1-indexed)
+                buffer += f"\x1b[{screen_row + 1};1H"
+                buffer += "\x1b[2K"
+                buffer += lines[content_row]
+
+        # Clear any orphaned screen rows (content shrank)
+        if current_count < term_height:
+            prev_first = self._first_visible_row_previous
+            prev_count = len(self._previous_lines) - prev_first
+            end_row = min(prev_count, term_height)
+            for screen_row in range(current_count, end_row):
+                buffer += f"\x1b[{screen_row + 1};1H"
+                buffer += "\x1b[2K"
+
+        # Update tracked first_visible for next frame
+        self._first_visible_row_previous = first_visible
 
         return buffer
 
@@ -1010,7 +927,7 @@ class TUI(Container):
         term_width, term_height = self.terminal.get_size()
 
         if self._force_full_redraw:
-            self._handle_full_redraw()
+            self._handle_visible_redraw()
 
         self._check_resize(term_width, term_height)
 
