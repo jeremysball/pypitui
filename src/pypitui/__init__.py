@@ -25,7 +25,6 @@ from .keys import (
 )
 from .terminal import MockTerminal, ProcessTerminal, Terminal
 from .tui import (
-    CURSOR_MARKER,
     FRAME_TIME,
     TUI,
     Component,
@@ -46,7 +45,6 @@ from .utils import (
 )
 
 __all__ = [
-    "CURSOR_MARKER",
     "EVENT_PRESS",
     "EVENT_RELEASE",
     "EVENT_REPEAT",

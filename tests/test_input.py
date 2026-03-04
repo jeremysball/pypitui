@@ -1,6 +1,6 @@
 """Tests for Input component - ported from pi-tui."""
 
-from pypitui import CURSOR_MARKER, Input
+from pypitui import Input
 
 
 class TestInputComponent:
@@ -177,22 +177,24 @@ class TestInputComponent:
         assert "secret" not in lines[0]
         assert "******" in lines[0]
 
-    def test_focused_shows_cursor(self):
-        """Focused input shows cursor marker."""
+    def test_focused_shows_cursor_reverse_video(self):
+        """Focused input shows cursor with reverse video."""
         input_cmp = Input()
         input_cmp.handle_input("h")
         input_cmp.handle_input("i")
         input_cmp.focused = True
 
         lines = input_cmp.render(20)
-        assert CURSOR_MARKER in lines[0]
+        # Should have reverse video escape code for cursor
+        assert "\x1b[7m" in lines[0]
 
-    def test_not_focused_no_cursor_marker(self):
-        """Not focused input has no cursor marker."""
+    def test_not_focused_no_reverse_video_cursor(self):
+        """Not focused input has no reverse video cursor."""
         input_cmp = Input()
         input_cmp.handle_input("h")
         input_cmp.handle_input("i")
         input_cmp.focused = False
 
         lines = input_cmp.render(20)
-        assert CURSOR_MARKER not in lines[0]
+        # Should not have reverse video escape code
+        assert "\x1b[7m" not in lines[0]

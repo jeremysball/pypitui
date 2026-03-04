@@ -1,7 +1,6 @@
 """Comprehensive tests for PyPiTUI library."""
 
 from pypitui import (
-    CURSOR_MARKER,
     TUI,
     Box,
     Container,
@@ -90,10 +89,10 @@ def test_input_component():
     input_cmp.handle_input("o")
     assert input_cmp.get_value() == "hello"
 
-    # When focused, cursor marker is present
+    # When focused, cursor shows reverse video
     input_cmp.focused = True
     lines = input_cmp.render(30)
-    assert CURSOR_MARKER in lines[0]
+    assert "\x1b[7m" in lines[0]  # Reverse video for cursor
 
 
 def test_container():

@@ -67,30 +67,6 @@ class Terminal(ABC):
         """Restore terminal to original mode."""
         pass
 
-    @abstractmethod
-    def move_cursor_up(self, n: int = 1) -> str:
-        """Return escape sequence to move cursor up n lines.
-
-        Args:
-            n: Number of lines to move up (default 1)
-
-        Returns:
-            Escape sequence: "\\x1b[nA"
-        """
-        pass
-
-    @abstractmethod
-    def move_cursor_down(self, n: int = 1) -> str:
-        """Return escape sequence to move cursor down n lines.
-
-        Args:
-            n: Number of lines to move down (default 1)
-
-        Returns:
-            Escape sequence: "\\x1b[nB"
-        """
-        pass
-
 
 class ProcessTerminal(Terminal):
     """Terminal implementation for actual process stdin/stdout."""
@@ -237,18 +213,6 @@ class ProcessTerminal(Terminal):
         except termios.error:
             pass
 
-    def move_cursor_up(self, n: int = 1) -> str:
-        """Return escape sequence to move cursor up n lines."""
-        if n <= 0:
-            return ""
-        return f"\x1b[{n}A"
-
-    def move_cursor_down(self, n: int = 1) -> str:
-        """Return escape sequence to move cursor down n lines."""
-        if n <= 0:
-            return ""
-        return f"\x1b[{n}B"
-
 
 class MockTerminal(Terminal):
     """Mock terminal for testing."""
@@ -302,18 +266,6 @@ class MockTerminal(Terminal):
     def restore_mode(self) -> None:
         """Restore mode."""
         pass
-
-    def move_cursor_up(self, n: int = 1) -> str:
-        """Return escape sequence to move cursor up n lines."""
-        if n <= 0:
-            return ""
-        return f"\x1b[{n}A"
-
-    def move_cursor_down(self, n: int = 1) -> str:
-        """Return escape sequence to move cursor down n lines."""
-        if n <= 0:
-            return ""
-        return f"\x1b[{n}B"
 
     def queue_input(self, data: str) -> None:
         """Queue input data for testing."""

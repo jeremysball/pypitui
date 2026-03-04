@@ -149,7 +149,7 @@ class DemoApp:
 
     def __init__(self):
         self.terminal = ProcessTerminal()
-        self.tui = TUI(self.terminal, show_hardware_cursor=True)
+        self.tui = TUI(self.terminal)
 
         # ✅ CORRECT PATTERN: Root container for screen switching
         # We clear THIS container, not the TUI
@@ -972,7 +972,7 @@ class DemoApp:
         )
         self.root.add_child(
             RichText(
-                f"  • [{t.primary}]Relative cursor movement[/{t.primary}]"
+                f"  • [{t.primary}]Scrollback buffer support[/{t.primary}]"
             )
         )
         self.root.add_child(

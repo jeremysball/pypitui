@@ -838,9 +838,8 @@ class TUI(Container):
             # No new scrollback lines to emit
             return buffer
 
-        # Ensure cursor is at bottom of screen
-        if self._hardware_cursor_row < term_height - 1:
-            buffer += self._move_cursor_relative(term_height - 1)
+        # Move cursor to bottom of screen using absolute positioning
+        buffer += f"\x1b[{term_height};1H"
 
         # Emit only the NEW scrollback lines
         for i in range(new_scrollback_start, first_visible):
@@ -853,7 +852,6 @@ class TUI(Container):
                 buffer += lines[i]
             buffer += "\r\n"
 
-        self._hardware_cursor_row = term_height - 1
         self._emitted_scrollback_lines = first_visible
 
         return buffer
@@ -915,10 +913,9 @@ class TUI(Container):
         return buffer
 
     def render_frame(self) -> None:
-        """Render a single frame using relative cursor positioning.
+        """Render a single frame using absolute cursor positioning.
 
-        Uses synchronized output (DEC 2026) and relative cursor movement
-        to enable scrollback buffer support.
+        Uses synchronized output (DEC 2026) to prevent flickering.
         """
         if self._stopped:
             return
@@ -938,14 +935,7 @@ class TUI(Container):
         )
         lines = self._apply_line_resets(lines)
 
-        cursor_pos = self._extract_cursor_position(lines, term_height)
-        lines = [line.replace(CURSOR_MARKER, "") for line in lines]
-
         buffer = self._begin_sync()
-
-        if self._hardware_cursor_row < 0:
-            buffer += "\x1b[H"
-            self._hardware_cursor_row = 0
 
         previous_count = len(self._previous_lines)
         current_count = len(lines)
@@ -958,49 +948,9 @@ class TUI(Container):
         buffer += self._end_sync()
         self.terminal.write(buffer)
 
-        self._position_hardware_cursor_relative(cursor_pos, len(lines))
-
         self._previous_lines = lines
         self._previous_width = term_width
         self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
-
-    def _position_hardware_cursor_relative(
-        self, cursor_pos: tuple[int, int] | None, total_lines: int
-    ) -> None:
-        """Position the hardware cursor for IME candidate window.
-
-        Uses relative positioning. Always positions cursor correctly
-        even when hidden (needed for proper input handling).
-        """
-        _, term_height = self.terminal.get_size()
-
-        if cursor_pos:
-            row, col = cursor_pos
-            if row < total_lines:
-                # Convert absolute row to screen row when content
-                # exceeds terminal height
-                if total_lines > term_height:
-                    screen_row = row - (total_lines - term_height)
-                    if screen_row < 0 or screen_row >= term_height:
-                        # Cursor is in scrollback area, hide it
-                        self.terminal.hide_cursor()
-                        return
-                else:
-                    screen_row = row
-
-                # Move to cursor row using relative positioning
-                self.terminal.write(self._move_cursor_relative(screen_row))
-                # Move to column (absolute column, relative row)
-                self.terminal.write(f"\r\x1b[{col}C")
-                # Update hardware cursor row to screen position
-                self._hardware_cursor_row = screen_row
-                if self._show_hardware_cursor:
-                    self.terminal.show_cursor()
-                else:
-                    self.terminal.hide_cursor()
-                return
-
-        self.terminal.hide_cursor()
 
     def _calculate_first_visible_row(self, term_height: int) -> int:
         """Calculate which line in the scrollback buffer is at the top.
@@ -1046,40 +996,6 @@ class TUI(Container):
             Escape sequence to end synchronized output: "\\x1b[?2026l"
         """
         return "\x1b[?2026l"
-
-    def _move_cursor_relative(self, target_row: int) -> str:
-        """Generate escape sequence to move cursor relative.
-
-        Uses relative cursor movement (\x1b[nA/B) instead of absolute
-        positioning. This allows content to flow into the terminal's
-        scrollback buffer.
-
-        Args:
-            target_row: The row to move to (0-indexed in virtual canvas)
-
-        Returns:
-            Escape sequence to move cursor, or empty string if already
-            at target.
-            target.
-
-        Example:
-            If cursor is at row 5 and target is row 8:
-            - Returns "\\x1b[3B" (move down 3 lines)
-            - Updates _hardware_cursor_row to 8
-        """
-        delta = target_row - self._hardware_cursor_row
-
-        if delta == 0:
-            return ""
-
-        if delta > 0:
-            # Move cursor down
-            self._hardware_cursor_row = target_row
-            return self.terminal.move_cursor_down(delta)
-        else:
-            # Move cursor up (negative delta)
-            self._hardware_cursor_row = target_row
-            return self.terminal.move_cursor_up(-delta)
 
     def run_frame(self) -> bool:
         """Run a single frame - process input and render.

@@ -28,9 +28,6 @@ from .terminal import MockTerminal as MockTerminal
 from .terminal import ProcessTerminal as ProcessTerminal
 from .terminal import Terminal as Terminal
 from .tui import (
-    CURSOR_MARKER as CURSOR_MARKER,
-)
-from .tui import (
     TUI as TUI,
 )
 from .tui import (
