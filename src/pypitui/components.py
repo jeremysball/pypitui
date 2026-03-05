@@ -37,10 +37,10 @@ class Text(Component):
         custom_bg_fn: Callable[[str], str] | None = None,
     ) -> None:
         super().__init__()
-        self._text = text
-        self._padding_x = padding_x
-        self._padding_y = padding_y
-        self._custom_bg_fn = custom_bg_fn
+        self._text: str = text
+        self._padding_x: int = padding_x
+        self._padding_y: int = padding_y
+        self._custom_bg_fn: Callable[[str], str] | None = custom_bg_fn
         self._cached_text: str | None = None
         self._cached_width: int | None = None
         self._cached_lines: list[str] | None = None
@@ -127,9 +127,9 @@ class Box(Component):
     ) -> None:
         super().__init__()
         self.children: list[Component] = []
-        self._padding_x = padding_x
-        self._padding_y = padding_y
-        self._bg_fn = bg_fn
+        self._padding_x: int = padding_x
+        self._padding_y: int = padding_y
+        self._bg_fn: Callable[[str], str] | None = bg_fn
         self._cache: tuple[int, list[str]] | None = None
 
     def add_child(self, component: Component) -> None:
@@ -242,11 +242,11 @@ class BorderedBox(Component):
             title: Optional title to display in the top border
         """
         self.children: list[Component] = []
-        self._padding_x = padding_x
-        self._padding_y = padding_y
-        self._min_width = min_width
-        self._max_width = max_width
-        self._title = title
+        self._padding_x: int = padding_x
+        self._padding_y: int = padding_y
+        self._min_width: int = min_width
+        self._max_width: int | None = max_width
+        self._title: str | None = title
         self._cache: tuple[int, list[str]] | None = None
 
     def set_title(self, title: str) -> None:
@@ -456,9 +456,9 @@ class Spacer(Component):
 
     def __init__(self, height: int = 1) -> None:
         super().__init__()
-        self._height = height
+        self._height: int = height
 
-    def render(self, _width: int) -> list[str]:
+    def render(self, width: int) -> list[str]:  # noqa: ARG002
         """Render empty lines."""
         return [""] * self._height
 
@@ -490,13 +490,13 @@ class SelectList(Component):
         self, items: list[SelectItem], max_visible: int, theme: SelectListTheme
     ) -> None:
         super().__init__()
-        self._items = items
-        self._filtered_items = list(items)
-        self._selected_index = 0
-        self._max_visible = max_visible
-        self._theme = theme
-        self._scroll_offset = 0
-        self._filter = ""
+        self._items: list[SelectItem] = items
+        self._filtered_items: list[SelectItem] = list(items)
+        self._selected_index: int = 0
+        self._max_visible: int = max_visible
+        self._theme: SelectListTheme = theme
+        self._scroll_offset: int = 0
+        self._filter: str = ""
 
         self.on_select: Callable[[SelectItem], None] | None = None
         self.on_cancel: Callable[[], None] | None = None
@@ -660,12 +660,12 @@ class Input(Component, Focusable):
         max_length: int | None = None,
     ) -> None:
         super().__init__()
-        self._text = ""
-        self._placeholder = placeholder
-        self._password = password
-        self._max_length = max_length
-        self._cursor_pos = 0
-        self._focused = False
+        self._text: str = ""
+        self._placeholder: str = placeholder
+        self._password: bool = password
+        self._max_length: int | None = max_length
+        self._cursor_pos: int = 0
+        self._focused: bool = False
         # Callbacks
         self.on_submit: Callable[[str], None] | None = None
         self.on_cancel: Callable[[], None] | None = None

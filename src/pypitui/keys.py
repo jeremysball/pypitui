@@ -11,6 +11,19 @@ See: https://sw.kovidgoyal.net/kitty/keyboard-protocol/
 from __future__ import annotations
 
 import re
+from typing import Final
+
+__all__ = [
+    "EVENT_PRESS",
+    "EVENT_RELEASE",
+    "EVENT_REPEAT",
+    "Key",
+    "is_kitty_protocol_active",
+    "matches_key",
+    "parse_key",
+    "set_kitty_protocol_active",
+]
+
 
 # Global Kitty protocol state
 _kitty_protocol_active: bool = False
@@ -28,9 +41,9 @@ def is_kitty_protocol_active() -> bool:
 
 
 # Event type constants for Kitty protocol
-EVENT_PRESS = "press"
-EVENT_REPEAT = "repeat"
-EVENT_RELEASE = "release"
+EVENT_PRESS: Final = "press"
+EVENT_REPEAT: Final = "repeat"
+EVENT_RELEASE: Final = "release"
 
 
 # Key type definitions

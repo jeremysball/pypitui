@@ -6,6 +6,8 @@ This is an optional component that requires the 'rich' extra:
 
 from __future__ import annotations
 
+from typing import Literal
+
 from .tui import Component
 from .utils import visible_width
 
@@ -72,6 +74,7 @@ class Markdown(Component):
         width: int | None = None,
         code_theme: str = "monokai",
     ) -> None:
+        super().__init__()
         """Initialize Markdown component.
 
         Args:
@@ -81,11 +84,11 @@ class Markdown(Component):
             width: Fixed width (None = use render width)
             code_theme: Pygments theme for code blocks
         """
-        self._text = text
-        self._padding_x = padding_x
-        self._padding_y = padding_y
-        self._width = width
-        self._code_theme = code_theme
+        self._text: str = text
+        self._padding_x: int = padding_x
+        self._padding_y: int = padding_y
+        self._width: int | None = width
+        self._code_theme: str = code_theme
         self._cache: tuple[int, list[str]] | None = None
 
     def set_text(self, text: str) -> None:
@@ -171,9 +174,10 @@ class RichText(Component):
         padding_x: int = 0,
         padding_y: int = 0,
     ) -> None:
-        self._text = text
-        self._padding_x = padding_x
-        self._padding_y = padding_y
+        super().__init__()
+        self._text: str = text
+        self._padding_x: int = padding_x
+        self._padding_y: int = padding_y
         self._cache: tuple[int, list[str]] | None = None
 
     def set_text(self, text: str) -> None:
@@ -240,10 +244,17 @@ class RichTable(Component):
         padding_x: int = 0,
         padding_y: int = 0,
     ) -> None:
-        self._title = title
-        self._padding_x = padding_x
-        self._padding_y = padding_y
-        self._columns: list[tuple[str, str | None, str]] = []
+        super().__init__()
+        self._title: str = title
+        self._padding_x: int = padding_x
+        self._padding_y: int = padding_y
+        self._columns: list[
+            tuple[
+                str,
+                str | None,
+                Literal["default", "left", "center", "right", "full"],
+            ]
+        ] = []
         self._rows: list[tuple[str, ...]] = []
         self._cache: tuple[int, list[str]] | None = None
 
@@ -251,7 +262,9 @@ class RichTable(Component):
         self,
         name: str,
         style: str | None = None,
-        justify: str = "left",
+        justify: Literal[
+            "default", "left", "center", "right", "full"
+        ] = "left",
     ) -> None:
         """Add a column."""
         self._columns.append((name, style, justify))

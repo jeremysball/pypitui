@@ -8,14 +8,28 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeGuard
 
 from .utils import slice_by_column, visible_width
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Any
 
     from .terminal import Terminal
+
+__all__ = [
+    "CURSOR_MARKER",
+    "FRAME_TIME",
+    "TUI",
+    "Component",
+    "Container",
+    "Focusable",
+    "OverlayHandle",
+    "OverlayMargin",
+    "OverlayOptions",
+    "is_focusable",
+]
 
 # Cursor position marker - APC (Application Program Command) sequence
 CURSOR_MARKER = "\x1b_pi:c\x07"
@@ -34,6 +48,8 @@ class Component(ABC):
     is added to a container. Accessing _parent before add_child() will
     raise AttributeError.
     """
+
+    _parent: Component | None = None
 
     @abstractmethod
     def render(self, width: int) -> list[str]:
@@ -89,7 +105,9 @@ class Focusable(ABC):
         pass
 
 
-def is_focusable(component: Component | None) -> bool:
+def is_focusable(
+    component: Component | Focusable | None,
+) -> TypeGuard[Focusable]:
     """Type guard to check if a component implements Focusable."""
     return isinstance(component, Focusable)
 
@@ -157,7 +175,7 @@ class _OverlayEntry:
     options: OverlayOptions
     hidden: bool = False
     closed: bool = False
-    previous_focus: Component | None = None
+    previous_focus: Component | Focusable | None = None
 
 
 class Container(Component):
@@ -284,10 +302,12 @@ class TUI(Container):
         self._previous_width: int = 0
 
         # Focus management
-        self._focused_component: Component | None = None
+        self._focused_component: Component | Focusable | None = None
 
         # Input handling
-        self._input_listeners: list[Callable[[str], dict | None]] = []
+        self._input_listeners: list[
+            Callable[[str], dict[str, Any] | None]
+        ] = []
 
         # Rendering state
         self._render_requested = False
@@ -312,17 +332,17 @@ class TUI(Container):
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
 
-    def set_focus(self, component: Component | None) -> None:
+    def set_focus(self, component: Component | Focusable | None) -> None:
         """Set the focused component."""
         # Unfocus previous
         if self._focused_component and is_focusable(self._focused_component):
-            self._focused_component.focused = False  # type: ignore[attr-defined]
+            self._focused_component.focused = False
 
         self._focused_component = component
 
         # Focus new
         if component and is_focusable(component):
-            component.focused = True  # type: ignore[attr-defined]
+            component.focused = True
 
     def show_overlay(
         self, component: Component, options: OverlayOptions | None = None
@@ -348,8 +368,9 @@ class TUI(Container):
         # Set focus to overlay component if it's focusable
         if is_focusable(component):
             self.set_focus(component)
-        # Or if the overlay has children, try to focus the first focusable one
-        elif hasattr(component, "children"):
+        # Or if the overlay is a container, try to focus the first
+        # focusable child
+        elif isinstance(component, Container):
             for child in component.children:
                 if is_focusable(child):
                     self.set_focus(child)
@@ -426,7 +447,7 @@ class TUI(Container):
         self.terminal.restore_mode()
 
     def add_input_listener(
-        self, listener: Callable[[str], dict | None]
+        self, listener: Callable[[str], dict[str, Any] | None]
     ) -> Callable[[], None]:
         """Add an input listener. Returns a function to remove the listener."""
         self._input_listeners.append(listener)
@@ -484,8 +505,10 @@ class TUI(Container):
             return
 
         # Send to focused component
-        if self._focused_component and hasattr(
-            self._focused_component, "handle_input"
+        if (
+            self._focused_component
+            and isinstance(self._focused_component, Component)
+            and hasattr(self._focused_component, "handle_input")
         ):
             self._focused_component.handle_input(data)
 

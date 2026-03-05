@@ -63,9 +63,9 @@ jobs:
 
       - name: Generate stubs
         run: |
-          uv run stubgen src/pypitui -o src/pypitui/stubs
-          cp src/pypitui/stubs/pypitui/*.pyi src/pypitui/
-          rm -rf src/pypitui/stubs/pypitui/
+          uv run basedpyright --createstub pypitui
+          cp -r typings/pypitui/*.pyi src/pypitui/
+          rm -rf typings/
 
       - name: Build
         run: uv build

@@ -10,9 +10,14 @@ echo "Running pre-commit hooks..."
 echo "Running ruff check..."
 uv run ruff check src/
 
-# Run mypy
-echo "Running mypy..."
-uv run mypy src/
+# Run BasedPyright (warnings are acceptable; only fail on errors)
+echo "Running BasedPyright..."
+PYRIGHT_OUT=$(uv run basedpyright src/ 2>&1) || true
+echo "$PYRIGHT_OUT"
+if echo "$PYRIGHT_OUT" | grep -qE "^[1-9][0-9]* error"; then
+    echo "BasedPyright reported errors. Aborting."
+    exit 1
+fi
 
 # Run tests
 echo "Running tests..."

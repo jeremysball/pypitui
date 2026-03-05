@@ -26,13 +26,8 @@ def get_segmenter() -> object:
     """Get the shared grapheme segmenter instance."""
     global _segmenter  # noqa: PLW0603
     if _segmenter is None:
-        try:
-            import unicodedatapkg  # type: ignore  # noqa: PLC0415
-
-            _segmenter = unicodedatapkg.grapheme_cluster_break
-        except ImportError:
-            # Fallback to simple iteration
-            _segmenter = None
+        # Fallback to simple iteration if no specialized library is installed
+        _segmenter = None
     return _segmenter
 
 

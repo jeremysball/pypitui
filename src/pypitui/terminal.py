@@ -12,6 +12,7 @@ import sys
 import termios
 import tty
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class Terminal(ABC):
@@ -72,9 +73,9 @@ class ProcessTerminal(Terminal):
     """Terminal implementation for actual process stdin/stdout."""
 
     def __init__(self) -> None:
-        self._original_settings: object | None = None
-        self._is_raw = False
-        self._fd = sys.stdin.fileno()
+        self._original_settings: list[Any] | None = None
+        self._is_raw: bool = False
+        self._fd: int = sys.stdin.fileno()
 
     def write(self, data: str) -> None:
         """Write data to terminal."""
@@ -218,17 +219,17 @@ class MockTerminal(Terminal):
     """Mock terminal for testing."""
 
     def __init__(self, cols: int = 80, rows: int = 24) -> None:
-        self.cols = cols
-        self.rows = rows
+        self.cols: int = cols
+        self.rows: int = rows
         self._buffer: list[str] = []
         self._input_buffer: list[str] = []
-        self.cursor_visible = True
+        self.cursor_visible: bool = True
 
     def write(self, data: str) -> None:
         """Write data to buffer."""
         self._buffer.append(data)
 
-    def read(self, _timeout: float = 0.0) -> str | None:
+    def read(self, timeout: float = 0.0) -> str | None:  # noqa: ARG002
         """Read from input buffer."""
         if self._input_buffer:
             return self._input_buffer.pop(0)

@@ -168,4 +168,3 @@ class TestSpacer:
         assert len(lines) == 5
         for line in lines:
             assert line == ""
-
