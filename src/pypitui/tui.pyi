@@ -21,8 +21,8 @@ class Focusable(ABC, metaclass=abc.ABCMeta):
     def focused(self, value: bool) -> None: ...
 
 def is_focusable(component: Component | None) -> bool: ...
-type SizeValue = int | str
-type OverlayAnchor = str
+SizeValue = int | str
+OverlayAnchor = str
 
 @dataclass
 class OverlayMargin:

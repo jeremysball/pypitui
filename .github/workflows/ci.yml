@@ -56,8 +56,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
-      - name: MyPy
-        run: uv run mypy src
+      - name: BasedPyright
+        run: uv run basedpyright src/
 
   test:
     runs-on: ubuntu-latest
