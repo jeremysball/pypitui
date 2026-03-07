@@ -79,19 +79,8 @@ class ProcessTerminal(Terminal):
 
     def write(self, data: str) -> None:
         """Write data to terminal."""
-        import time
-        try:
-            with open("/tmp/terminal-debug.log", "a") as f:
-                f.write(f"{time.time():.3f}: write {len(data)} bytes\n")
-        except:
-            pass
         sys.stdout.write(data)
         sys.stdout.flush()
-        try:
-            with open("/tmp/terminal-debug.log", "a") as f:
-                f.write(f"{time.time():.3f}: write done\n")
-        except:
-            pass
 
     def read(self, timeout: float = 0.0) -> str | None:
         """Read a single character from terminal with optional timeout."""
@@ -142,9 +131,6 @@ class ProcessTerminal(Terminal):
         Returns:
             Complete input sequence or None
         """
-        import time
-        start_time = time.time()
-        
         if not self._is_raw:
             return None
 
@@ -156,7 +142,6 @@ class ProcessTerminal(Terminal):
                 return None
 
             data = b""
-            read_count = 0
 
             # Read bytes until we have a complete sequence
             while True:
@@ -164,7 +149,6 @@ class ProcessTerminal(Terminal):
                     break
 
                 byte = os.read(fd, 1)
-                read_count += 1
                 if not byte:
                     break
                 data += byte
@@ -172,28 +156,9 @@ class ProcessTerminal(Terminal):
                 if self._is_sequence_complete(data):
                     break
 
-                elapsed = time.time() - start_time
-                if elapsed > timeout * 2:  # Safety limit
-                    try:
-                        with open("/tmp/terminal-debug.log", "a") as f:
-                            f.write(f"{time.time():.3f}: read_sequence timeout, {read_count} bytes, {len(data)} collected\n")
-                    except:
-                        pass
-                    break
-
-            result = data.decode("utf-8", errors="replace") if data else None
-            try:
-                with open("/tmp/terminal-debug.log", "a") as f:
-                    f.write(f"{time.time():.3f}: read_sequence done, {read_count} reads, result={repr(result)}\n")
-            except:
-                pass
-            return result
+            return data.decode("utf-8", errors="replace") if data else None
         except OSError:
-            try:
-                with open("/tmp/terminal-debug.log", "a") as f:
-                    f.write(f"{time.time():.3f}: read_sequence OSError\n")
-            except:
-                pass
+            pass
         return None
 
     def get_size(self) -> tuple[int, int]:

@@ -8,39 +8,10 @@ from __future__ import annotations
 import signal
 import time
 from abc import ABC, abstractmethod
-from contextlib import suppress
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, TypeGuard
 
 from .utils import slice_by_column, visible_width
-
-
-class _DebugLogger:
-    """Simple file logger that keeps file open."""
-
-    def __init__(self, path: str) -> None:
-        self._path = path
-        self._file = Path(path).open("a")  # noqa: SIM115
-
-    def log(self, msg: str) -> None:
-        """Write message to log file."""
-        with suppress(Exception):
-            self._file.write(f"{time.time():.3f}: {msg}\n")
-            self._file.flush()
-
-    def close(self) -> None:
-        """Close log file."""
-        with suppress(Exception):
-            self._file.close()
-
-
-_debug_logger = _DebugLogger("/tmp/pypitui-debug.log")  # noqa: S108
-
-
-def _debug_log(msg: str) -> None:
-    """Write debug message to log file."""
-    _debug_logger.log(msg)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -1011,66 +982,31 @@ class TUI(Container):
         term_width, term_height = self._terminal_size
 
         if self._force_full_redraw:
-            _debug_log("Force full redraw")
             self._handle_visible_redraw()
 
-        try:
-            _debug_log(f"render_frame start: size={term_width}x{term_height}")
-            
-            _debug_log("Calling self.render()")
-            base_lines = self.render(term_width)
-            _debug_log(f"self.render() returned {len(base_lines)} lines")
-            
-            _debug_log("Calling _calculate_first_visible_row()")
-            viewport_top = self._calculate_first_visible_row(term_height)
-            _debug_log(f"viewport_top={viewport_top}")
-            
-            _debug_log("Calling _composite_overlays()")
-            lines = self._composite_overlays(
-                base_lines, term_width, term_height, viewport_top
-            )
-            _debug_log(f"_composite_overlays() returned {len(lines)} lines")
-            
-            _debug_log("Calling _apply_line_resets()")
-            lines = self._apply_line_resets(lines)
-            _debug_log(f"_apply_line_resets() done, {len(lines)} lines")
+        base_lines = self.render(term_width)
+        viewport_top = self._calculate_first_visible_row(term_height)
+        lines = self._composite_overlays(
+            base_lines, term_width, term_height, viewport_top
+        )
+        lines = self._apply_line_resets(lines)
 
-            _debug_log("Building buffer with _begin_sync()")
-            buffer = self._begin_sync()
+        buffer = self._begin_sync()
 
-            previous_count = len(self._previous_lines)
-            current_count = len(lines)
-            _debug_log(f"previous_count={previous_count}, current_count={current_count}")
+        previous_count = len(self._previous_lines)
+        current_count = len(lines)
 
-            _debug_log("Calling _handle_content_growth()")
-            buffer = self._handle_content_growth(
-                buffer, current_count, previous_count, term_height, lines
-            )
-            _debug_log(f"_handle_content_growth() done, buffer={len(buffer)} bytes")
-            
-            _debug_log("Calling _render_changed_lines()")
-            buffer += self._render_changed_lines(lines, term_height)
-            _debug_log(f"_render_changed_lines() done, buffer={len(buffer)} bytes")
+        buffer = self._handle_content_growth(
+            buffer, current_count, previous_count, term_height, lines
+        )
+        buffer += self._render_changed_lines(lines, term_height)
 
-            _debug_log("Calling _end_sync()")
-            buffer += self._end_sync()
-            buffer_len = len(buffer)
-            _debug_log(f"Buffer complete: {buffer_len} bytes, calling terminal.write()")
-            
-            self.terminal.write(buffer)
-            _debug_log("terminal.write() completed")
+        buffer += self._end_sync()
+        self.terminal.write(buffer)
 
-            self._previous_lines = lines
-            self._previous_width = term_width
-            self._max_lines_rendered = max(
-                self._max_lines_rendered, len(lines)
-            )
-            _debug_log(f"Render complete: {len(lines)} lines, {buffer_len} bytes")
-        except Exception as e:
-            _debug_log(f"Render error: {type(e).__name__}: {e}")
-            import traceback
-            _debug_log(f"Traceback: {traceback.format_exc()}")
-            raise
+        self._previous_lines = lines
+        self._previous_width = term_width
+        self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
 
     def _calculate_first_visible_row(self, term_height: int) -> int:
         """Calculate which line in the scrollback buffer is at the top.

@@ -8,11 +8,6 @@ from typing import Any, TypeGuard
 
 __all__ = ['CURSOR_MARKER', 'FRAME_TIME', 'TUI', 'Component', 'Container', 'Focusable', 'OverlayHandle', 'OverlayMargin', 'OverlayOptions', 'is_focusable']
 
-class _DebugLogger:
-    def __init__(self, path: str) -> None: ...
-    def log(self, msg: str) -> None: ...
-    def close(self) -> None: ...
-
 CURSOR_MARKER: str
 FRAME_TIME: float
 
