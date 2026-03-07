@@ -330,6 +330,9 @@ class TUI(Container):
         # Terminal size - updated via request_resize_check()
         self._terminal_size: tuple[int, int] = self.terminal.get_size()
 
+        # DEC 2026 sync recovery - track last successful render
+        self._last_successful_render: float = time.time()
+
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
 
@@ -991,6 +994,12 @@ class TUI(Container):
         )
         lines = self._apply_line_resets(lines)
 
+        # DEC 2026 recovery: if no render for 10s, force end sync
+        # Handles cases where end sync marker was lost (network issues)
+        current_time = time.time()
+        if current_time - self._last_successful_render > 10.0:
+            self.terminal.write("\x1b[?2026l")
+
         buffer = self._begin_sync()
 
         previous_count = len(self._previous_lines)
@@ -1007,6 +1016,7 @@ class TUI(Container):
         self._previous_lines = lines
         self._previous_width = term_width
         self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
+        self._last_successful_render = time.time()
 
     def _calculate_first_visible_row(self, term_height: int) -> int:
         """Calculate which line in the scrollback buffer is at the top.
