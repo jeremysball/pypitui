@@ -5,6 +5,7 @@ Based on @mariozechner/pi-tui's component model.
 
 from __future__ import annotations
 
+import signal
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -326,8 +327,8 @@ class TUI(Container):
         # Overlay stack
         self._overlay_stack: list[_OverlayEntry] = []
 
-        # Terminal size tracking for resize detection
-        self._last_terminal_size: tuple[int, int] = (0, 0)
+        # Terminal size - updated via request_resize_check()
+        self._terminal_size: tuple[int, int] = self.terminal.get_size()
 
         # Debug callback
         self.on_debug: Callable[[], None] | None = None
@@ -433,6 +434,8 @@ class TUI(Container):
         self.terminal.set_raw_mode()
         self._stopped = False
         self._previous_lines = []  # Reset differential rendering
+        # Initialize terminal size cache
+        self._terminal_size = self.terminal.get_size()
 
     def stop(self) -> None:
         """Stop the TUI - restore terminal state."""
@@ -820,10 +823,11 @@ class TUI(Container):
 
         On resize, clears both screen and scrollback to prevent corrupted
         output from old-width content mixing with new-width content.
+        Called from request_resize_check() (typically via SIGWINCH).
         """
         current_size = (term_width, term_height)
-        if current_size != self._last_terminal_size:
-            self._last_terminal_size = current_size
+        if current_size != self._terminal_size:
+            self._terminal_size = current_size
             self._previous_lines = []
             self._first_visible_row_previous = 0
             self._emitted_scrollback_lines = 0
@@ -935,6 +939,35 @@ class TUI(Container):
 
         return buffer
 
+    def request_resize_check(self) -> None:
+        """Request a resize check - call this from SIGWINCH handler.
+
+        Updates cached terminal size and triggers resize handling.
+        """
+        self._terminal_size = self.terminal.get_size()
+        self._check_resize(self._terminal_size[0], self._terminal_size[1])
+
+    def setup_sigwinch_handler(self) -> None:
+        """Set up automatic SIGWINCH handling for simple use cases.
+
+        For complex applications that need to coordinate resize with other
+        components, handle SIGWINCH yourself and call request_resize_check().
+
+        Example:
+            # Simple: Let PyPiTUI handle everything
+            tui.setup_sigwinch_handler()
+
+            # Complex: Handle yourself for coordination
+            signal.signal(signal.SIGWINCH, my_custom_handler)
+            # In handler: tui.request_resize_check()
+        """
+
+        def _handle_sigwinch(_signum: int, _frame: object) -> None:
+            self.request_resize_check()
+            self.request_render(force=True)
+
+        signal.signal(signal.SIGWINCH, _handle_sigwinch)
+
     def render_frame(self) -> None:
         """Render a single frame using absolute cursor positioning.
 
@@ -944,12 +977,12 @@ class TUI(Container):
             return
 
         self._render_requested = False
-        term_width, term_height = self.terminal.get_size()
+
+        # Use cached terminal size (updated via request_resize_check)
+        term_width, term_height = self._terminal_size
 
         if self._force_full_redraw:
             self._handle_visible_redraw()
-
-        self._check_resize(term_width, term_height)
 
         base_lines = self.render(term_width)
         viewport_top = self._calculate_first_visible_row(term_height)
