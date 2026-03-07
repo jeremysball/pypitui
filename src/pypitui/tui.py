@@ -1015,35 +1015,61 @@ class TUI(Container):
             self._handle_visible_redraw()
 
         try:
+            _debug_log(f"render_frame start: size={term_width}x{term_height}")
+            
+            _debug_log("Calling self.render()")
             base_lines = self.render(term_width)
+            _debug_log(f"self.render() returned {len(base_lines)} lines")
+            
+            _debug_log("Calling _calculate_first_visible_row()")
             viewport_top = self._calculate_first_visible_row(term_height)
+            _debug_log(f"viewport_top={viewport_top}")
+            
+            _debug_log("Calling _composite_overlays()")
             lines = self._composite_overlays(
                 base_lines, term_width, term_height, viewport_top
             )
+            _debug_log(f"_composite_overlays() returned {len(lines)} lines")
+            
+            _debug_log("Calling _apply_line_resets()")
             lines = self._apply_line_resets(lines)
+            _debug_log(f"_apply_line_resets() done, {len(lines)} lines")
 
+            _debug_log("Building buffer with _begin_sync()")
             buffer = self._begin_sync()
 
             previous_count = len(self._previous_lines)
             current_count = len(lines)
+            _debug_log(f"previous_count={previous_count}, current_count={current_count}")
 
+            _debug_log("Calling _handle_content_growth()")
             buffer = self._handle_content_growth(
                 buffer, current_count, previous_count, term_height, lines
             )
+            _debug_log(f"_handle_content_growth() done, buffer={len(buffer)} bytes")
+            
+            _debug_log("Calling _render_changed_lines()")
             buffer += self._render_changed_lines(lines, term_height)
+            _debug_log(f"_render_changed_lines() done, buffer={len(buffer)} bytes")
 
+            _debug_log("Calling _end_sync()")
             buffer += self._end_sync()
             buffer_len = len(buffer)
+            _debug_log(f"Buffer complete: {buffer_len} bytes, calling terminal.write()")
+            
             self.terminal.write(buffer)
+            _debug_log("terminal.write() completed")
 
             self._previous_lines = lines
             self._previous_width = term_width
             self._max_lines_rendered = max(
                 self._max_lines_rendered, len(lines)
             )
-            _debug_log(f"Rendered {len(lines)} lines, {buffer_len} bytes")
+            _debug_log(f"Render complete: {len(lines)} lines, {buffer_len} bytes")
         except Exception as e:
-            _debug_log(f"Render error: {e}")
+            _debug_log(f"Render error: {type(e).__name__}: {e}")
+            import traceback
+            _debug_log(f"Traceback: {traceback.format_exc()}")
             raise
 
     def _calculate_first_visible_row(self, term_height: int) -> int:
