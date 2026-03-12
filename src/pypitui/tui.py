@@ -6,6 +6,7 @@ Based on @mariozechner/pi-tui's component model.
 from __future__ import annotations
 
 import signal
+import sys
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -441,13 +442,18 @@ class TUI(Container):
         """Stop the TUI - restore terminal state."""
         self._stopped = True
 
-        # Clear our content and restore cursor
-        self.terminal.write("\x1b[H")  # Move to home first
-        self.terminal.write("\x1b[2J")  # Clear screen
-        self.terminal.write("\x1b[u")  # Restore cursor
+        # Leave content visible, just move cursor below it and restore
+        self.terminal.write("\x1b[r")  # Reset scroll region
+        self.terminal.write("\x1b[9999B")  # Move to bottom
+        self.terminal.write("\n")  # New line after content
+        self.terminal.write("\r")  # Return to start of line
 
         self.terminal.show_cursor()
         self.terminal.restore_mode()
+
+        # Flush any pending output
+        sys.stdout.flush()
+        sys.stderr.flush()
 
     def add_input_listener(
         self, listener: Callable[[str], dict[str, Any] | None]
@@ -739,8 +745,13 @@ class TUI(Container):
 
         # Get overlay content, limited to its width
         overlay = slice_by_column(overlay_line, 0, width)
+
+        # Add reset at start to prevent color bleeding FROM base content
+        if not overlay.startswith("\x1b[0m"):
+            overlay = "\x1b[0m" + overlay
+
         # Preserve trailing reset code if original had one
-        # (prevents color bleeding)
+        # (prevents color bleeding TO content after overlay)
         if overlay_line.rstrip().endswith("\x1b[0m") and not overlay.endswith(
             "\x1b[0m"
         ):
