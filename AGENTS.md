@@ -158,6 +158,49 @@ See `examples/demo.py` for the correct implementation using `_clear_screen()`.
 
 ---
 
+## 🚨 CRITICAL: ALWAYS Clean Up - No Exceptions
+
+**IT DOES NOT MATTER who created the mess.**
+
+Whether you wrote the code or found it broken:
+- **YOU ARE RESPONSIBLE** for leaving the codebase cleaner than you found it
+- **YOU MUST** fix issues in code you touch
+- **NO EXCUSES** about "someone else's code"
+
+### Absolute Rules:
+
+1. **If you touch it, you fix it** - No exceptions
+2. **Pre-commit failing? FIX IT.** Don't bypass it
+3. **CI failing? FIX IT.** Don't ignore it
+4. **Legacy code with issues?** Fix it if you modified any part of it
+5. **Broken tests?** Fix them or delete them - never leave them failing
+
+### Who Created This Does NOT Matter:
+
+❌ **WRONG:** "I didn't write this broken code"
+❌ **WRONG:** "This was already failing before I started"
+❌ **WRONG:** "I'll just commit my changes and leave the mess"
+
+✅ **RIGHT:** "The code I touched now has issues - I will fix them"
+✅ **RIGHT:** "I see failing tests - I will make them pass"
+✅ **RIGHT:** "Pre-commit is failing on my changes - I will clean them up"
+
+### Your Responsibility:
+
+```bash
+# Before committing:
+pre-commit run --all-files
+
+# If anything fails:
+# 1. Fix it
+# 2. Re-run pre-commit
+# 3. Only commit when green
+```
+
+**THERE IS NO SITUATION WHERE IT IS ACCEPTABLE TO COMMIT BROKEN CODE.**
+
+---
+
 ## 🚨 CRITICAL: NEVER Commit With Failing Pre-Commit
 
 **UNDER NO CIRCUMSTANCES** may you commit code while pre-commit hooks are failing.
