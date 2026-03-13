@@ -53,6 +53,37 @@ Always check for `.agents/` folders in the project root. These contain:
 
 Example: `.agents/test_ultimate_demo.py` runs automated tests on the demo.
 
+## Type Safety: mypy Strict Mode
+
+**All code must pass mypy strict mode.** No exceptions.
+
+```bash
+# Check type safety
+uv run mypy --strict src/
+```
+
+Configuration in `pyproject.toml`:
+```toml
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_any_generics = false
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+```
+
+**Requirements:**
+- All functions must have type annotations
+- All return types must be explicit
+- No `Any` types without justification
+- All public APIs must be typed
+
 ## Generating Type Stubs
 
 When adding type stubs to this library, use `stubgen` from mypy instead of writing them manually:

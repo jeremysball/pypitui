@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (strict mode)
+        entry: uv run mypy --strict
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        args: [src/]
+
+  - repo: local
+    hooks:
+      - id: type-stubs
+        name: Check type stubs are up-to-date
+        entry: bash -c 'uv run basedpyright --createstub pypitui && cp -r typings/pypitui/*.pyi src/pypitui/ && rm -rf typings/'
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: false
