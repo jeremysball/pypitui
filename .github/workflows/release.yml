@@ -36,8 +36,8 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
-      - name: BasedPyright
-        run: uv run basedpyright src/
+      - name: Type check with mypy (strict mode)
+        run: uv run mypy --strict src/
 
       - name: Run tests
         run: uv run pytest -v
