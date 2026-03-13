@@ -4,6 +4,16 @@ A terminal UI library with differential rendering, inspired by React's
 component model but for terminal applications.
 """
 
+from .box_utils import (
+    BOTTOM_LEFT,
+    BOTTOM_RIGHT,
+    HORIZONTAL,
+    NBSP,
+    TOP_LEFT,
+    TOP_RIGHT,
+    VERTICAL,
+    build_bordered_box,
+)
 from .components import (
     BorderedBox,
     Box,
@@ -46,12 +56,19 @@ from .utils import (
 )
 
 __all__ = [
+    "BOTTOM_LEFT",
+    "BOTTOM_RIGHT",
     "CURSOR_MARKER",
     "EVENT_PRESS",
     "EVENT_RELEASE",
     "EVENT_REPEAT",
     "FRAME_TIME",
+    "HORIZONTAL",
+    "NBSP",
+    "TOP_LEFT",
+    "TOP_RIGHT",
     "TUI",
+    "VERTICAL",
     "BorderedBox",
     "Box",
     "Component",
@@ -70,6 +87,7 @@ __all__ = [
     "Spacer",
     "Terminal",
     "Text",
+    "build_bordered_box",
     "get_terminal_size",
     "is_focusable",
     "matches_key",
