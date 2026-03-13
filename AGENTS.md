@@ -155,3 +155,79 @@ See `examples/demo.py` for the correct implementation using `_clear_screen()`.
 - Ensure:
   - TODO.md is kept up to date via checkboxes \[ \]
   - Ensure TODO.md is kept UP TO DATE with ANY new design decisions
+
+---
+
+## 🚨 CRITICAL: NEVER Commit With Failing Pre-Commit
+
+**UNDER NO CIRCUMSTANCES** may you commit code while pre-commit hooks are failing.
+
+### Absolute Rules:
+
+1. **NEVER use `--no-verify`** to bypass pre-commit hooks
+2. **NEVER commit** when ruff, mypy, or tests are failing
+3. **NEVER merge** a PR that has failing CI checks
+4. **NEVER force-push** to override failing checks
+
+### Pre-Commit Must Pass:
+
+```bash
+# Run pre-commit on all files
+pre-commit run --all-files
+
+# Or with uv
+uv run pre-commit run --all-files
+```
+
+**All checks must pass:**
+- ✅ Ruff linting
+- ✅ Ruff formatting
+- ✅ mypy strict mode
+- ✅ Tests
+
+### If Pre-Commit Fails:
+
+1. **STOP** - Do not commit
+2. **Fix** the issues that pre-commit identified
+3. **Re-run** pre-commit to verify fixes
+4. **Only then** commit the changes
+
+### Consequences of Bypassing:
+
+- Broken code enters the repository
+- CI/CD pipelines fail
+- Other developers are blocked
+- Loss of trust in the codebase
+- **THIS IS NEVER ACCEPTABLE**
+
+---
+
+## 🚨 CRITICAL: NEVER Merge Failing PRs
+
+**ABSOLUTELY NEVER** merge a pull request that:
+
+- Has failing CI checks
+- Has not passed all required reviews
+- Has failing tests
+- Has type errors (mypy)
+- Has linting errors (ruff)
+
+### PR Checklist (MUST PASS):
+
+- [ ] All CI checks passing (green ✅)
+- [ ] Code review approved
+- [ ] Pre-commit hooks pass locally
+- [ ] Tests added/updated and passing
+- [ ] Type annotations complete (mypy strict)
+- [ ] No linting errors (ruff)
+
+### Emergency Protocol:
+
+If CI is failing and you believe it should pass:
+1. **DO NOT MERGE**
+2. Investigate the failure
+3. Fix the issue
+4. Push fixes and wait for green CI
+5. Only then merge
+
+**THERE ARE NO EXCEPTIONS TO THIS RULE.**
