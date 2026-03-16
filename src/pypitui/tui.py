@@ -321,7 +321,7 @@ class TUI(Container):
         self._first_visible_row_previous: int = (
             0  # First visible row in scrollback from last frame
         )
-        self._emitted_scrollback_lines: int = 0  # Scrollback lines emitted
+        self._total_lines_emitted: int = 0  # All lines emitted
         self._anchor_top: bool = False  # When True, skip scrollback handling
         self._stopped = False
 
@@ -814,7 +814,7 @@ class TUI(Container):
         the internal counters that track which lines have been
         emitted to the terminal's native scrollback buffer.
         """
-        self._emitted_scrollback_lines = 0
+        self._total_lines_emitted = 0
         self._max_lines_rendered = 0
 
     def _handle_visible_redraw(self) -> None:
@@ -841,7 +841,7 @@ class TUI(Container):
             self._terminal_size = current_size
             self._previous_lines = []
             self._first_visible_row_previous = 0
-            self._emitted_scrollback_lines = 0
+            self._total_lines_emitted = 0
             # Clear screen + scrollback, move cursor home
             self.terminal.write("\x1b[2J\x1b[3J\x1b[H")
 
@@ -866,7 +866,7 @@ class TUI(Container):
 
         first_visible = current_count - term_height
         # Track all emitted lines, not just scrollback
-        new_start = self._emitted_scrollback_lines
+        new_start = self._total_lines_emitted
 
         if new_start >= first_visible:
             return buffer
@@ -875,7 +875,7 @@ class TUI(Container):
         for i in range(new_start, first_visible):
             buffer += lines[i] + "\n"
 
-        self._emitted_scrollback_lines = first_visible
+        self._total_lines_emitted = first_visible
         return buffer
 
     def _render_changed_lines(
@@ -1005,7 +1005,7 @@ class TUI(Container):
 
         # Track that all current lines have been emitted
         # (either to scrollback or screen)
-        self._emitted_scrollback_lines = len(lines)
+        self._total_lines_emitted = len(lines)
 
     def _calculate_first_visible_row(self, term_height: int) -> int:
         """Calculate which line in the scrollback buffer is at the top.
