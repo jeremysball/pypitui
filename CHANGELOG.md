@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-03-15
+
+### Fixed
+
+- **Critical: Scrollback duplication bug fixed**
+  - Previously `_emitted_scrollback_lines` only tracked scrollback lines (not screen lines)
+  - When content was re-rendered, lines 0-17 (scrollback) were written, then lines 18-31 (screen) via absolute positioning
+  - On next frame, lines 18-31 were incorrectly treated as NEW scrollback and written again
+  - Fixed by tracking ALL emitted lines (`_total_lines_emitted = len(lines)`) not just scrollback
+  - Now only NEW lines (delta) are written with `\n` for natural scrolling
+
+### Changed
+
+- `_handle_content_growth` simplified to use only `\n` (linefeed) for scrolling
+  - Removed absolute positioning (`\x1b[{term_height};1H`) from scrollback handling
+  - Removed `\r\x1b[2K` (clear line) from scrollback emission
+  - Content now flows naturally into terminal scrollback history
+- Renamed `_emitted_scrollback_lines` to `_total_lines_emitted` for clarity
+
 ## [0.4.1] - 2025-03-04
 
 ### Fixed
