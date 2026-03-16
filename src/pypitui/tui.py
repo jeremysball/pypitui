@@ -849,49 +849,33 @@ class TUI(Container):
         self,
         buffer: str,
         current_count: int,
-        previous_count: int,
+        _previous_count: int,
         term_height: int,
         lines: list[str],
     ) -> str:
-        """Handle content growth by emitting newlines only for NEW scrollback.
+        """Handle content growth using relative cursor movement.
 
-        When content grows beyond terminal height, lines that scroll off the
-        top are pushed into scrollback history. This method tracks which lines
-        have already been emitted to avoid re-emitting them on frames.
+        Uses linefeeds (\n) to naturally scroll content into scrollback.
+        Only writes NEW lines that haven't been emitted yet.
         """
-        # When anchor_top is True, skip scrollback handling
         if self._anchor_top:
             return buffer
 
-        if current_count <= term_height or current_count <= previous_count:
+        if current_count <= term_height:
             return buffer
 
-        # Calculate how many scrollback lines exist now
         first_visible = current_count - term_height
+        # Track all emitted lines, not just scrollback
+        new_start = self._emitted_scrollback_lines
 
-        # Only emit newlines for NEW scrollback lines (not already emitted)
-        new_scrollback_start = self._emitted_scrollback_lines
-
-        if new_scrollback_start >= first_visible:
-            # No new scrollback lines to emit
+        if new_start >= first_visible:
             return buffer
 
-        # Move cursor to bottom of screen using absolute positioning
-        buffer += f"\x1b[{term_height};1H"
-
-        # Emit only the NEW scrollback lines
-        for i in range(new_scrollback_start, first_visible):
-            prev_changed = (
-                i >= len(self._previous_lines)
-                or self._previous_lines[i] != lines[i]
-            )
-            if prev_changed:
-                buffer += "\r\x1b[2K"
-                buffer += lines[i]
-            buffer += "\r\n"
+        # Only write NEW lines (delta) with linefeeds
+        for i in range(new_start, first_visible):
+            buffer += lines[i] + "\n"
 
         self._emitted_scrollback_lines = first_visible
-
         return buffer
 
     def _render_changed_lines(
@@ -1018,6 +1002,10 @@ class TUI(Container):
         self._previous_lines = lines
         self._previous_width = term_width
         self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
+
+        # Track that all current lines have been emitted
+        # (either to scrollback or screen)
+        self._emitted_scrollback_lines = len(lines)
 
     def _calculate_first_visible_row(self, term_height: int) -> int:
         """Calculate which line in the scrollback buffer is at the top.
