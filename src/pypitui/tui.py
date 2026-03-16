@@ -871,11 +871,15 @@ class TUI(Container):
         if new_start >= first_visible:
             return buffer
 
-        # Only write NEW lines (delta) with linefeeds
+        # Only write NEW lines (delta) with CR+LF
+        # Use \r\n to ensure proper line handling for full-width lines
         for i in range(new_start, first_visible):
-            buffer += lines[i] + "\n"
+            buffer += lines[i] + "\r\n"
 
         self._total_lines_emitted = first_visible
+        # Update first_visible tracking so _render_changed_lines knows
+        # the viewport has already shifted from scrollback emission
+        self._first_visible_row_previous = first_visible
         return buffer
 
     def _render_changed_lines(
