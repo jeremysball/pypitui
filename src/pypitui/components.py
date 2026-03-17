@@ -271,7 +271,7 @@ class BorderedBox(Component):
             box.set_rich_title("[bold cyan]My Panel[/bold cyan]")
         """
         try:
-            from .rich_components import rich_to_ansi  # noqa: PLC0415
+            from .rich_components import rich_to_ansi
 
             self._title = rich_to_ansi(markup)
             self._invalidate_cache()

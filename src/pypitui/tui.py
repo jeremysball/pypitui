@@ -300,7 +300,8 @@ class TUI(Container):
         self._show_hardware_cursor = show_hardware_cursor
 
         # State for differential rendering
-        self._previous_lines: list[str] = []
+        self._previous_lines: list[str] = []  # Lines with overlays (for screen updates)
+        self._previous_base_lines: list[str] = []  # Base content only (for scrollback)
         self._previous_width: int = 0
 
         # Focus management
@@ -327,6 +328,7 @@ class TUI(Container):
 
         # Overlay stack
         self._overlay_stack: list[_OverlayEntry] = []
+        self._previous_overlay_rows: set[int] = set()  # Track rows with overlays
 
         # Terminal size - updated via request_resize_check()
         self._terminal_size: tuple[int, int] = self.terminal.get_size()
@@ -435,6 +437,8 @@ class TUI(Container):
         self.terminal.set_raw_mode()
         self._stopped = False
         self._previous_lines = []  # Reset differential rendering
+        self._previous_base_lines = []  # Reset base content tracking
+        self._previous_overlay_rows = set()  # Reset overlay tracking
         # Initialize terminal size cache
         self._terminal_size = self.terminal.get_size()
 
@@ -484,6 +488,8 @@ class TUI(Container):
         if force:
             self._force_full_redraw = True
             self._previous_lines = []
+            self._previous_base_lines = []
+            self._previous_overlay_rows = set()
             self._first_visible_row_previous = 0
         if reset_scrollback:
             self.reset_scrollback_state()
@@ -652,14 +658,20 @@ class TUI(Container):
         term_width: int,
         term_height: int,
         viewport_top: int,
-    ) -> None:
-        """Composite a single overlay into result (modifies in place)."""
+    ) -> set[int]:
+        """Composite a single overlay into result (modifies in place).
+
+        Returns:
+            Set of content row indices that were modified by this overlay.
+        """
+        affected_rows: set[int] = set()
+
         if not self._is_overlay_visible(entry):
-            return
+            return affected_rows
         if entry.options.visible and not entry.options.visible(
             term_width, term_height
         ):
-            return
+            return affected_rows
 
         margin_left, margin_right = self._get_overlay_margins(entry.options)
         avail_width = term_width - margin_left - margin_right
@@ -700,6 +712,9 @@ class TUI(Container):
                 width,
                 term_width,
             )
+            affected_rows.add(target_content_row)
+
+        return affected_rows
 
     def _composite_overlays(
         self,
@@ -707,7 +722,7 @@ class TUI(Container):
         term_width: int,
         term_height: int,
         viewport_top: int = 0,
-    ) -> list[str]:
+    ) -> tuple[list[str], set[int]]:
         """Composite all overlays into content lines (in stack order).
 
         Args:
@@ -718,13 +733,18 @@ class TUI(Container):
             viewport_top: The first visible row in the scrollback buffer.
                 When content exceeds terminal height, this tells us which
                 line appears at the top of the screen.
+
+        Returns:
+            Tuple of (composited lines, set of content row indices with overlays)
         """
         result = list(base_lines)
+        overlay_rows: set[int] = set()
         for entry in self._overlay_stack:
-            self._composite_single_overlay(
+            rows = self._composite_single_overlay(
                 result, entry, term_width, term_height, viewport_top
             )
-        return result
+            overlay_rows.update(rows)
+        return result, overlay_rows
 
     def _composite_line_at(
         self,
@@ -827,6 +847,8 @@ class TUI(Container):
         self.terminal.write("\x1b[2J\x1b[H")
         self._hardware_cursor_row = 0
         self._previous_lines = []
+        self._previous_base_lines = []
+        self._previous_overlay_rows = set()
         self._first_visible_row_previous = 0
 
     def _check_resize(self, term_width: int, term_height: int) -> None:
@@ -840,6 +862,8 @@ class TUI(Container):
         if current_size != self._terminal_size:
             self._terminal_size = current_size
             self._previous_lines = []
+            self._previous_base_lines = []
+            self._previous_overlay_rows = set()
             self._first_visible_row_previous = 0
             self._total_lines_emitted = 0
             # Clear screen + scrollback, move cursor home
@@ -868,30 +892,30 @@ class TUI(Container):
         # Track all emitted lines, not just scrollback
         new_start = self._total_lines_emitted
 
-        if new_start >= first_visible:
-            return buffer
+        # Write ALL new lines with CRLF for natural scrollback
+        if new_start < current_count:
+            for i in range(new_start, current_count):
+                buffer += lines[i] + "\r\n"
+            self._total_lines_emitted = current_count
 
-        # Only write NEW lines (delta) with CR+LF
-        # Use \r\n to ensure proper line handling for full-width lines
-        for i in range(new_start, first_visible):
-            buffer += lines[i] + "\r\n"
-
-        self._total_lines_emitted = first_visible
-        # Update first_visible tracking so _render_changed_lines knows
-        # the viewport has already shifted from scrollback emission
-        self._first_visible_row_previous = first_visible
         return buffer
 
     def _render_changed_lines(
         self,
         lines: list[str],
         term_height: int,
+        overlay_rows: set[int],
     ) -> str:
         """Render changed lines using absolute cursor positioning.
 
         Compares what's at each screen position now vs what was there before.
         When first_visible changes (content grows/shrinks), all visible rows
         may shift position and need redrawing.
+
+        Args:
+            lines: Current lines to render (including overlays)
+            term_height: Terminal height
+            overlay_rows: Set of content row indices that have overlays
         """
         buffer = ""
         current_count = len(lines)
@@ -902,36 +926,57 @@ class TUI(Container):
         else:
             first_visible = 0
 
-        # If first_visible changed, the entire viewport shifted
-        # Force redraw of all visible rows
-        viewport_shifted = first_visible != self._first_visible_row_previous
+        # Check if content shrank (fewer lines than before)
+        # When content shrinks, clear screen and do full re-render to avoid artifacts
+        prev_visible_count = min(len(self._previous_lines), term_height)
+        curr_visible_count = min(current_count, term_height)
+        content_shrank = prev_visible_count > curr_visible_count
 
-        for screen_row in range(min(term_height, current_count)):
-            content_row = first_visible + screen_row
-            if content_row >= len(lines):
-                break
+        # Check if we need full re-render
+        # - Content shrank: clear screen to remove old content
+        # - Overlays changed: re-render affected rows
+        overlays_changed = overlay_rows != self._previous_overlay_rows
+        needs_full_render = content_shrank or overlays_changed
 
-            # Check if this screen position needs updating
-            if viewport_shifted or content_row >= len(self._previous_lines):
-                needs_update = True
-            else:
-                prev_line = self._previous_lines[content_row]
-                needs_update = prev_line != lines[content_row]
+        if needs_full_render:
+            if content_shrank:
+                # When content shrank, clear screen and re-render
+                buffer += "\x1b[2J\x1b[H"
 
-            if needs_update:
-                # Absolute positioning: \x1b[row;colH (1-indexed)
+            # Render all visible lines with absolute positioning
+            for screen_row in range(min(term_height, current_count)):
+                content_row = first_visible + screen_row
+                if content_row >= len(lines):
+                    break
                 buffer += f"\x1b[{screen_row + 1};1H"
                 buffer += "\x1b[2K"
                 buffer += lines[content_row]
+        else:
+            # Normal differential rendering - only update changed lines
+            for screen_row in range(min(term_height, current_count)):
+                content_row = first_visible + screen_row
+                if content_row >= len(lines):
+                    break
 
-        # Clear any orphaned screen rows (content shrank)
-        if current_count < term_height:
-            prev_first = self._first_visible_row_previous
-            prev_count = len(self._previous_lines) - prev_first
-            end_row = min(prev_count, term_height)
-            for screen_row in range(current_count, end_row):
-                buffer += f"\x1b[{screen_row + 1};1H"
-                buffer += "\x1b[2K"
+                # Determine if this row needs updating
+                needs_update = False
+
+                if not self._previous_lines:
+                    # After resize - render all lines
+                    needs_update = True
+                elif content_row >= len(self._previous_lines):
+                    # New row - already written with \r\n
+                    continue
+                else:
+                    # Existing row - only update if changed
+                    prev_line = self._previous_lines[content_row]
+                    if prev_line != lines[content_row]:
+                        needs_update = True
+
+                if needs_update:
+                    buffer += f"\x1b[{screen_row + 1};1H"
+                    buffer += "\x1b[2K"
+                    buffer += lines[content_row]
 
         # Update tracked first_visible for next frame
         self._first_visible_row_previous = first_visible
@@ -985,7 +1030,7 @@ class TUI(Container):
 
         base_lines = self.render(term_width)
         viewport_top = self._calculate_first_visible_row(term_height)
-        lines = self._composite_overlays(
+        lines, current_overlay_rows = self._composite_overlays(
             base_lines, term_width, term_height, viewport_top
         )
         lines = self._apply_line_resets(lines)
@@ -995,21 +1040,28 @@ class TUI(Container):
         previous_count = len(self._previous_lines)
         current_count = len(lines)
 
+        # Track base content growth separately from overlays
+        # Overlays are transient and shouldn't go to scrollback
+        base_previous_count = len(self._previous_base_lines) if hasattr(self, '_previous_base_lines') else 0
+        base_current_count = len(base_lines)
+
         buffer = self._handle_content_growth(
-            buffer, current_count, previous_count, term_height, lines
+            buffer, base_current_count, base_previous_count, term_height, base_lines
         )
-        buffer += self._render_changed_lines(lines, term_height)
+
+        # Combine current and previous overlay rows to ensure old overlay content is cleared
+        all_overlay_rows = current_overlay_rows | self._previous_overlay_rows
+        self._previous_overlay_rows = current_overlay_rows
+
+        buffer += self._render_changed_lines(lines, term_height, all_overlay_rows)
 
         buffer += self._end_sync()
         self.terminal.write(buffer)
 
         self._previous_lines = lines
+        self._previous_base_lines = base_lines
         self._previous_width = term_width
         self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
-
-        # Track that all current lines have been emitted
-        # (either to scrollback or screen)
-        self._total_lines_emitted = len(lines)
 
     def _calculate_first_visible_row(self, term_height: int) -> int:
         """Calculate which line in the scrollback buffer is at the top.

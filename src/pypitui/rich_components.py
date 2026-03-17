@@ -108,8 +108,8 @@ class Markdown(Component):
     def _render_with_rich(self, width: int) -> list[str]:
         """Render markdown using Rich."""
         try:
-            from rich.console import Console  # noqa: PLC0415
-            from rich.markdown import Markdown as RichMarkdown  # noqa: PLC0415
+            from rich.console import Console
+            from rich.markdown import Markdown as RichMarkdown
         except ImportError as e:
             raise ImportError(_RICH_REQUIRED_MSG) from e
 
@@ -195,8 +195,8 @@ class RichText(Component):
             return self._cache[1]
 
         try:
-            from rich.console import Console  # noqa: PLC0415
-            from rich.text import Text as RichTextLib  # noqa: PLC0415
+            from rich.console import Console
+            from rich.text import Text as RichTextLib
         except ImportError as e:
             raise ImportError(_RICH_REQUIRED_MSG) from e
 
@@ -290,8 +290,8 @@ class RichTable(Component):
             return self._cache[1]
 
         try:
-            from rich.console import Console  # noqa: PLC0415
-            from rich.table import Table  # noqa: PLC0415
+            from rich.console import Console
+            from rich.table import Table
         except ImportError as e:
             raise ImportError(_RICH_REQUIRED_MSG) from e
 
@@ -357,9 +357,9 @@ def rich_to_ansi(markup: str) -> str:
         items = [SelectItem("key", label,
                             rich_to_ansi("[dim]Description[/dim]"))]
     """
-    from io import StringIO  # noqa: PLC0415
+    from io import StringIO
 
-    from rich.console import Console  # noqa: PLC0415
+    from rich.console import Console
 
     buf = StringIO()
     console = Console(
@@ -387,8 +387,8 @@ def rich_color_to_ansi(color: str) -> str:
     if not color:
         return ""
 
-    from rich.console import Console  # noqa: PLC0415
-    from rich.text import Text  # noqa: PLC0415
+    from rich.console import Console
+    from rich.text import Text
 
     # Create a Console to render the color
     console = Console(force_terminal=True, legacy_windows=False)

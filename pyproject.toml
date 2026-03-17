@@ -37,6 +37,8 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.2",
     "rich>=13.0",
+    "radon>=6.0",
+    "vulture>=2.11",
 ]
 
 [build-system]
@@ -126,4 +128,6 @@ dev = [
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
+    "radon>=6.0.1",
+    "vulture>=2.15",
 ]
