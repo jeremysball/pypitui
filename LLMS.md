@@ -465,7 +465,10 @@ The TUI maintains a virtual canvas that can exceed terminal height. When content
 
 ```python
 self._max_lines_rendered: int = 0  # Maximum lines ever rendered
-self._previous_lines: list[str] = []  # Last frame's rendered lines
+self._previous_lines: list[str] = []  # Last frame's rendered lines (with overlays)
+self._previous_base_lines: list[str] = []  # Base content only (for scrollback)
+self._previous_overlay_rows: set[int] = set()  # Rows with overlays
+self._total_lines_emitted: int = 0  # All lines emitted to terminal
 self._first_visible_row_previous: int = 0  # First visible row from last frame
 ```
 
@@ -479,49 +482,89 @@ def _calculate_first_visible_row(self, term_height: int) -> int:
 Example: If `_max_lines_rendered=100` and `term_height=24`:
 - Returns 76 (lines 0-75 in scrollback, lines 76-99 visible)
 
+**Natural Scrollback with CRLF**:
+
+New lines are written with `\r\n` (carriage return + line feed) to naturally scroll into the terminal's scrollback buffer:
+
+```python
+def _handle_content_growth(self, buffer, current_count, term_height, lines):
+    # Track all emitted lines, not just scrollback
+    new_start = self._total_lines_emitted
+    
+    # Write ALL new lines with CRLF for natural scrollback
+    if new_start < current_count:
+        for i in range(new_start, current_count):
+            buffer += lines[i] + "\r\n"
+        self._total_lines_emitted = current_count
+    
+    return buffer
+```
+
+**Important**: Base content (without overlays) is tracked separately and written to scrollback. Overlays are transient and should not pollute scrollback.
+
 **Scrollback Immutability**:
 
 Lines in scrollback cannot be updated after scrolling. Once a line scrolls off the top of the visible terminal, it's frozen in the terminal's native scrollback buffer.
 
-### Differential Rendering
+### Base Content vs Overlays
 
-The renderer compares what's at each **screen position** (not content index) to detect changes. When `first_visible` shifts (content grows/shrinks), all visible rows are redrawn since their positions changed.
+The TUI distinguishes between:
+- **Base content**: Main application content that should scroll naturally
+- **Overlays**: Floating UI elements (menus, dialogs) that overlay base content
 
-**Line Comparison** (`_render_changed_lines`):
+**Overlay Tracking**:
 
 ```python
-# Calculate what content is currently visible
-if current_count > term_height:
-    first_visible = current_count - term_height
-else:
-    first_visible = 0
+# Compositing overlays returns both lines AND affected row indices
+lines, overlay_rows = self._composite_overlays(
+    base_lines, term_width, term_height, viewport_top
+)
 
-# If first_visible changed, the entire viewport shifted
-viewport_shifted = (first_visible != self._first_visible_row_previous)
+# Track previous overlay rows to detect changes
+overlays_changed = overlay_rows != self._previous_overlay_rows
+```
 
+**Why this matters**: Overlays should not be part of scrollback. When you scroll up (Shift+PgUp), you should see your conversation history, not old completion menus.
+
+### Content Shrink Detection
+
+When content shrinks (fewer lines than before), old content may be left on screen. The renderer detects this and does a full clear + re-render:
+
+```python
+# Check if content shrank
+prev_visible_count = min(len(self._previous_lines), term_height)
+curr_visible_count = min(current_count, term_height)
+content_shrank = prev_visible_count > curr_visible_count
+
+# Also check if overlays changed position
+overlays_changed = overlay_rows != self._previous_overlay_rows
+
+if content_shrank or overlays_changed:
+    # Full re-render to ensure clean screen
+    buffer += "\x1b[2J\x1b[H"  # Clear screen
+    # Render all visible lines...
+```
+
+### Differential Rendering
+
+For normal operation (no shrink, no overlay changes), only changed lines are updated:
+
+```python
 for screen_row in range(min(term_height, current_count)):
     content_row = first_visible + screen_row
     
-    if viewport_shifted:
-        needs_update = True
-    else:
-        # Compare content at this position
-        needs_update = self._previous_lines[content_row] != lines[content_row]
+    # Skip if unchanged
+    if (content_row < len(self._previous_lines) and 
+        self._previous_lines[content_row] == lines[content_row]):
+        continue
     
-    if needs_update:
-        # Absolute positioning: \x1b[row;colH (1-indexed)
-        buffer += f"\x1b[{screen_row + 1};1H"
-        buffer += "\x1b[2K"
-        buffer += lines[content_row]
-
-# Clear any orphaned screen rows (content shrank)
-if current_count < term_height:
-    for screen_row in range(current_count, term_height):
-        buffer += f"\x1b[{screen_row + 1};1H"
-        buffer += "\x1b[2K"
+    # Update with absolute positioning
+    buffer += f"\x1b[{screen_row + 1};1H"
+    buffer += "\x1b[2K"
+    buffer += lines[content_row]
 ```
 
-**Key Insight**: We compare screen positions, not content indices. When content grows and `first_visible` shifts from 0 to 2, content that was at screen row 0 is now at screen row 2. The old approach (comparing content indices) would miss this shift, leaving stale content on screen.
+**Key Insight**: We compare screen positions, not content indices. When content grows and `first_visible` shifts from 0 to 2, content that was at screen row 0 is now at screen row 2. The differential renderer handles this automatically.
     if n <= 0:
         return ""
     return f"\x1b[{n}B"
