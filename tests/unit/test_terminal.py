@@ -1,10 +1,60 @@
 """Unit tests for terminal abstraction."""
 
+import sys
 import termios
 import tty
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+class TestTerminalWrite:
+    """Tests for Terminal write method."""
+
+    def test_terminal_write_emits_escape_sequence(self) -> None:
+        """Verify bytes written to fd."""
+        from pypitui.terminal import Terminal
+
+        mock_buffer = BytesIO()
+        mock_fd = 3
+
+        # Create a mock buffer with fileno as a MagicMock attribute
+        mock_buffer.fileno = MagicMock(return_value=mock_fd)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=mock_fd, buffer=mock_buffer)
+                    with term:
+                        term.write("\x1b[2J")  # Clear screen escape
+                        term.write(b"\x1b[H")  # Cursor home escape
+
+        output = mock_buffer.getvalue()
+        assert b"\x1b[2J" in output
+        assert b"\x1b[H" in output
+
+    def test_terminal_write_accepts_string_and_bytes(self) -> None:
+        """Verify write accepts both str and bytes."""
+        from pypitui.terminal import Terminal
+
+        mock_buffer = BytesIO()
+        mock_fd = 3
+
+        # Create a mock buffer with fileno as a MagicMock attribute
+        mock_buffer.fileno = MagicMock(return_value=mock_fd)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=mock_fd, buffer=mock_buffer)
+                    with term:
+                        term.write("string data")
+                        term.write(b"bytes data")
+
+        output = mock_buffer.getvalue()
+        assert b"string data" in output
+        assert b"bytes data" in output
 
 
 class TestTerminalRawMode:
