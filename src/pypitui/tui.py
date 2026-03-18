@@ -1181,10 +1181,12 @@ class TUI(Container):
             )
 
             # Skip lines just emitted via scrollback (already on screen via
-            # \r\n). But always render if changed, is transient, or has overlay
+            # \r\n). The \r\n puts them at the correct position; absolute
+            # positioning would duplicate them at wrong coordinates after
+            # terminal scroll. Always skip non-transient/non-overlay lines
+            # that were just emitted, regardless of is_changed.
             was_just_emitted = content_row in newly_emitted
-            skip_due_to_scrollback = use_scrollback and was_just_emitted
-            skip = skip_due_to_scrollback and not is_changed
+            skip = use_scrollback and was_just_emitted
             if skip and not is_transient and not is_overlay:
                 continue
 
