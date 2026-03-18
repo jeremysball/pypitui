@@ -146,6 +146,27 @@ class TestDEC2026:
         assert DEC_2026_START == "\x1b[?2026h"
         assert DEC_2026_END == "\x1b[?2026l"
 
+    def test_terminal_write_within_sync_block(self) -> None:
+        """Verify sequences wrapped correctly."""
+        from pypitui.terminal import DEC_2026_END, DEC_2026_START, Terminal
+
+        mock_buffer = BytesIO()
+        mock_fd = 3
+        mock_buffer.fileno = MagicMock(return_value=mock_fd)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=mock_fd, buffer=mock_buffer)
+                    with term:
+                        with term.write_sync_block():
+                            term.write("data")
+
+        output = mock_buffer.getvalue()
+        assert DEC_2026_START.encode() in output
+        assert b"data" in output
+        assert DEC_2026_END.encode() in output
+
 
 class TestTerminalRawMode:
     """Tests for Terminal context manager raw mode."""

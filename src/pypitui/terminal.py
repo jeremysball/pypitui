@@ -3,6 +3,8 @@
 import sys
 import termios
 import tty
+from collections.abc import Generator
+from contextlib import contextmanager
 from types import TracebackType
 from typing import Any, BinaryIO, Self
 
@@ -92,3 +94,19 @@ class Terminal:
     def show_cursor(self) -> None:
         """Show the cursor."""
         self.write("\x1b[?25h")  # CSI ?25h - show cursor
+
+    @contextmanager
+    def write_sync_block(self) -> Generator[None, None, None]:
+        """Context manager for DEC 2026 synchronized output.
+
+        Wraps output in DEC 2026 start/end sequences for atomic updates.
+
+        Usage:
+            with term.write_sync_block():
+                term.write("data")
+        """
+        self.write(DEC_2026_START)
+        try:
+            yield
+        finally:
+            self.write(DEC_2026_END)
