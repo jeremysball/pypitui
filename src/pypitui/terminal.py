@@ -71,3 +71,7 @@ class Terminal:
         """
         # CSI row+1;col+1H - terminals use 1-indexed coordinates
         self.write(f"\x1b[{row + 1};{col + 1}H")
+
+    def clear_line(self) -> None:
+        """Clear the current line."""
+        self.write("\x1b[2K")  # CSI 2K - clear entire line
