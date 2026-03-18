@@ -5,6 +5,17 @@
 1. **Native scrollback** — Content flows into the terminal's normal scrollback buffer. No alternate screen buffer.
 2. **Atomic rendering** — DEC 2026 synchronized updates ensure frames render atomically. No intermediate states are visible.
 3. **Differential rendering** — Only changed lines redraw. Unchanged lines generate zero output.
+4. **Any scrollback change triggers full redraw** — Terminal scrollback is immutable; cursor positioning cannot reach scrolled-off content.
+
+## Terminal I/O Architecture
+
+**Async User Input** — Keyboard and mouse events are handled asynchronously via a dedicated input thread:
+- Thread spawned on `Terminal.start(on_input_callback)`
+- Blocking reads with timeout for escape sequence completion
+- Callback dispatch to main thread
+- Graceful shutdown via `Terminal.stop()`
+
+**Sync Feature Queries** — Terminal capability detection (DEC 2026, Kitty graphics) uses synchronous request/response during initialization before the async input thread starts. This avoids complexity correlating async responses with requests.
 
 ## Rendering Pipeline
 
@@ -31,6 +42,14 @@
 │  Render Phase                                               │
 │  - Each component renders to its allocated buffer slice     │
 │  - Components return list of (line content, styles)         │
+│  - TUI sets component._rect with absolute position          │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Composite Phase                                            │
+│  - Overlays stamped into buffer at viewport-relative coords │
+│  - Z-index ordering (ascending)                             │
 └─────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -38,6 +57,7 @@
 │  Diff Phase                                                 │
 │  - Compare new render against _previous_lines               │
 │  - Identify which line numbers changed                      │
+│  - Scrollback edit detection (first_changed < viewport_top) │
 │  - Skip identical lines entirely                            │
 └─────────────────────────────────────────────────────────────┘
                            │
@@ -46,6 +66,7 @@
 │  Output Phase                                               │
 │  - Send DEC 2026 sync start (CSI ? 2026 h)                  │
 │  - For each changed line: move cursor, write line           │
+│  - Hardware cursor position tracked per write               │
 │  - Send DEC 2026 sync end (CSI ? 2026 l)                    │
 │  - Update _previous_lines for next diff                     │
 └─────────────────────────────────────────────────────────────┘
@@ -75,6 +96,8 @@ class Component(ABC):
 ```
 
 **Key principle:** Each component is responsible for its own layout given a width constraint. Containers compose children vertically; complex layouts are built by nesting containers or creating custom components.
+
+**Component Position Tracking:** The TUI sets `component._rect: Rect` during render with absolute screen coordinates. This enables targeted invalidation and cursor position calculations.
 
 ### Layout Model
 
@@ -118,6 +141,17 @@ class SidebarLayout(Component):
         return lines
 ```
 
+### Component Caching (Post-MVP)
+
+**Current (MVP):** No component-level render caching. TUI-level diff caching (`_previous_lines`) is sufficient.
+
+**Future:** Intelligent component caching where expensive operations (text wrapping) are cached and automatically invalidated when:
+- Terminal width changes
+- Component properties change
+- Parent layout changes
+
+**Challenge:** Manual `invalidate()` calls are error-prone. Need automatic cache invalidation mechanism.
+
 ## Differential Rendering
 
 Differential rendering reduces output volume by skipping unchanged lines. It works alongside DEC 2026—while sync codes ensure atomic frames, diffing ensures we don't write lines that haven't changed.
@@ -128,66 +162,58 @@ class TUI:
         self.terminal = terminal
         self._previous_lines: dict[int, str] = {}  # row -> content hash
         self._root: Component | None = None
+        self._viewport_top: int = 0
 
     def render_frame(self) -> None:
         """Render only what changed."""
         if not self._root:
             return
 
-        lines = self._root.render()
+        lines = self._root.render(self.terminal.width)
         self._output_diff(lines)
 
     def _output_diff(self, lines: list[RenderedLine]) -> None:
         """Write only changed lines to the terminal."""
+        first_changed, last_changed = self._find_changed_bounds(lines)
+        
+        # CRITICAL: Any change in scrollback requires full redraw
+        if first_changed < self._viewport_top:
+            self._full_render(clear=True)
+            return
+        
         self.terminal.write(DEC_2026_START)
 
-        for row, line in enumerate(lines):
-            content_hash = hash_line(line)
+        for row in range(first_changed, last_changed + 1):
+            content_hash = hash_line(lines[row])
             if self._previous_lines.get(row) != content_hash:
-                self.terminal.move_cursor(0, row)
-                self.terminal.write(line.content)
+                self.terminal.move_cursor(0, row - self._viewport_top)
+                self.terminal.write(lines[row].content)
                 self._previous_lines[row] = content_hash
-
-        # Clear any lines from previous render that no longer exist
-        for old_row in list(self._previous_lines.keys()):
-            if old_row >= len(lines):
-                self.terminal.move_cursor(0, old_row)
-                self.terminal.clear_line()
-                del self._previous_lines[old_row]
 
         self.terminal.write(DEC_2026_END)
 ```
 
-### Scrollback Editing
+### Scrollback Edit Detection (CRITICAL)
 
-**Modifying content above the visible viewport triggers a full redraw.** Once content scrolls into the terminal's scrollback history, we cannot position the cursor to edit it—the only way to change scrollback content is to clear the screen and redraw everything.
+**Any change in scrollback triggers full clear+redraw.** Once content scrolls into the terminal's history buffer, it cannot be edited—cursor positioning only works within the visible viewport.
 
 ```python
-def _output_diff(self, lines: list[str]) -> None:
-    # Find bounds of changes
-    first_changed, last_changed = self._find_changed_bounds(lines)
-    
-    # If changes are above the visible viewport, full redraw
-    viewport_top = max(0, len(self._previous_lines) - self.terminal.height)
-    if first_changed < viewport_top:
-        # Content in scrollback changed - cannot position cursor there
-        # Must clear and redraw to update scrollback
-        self._full_render(clear=True)
-        return
-    
-    # Otherwise, render only changed lines efficiently
-    self._render_changed_lines(first_changed, last_changed, lines)
+def _is_scrollback_edit(self, first_changed: int) -> bool:
+    """Return True if edit is in scrollback (above visible viewport)."""
+    return first_changed < self._viewport_top
 ```
 
 | Change Location | Behavior | Renders |
 |-----------------|----------|---------|
 | Append at end | Optimized | Only new lines |
 | Edit within viewport | Differential | Changed lines only |
-| Edit in scrollback (above viewport) | **Full clear + redraw** | All lines |
+| **Edit in scrollback** | **Full clear + redraw** | All lines |
 | Shrink with `clear_on_shrink=True` | Full clear + redraw | All lines |
 | Shrink with `clear_on_shrink=False` | Differential | Cleared lines only, viewport anchored |
 
 **Why full redraw for scrollback edits?** Cursor positioning only works within the visible terminal area (terminal height). Content in scrollback history cannot be reached by cursor movement—the only mechanism to modify it is clearing the screen (`CSI 2J CSI 3J`) and redrawing all content, which updates both the visible area and the scrollback.
+
+**Design guidance:** Avoid UIs that edit scrollback. Use append-only patterns for logs, overlays for editable history.
 
 ### Terminal Resize
 
@@ -214,31 +240,77 @@ def on_resize(self, new_width: int, new_height: int) -> None:
 
 **Height changes**: Similar to width—content reflows, viewport adjusts. Height primarily affects which lines are visible and when scrollback behavior triggers.
 
+## Hardware Cursor Management
 
+The TUI tracks hardware cursor position for efficient diff output and IME positioning:
+
+```python
+class TUI:
+    def __init__(self, terminal: Terminal) -> None:
+        self._hardware_cursor_row: int = 0
+        self._hardware_cursor_col: int = 0
+        
+    def _output_line(self, line: str, screen_row: int) -> None:
+        """Output line with cursor tracking."""
+        # Calculate optimal cursor movement
+        row_diff = screen_row - self._hardware_cursor_row
+        if row_diff > 0:
+            self.terminal.write(f"\x1b[{row_diff}B")  # Move down
+        elif row_diff < 0:
+            self.terminal.write(f"\x1b[{-row_diff}A")  # Move up
+            
+        self.terminal.write("\r")  # Carriage return
+        self.terminal.write(line)
+        
+        # Update tracking
+        self._hardware_cursor_row = screen_row
+        self._hardware_cursor_col = len(line)
+        
+    def render_frame(self) -> None:
+        """Render with cursor tracking reset."""
+        # Reset cursor tracking before diff output
+        self._hardware_cursor_row = 0
+        self._hardware_cursor_col = 0
+        
+        lines = self._build_frame()
+        self._output_diff(lines)
+        
+        # Position cursor for IME if focused
+        if self._focused:
+            screen_pos = self._calculate_screen_position(self._focused)
+            self.terminal.move_cursor(screen_pos.col, screen_pos.row)
+```
+
+**Cursor tracking phases:**
+1. **Render start**: Reset to (0, 0)
+2. **Diff output**: Track after each line written
+3. **IME positioning**: Calculate absolute screen position for focused component
+
+**Overlay focus positioning:** For components inside overlays, calculate absolute screen coordinates:
+```python
+def _calculate_screen_position(self, component: Component) -> Position:
+    if self._is_in_overlay(component):
+        overlay = self._find_overlay_for(component)
+        abs_pos = self._resolve_position(overlay.position)
+        rel_pos = component.get_cursor_position()
+        return Position(
+            row=abs_pos.row + rel_pos.row,
+            col=abs_pos.col + rel_pos.col
+        )
+    else:
+        # Regular component — content-relative
+        rel_pos = component.get_cursor_position()
+        return Position(
+            row=component._rect.y + rel_pos.row - self._viewport_top,
+            col=component._rect.x + rel_pos.col
+        )
+```
 
 ## Static vs Fixed Elements
 
-### Static Content (Cached Render)
+### Static Content
 
-"Static" means content doesn't change—useful for caching. But it still scrolls with the viewport:
-
-```python
-class Text(Component):
-    """Immutable text block with cached render."""
-
-    def __init__(self, text: str) -> None:
-        super().__init__()
-        self._text = text
-        self._cached: list[str] | None = None
-
-    def render(self, width: int) -> list[str]:
-        """Return cached lines (still scrolls with viewport)."""
-        if self._cached is None:
-            self._cached = self._text.split("\n")
-        return self._cached
-```
-
-Static components avoid re-computing content, but they redraw when the viewport scrolls (because their screen position changes).
+"Static" means content doesn't change. In MVP there is no component-level caching—TUI diff caching handles unchanged lines.
 
 ### Fixed Elements (Overlays)
 
@@ -261,7 +333,7 @@ footer = Overlay(
 **Key distinction:**
 | Type | Position | Scrolls | Mechanism |
 |------|----------|---------|-----------|
-| Static content | Content-relative | Yes | Component cache |
+| Static content | Content-relative | Yes | TUI diff cache |
 | Fixed element | Viewport-relative | No | Overlay |
 
 ## Overlay System
@@ -272,8 +344,8 @@ Overlays provide **viewport-relative positioning** for floating UI. They are **N
 class Overlay:
     """Viewport-relative floating container. Wraps a Component."""
     def __init__(self, content: Component, position: OverlayPosition):
-        self.content = Component       # The actual UI content
-        self.position: OverlayPosition # Where to place it
+        self.content: Component = content  # The actual UI content
+        self.position: OverlayPosition = position
         self.visible: bool = True
         self.z_index: int = 0
 ```
@@ -283,7 +355,7 @@ class Overlay:
 |--------|-----------|---------|
 | Base class | `Component` | Separate wrapper class |
 | Position | Content-relative (scrolls) | Viewport-relative (fixed) |
-| Focus | In `_focus_order` | Separate focus management |
+| Focus | In `_focus_order` | Pushes `content` (Component) to focus stack |
 | Lifecycle | Permanent (in tree) | Temporary (modals, toasts) |
 | Added via | `tui.add_child()` | `tui.show_overlay()` |
 
@@ -293,10 +365,10 @@ Overlays are composited into the line buffer after base content:
 def render_frame(self) -> None:
     """Render base content, composite overlays, then diff."""
     # 1. Render all base components (content may scroll)
-    lines = self._root.render() if self._root else []
+    lines = self._root.render(self.terminal.width) if self._root else []
     
     # 2. Composite overlays at viewport-relative positions
-    for overlay in self._overlays:
+    for overlay in sorted(self._overlays, key=lambda o: o.z_index):
         if overlay.visible:
             self._composite_overlay(lines, overlay)
     
@@ -317,7 +389,6 @@ class OverlayPosition:
     width: int = -1   # -1 = auto-size to content
     height: int = -1  # -1 = auto-size to content
     
-    # Anchor-based shortcuts
     anchor: Literal[
         "center", "top-left", "top-right",
         "bottom-left", "bottom-right",
@@ -336,32 +407,7 @@ class OverlayPosition:
 def _resolve_position(pos: OverlayPosition, term_h: int, term_w: int):
     row = pos.row if pos.row >= 0 else term_h + pos.row + 1
     col = pos.col if pos.col >= 0 else term_w + pos.col + 1
-    # Clamp to visible bounds
     return max(0, min(row, term_h - 1)), max(0, min(col, term_w - 1))
-```
-
-**Absolute positioning example** — Fixed header at top:
-
-```python
-header = Text("Status: Connected")
-overlay = Overlay(
-    content=header,
-    position=OverlayPosition(row=0, col=0, width=80)
-)
-tui.show_overlay(overlay)
-```
-
-**Anchor-based positioning example** — Centered modal:
-
-```python
-modal = BorderedBox(title="Confirm")
-modal.add_child(Text("Delete this file?"))
-
-overlay = Overlay(
-    content=modal,  # Component to render
-    position=OverlayPosition(anchor="center")
-)
-tui.show_overlay(overlay)
 ```
 
 ### Static Elements via Overlays
@@ -375,46 +421,22 @@ class App:
         
         # Fixed header: Overlay wraps a Text Component
         self.header = Overlay(
-            content=Text("My App v1.0"),  # Component
+            content=Text("My App v1.0"),
             position=OverlayPosition(row=0, anchor="top-center")
         )
         self.tui.show_overlay(self.header)
         
-        # Fixed footer: Overlay wraps an Input Component
+        # Fixed footer: Overlay wraps an Input Component  
         self.footer = Overlay(
-            content=Input(placeholder="Type command..."),  # Component
+            content=Input(placeholder="Type command..."),
             position=OverlayPosition(row=-1, anchor="bottom-center")
         )
         self.tui.show_overlay(self.footer)
         
         # Scrollable content: Component added directly to TUI
-        self.content = Container()  # Component
+        self.content = Container()
         self.tui.add_child(self.content)
 ```
-
-The Overlay's `content` attribute holds the Component that renders the actual UI. The Overlay itself only manages position and visibility.
-
-### Viewport-Relative Coordinate System
-
-Overlays use **screen coordinates**, not content coordinates:
-
-```
-Screen Coordinates (viewport-relative):
-┌─────────────────────────────┐  row=0
-│  [Fixed Header Overlay]     │
-├─────────────────────────────┤  row=1
-│                             │
-│  Scrollable content         │  ← moves into scrollback
-│  (base components)          │
-│                             │
-├─────────────────────────────┤  row=22 (height-2)
-│  [Fixed Footer Overlay]     │
-└─────────────────────────────┘  row=23 (height-1)
-```
-
-When content scrolls:
-- Base component lines shift up (into scrollback)
-- Overlays stay at same screen row because they're composited after viewport calculation
 
 ### Overlay Compositing
 
@@ -423,54 +445,28 @@ Overlays are stamped into the line buffer at calculated screen positions:
 ```python
 def _composite_overlay(
     self, 
-    lines: list[str], 
+    lines: list[RenderedLine], 
     overlay: Overlay,
-    viewport_top: int,
-    term_height: int
+    viewport_top: int
 ) -> None:
     """Stamp overlay content at viewport-relative position."""
-    # Resolve position (viewport-relative)
-    row, col, width = self._resolve_position(
-        overlay.position, 
-        term_height, 
-        term_width
+    row, col, width, height = self._resolve_position(
+        overlay.position, self.terminal.height, self.terminal.width
     )
     
-    # Render overlay at fixed width
-    overlay_lines = overlay.render(width)
+    overlay_lines = overlay.content.render(width)
     
-    # Clamp to terminal bounds
-    for i, overlay_line in enumerate(overlay_lines):
+    for i, overlay_line in enumerate(overlay_lines[:height]):
         screen_row = row + i
-        if 0 <= screen_row < term_height:
-            # Calculate actual buffer index
+        if 0 <= screen_row < self.terminal.height:
             buffer_row = viewport_top + screen_row
-            
-            # Extend buffer if needed (content shorter than screen)
             while len(lines) <= buffer_row:
-                lines.append("")
+                lines.append(RenderedLine(""))
             
-            # Composite overlay line into buffer
             lines[buffer_row] = self._composite_line(
-                lines[buffer_row],  # base (possibly scrolled content)
-                overlay_line,       # overlay
-                col,
-                width
+                lines[buffer_row], overlay_line, col, width
             )
 ```
-
-### Scrolling Behavior
-
-**When content grows and scrolls:**
-
-1. Base content renders longer line array
-2. `viewport_top = max(0, content_height - term_height)` increases
-3. Visible base content shifts (different lines now visible)
-4. Overlays composite at same screen positions (fixed)
-5. Diff engine sees ALL visible lines changed (viewport shifted)
-6. Entire viewport redraws, but overlays stay fixed
-
-**Yes** — pi-tui re-renders everything in the visible viewport upon scroll because the content shifted. But overlays are re-composited at fixed screen positions, so they appear static.
 
 ### Line Compositing
 
@@ -479,42 +475,25 @@ Merge overlay content into a base line, respecting wide characters:
 ```python
 def _composite_line(
     self,
-    base: str,
-    overlay: str,
+    base: RenderedLine,
+    overlay: RenderedLine,
     col: int,
     width: int
-) -> str:
+) -> RenderedLine:
     """Splice overlay content into base line at column."""
-    # Slice base at overlay boundaries (respecting wide chars)
-    # Wide chars (emoji, CJK) are treated as atomic units
-    before = slice_by_width(base, 0, col)
-    after = slice_by_width(base, col + width, wcswidth(base))
+    before = slice_by_width(base.content, 0, col)
+    after = slice_by_width(base.content, col + width, wcswidth(base.content))
+    overlay_padded = pad_or_truncate(overlay.content, width)
     
-    # Pad/truncate overlay to declared width
-    overlay_padded = pad_or_truncate(overlay, width)
-    
-    # Compose: base before + overlay + base after
-    return before + overlay_padded + after
+    return RenderedLine(
+        content=before + overlay_padded + after,
+        styles=merge_styles(base.styles, overlay.styles, col)
+    )
 ```
 
 **Wide character handling**:
 - `slice_by_width()` treats wide characters as atomic (never splits them)
 - If overlay starts at a column occupied by a wide character, overlay shifts right
-- Grapheme clusters (é = e + ◌́) are treated as single units
-
-### Z-Order and Focus
-
-Overlays composite in stacking order (last = on top):
-
-```python
-# Later overlays overwrite earlier ones
-for overlay in sorted(self._overlays, key=lambda o: o.z_index):
-    self._composite_overlay(lines, overlay)
-```
-
-Focus order is separate from visual order:
-- `focus_order` determines tab cycling
-- `z_index` determines visual layering
 
 ## Focus Management
 
@@ -544,14 +523,13 @@ class TUI:
                 component.on_focus()
                 component.invalidate()
             except Exception as e:
-                # Pop on error, restore previous
                 self._focus_stack.pop()
                 if self._focused:
                     self._focused.on_focus()
                 self._show_error_overlay(f"Focus error: {e}")
 
     def pop_focus(self) -> Component | None:
-        """Pop current focus, restore previous. Returns popped component."""
+        """Pop current focus, restore previous."""
         if not self._focus_stack:
             return None
             
@@ -577,42 +555,41 @@ class TUI:
 Components register for Tab cycling within their context:
 
 ```python
-class TUI:
-    def register_focusable(self, component: Component) -> None:
-        """Register for Tab cycling."""
-        if component not in self._focus_order:
-            self._focus_order.append(component)
+def register_focusable(self, component: Component) -> None:
+    """Register for Tab cycling."""
+    if component not in self._focus_order:
+        self._focus_order.append(component)
 
-    def cycle_focus(self, direction: int = 1) -> None:
-        """Tab to next in current context."""
-        if not self._focus_order or not self._focused:
-            return
-        
-        current_idx = self._focus_order.index(self._focused)
-        next_idx = (current_idx + direction) % len(self._focus_order)
-        self.set_focus(self._focus_order[next_idx])
+def cycle_focus(self, direction: int = 1) -> None:
+    """Tab to next in current context."""
+    if not self._focus_order or not self._focused:
+        return
+    
+    current_idx = self._focus_order.index(self._focused)
+    next_idx = (current_idx + direction) % len(self._focus_order)
+    self.set_focus(self._focus_order[next_idx])
 ```
 
 ### Overlays and Focus Stack
 
-Overlays push their content onto the focus stack when opened:
+**Critical:** Overlays push their `content` (a Component) onto the focus stack, not the Overlay itself. This maintains type consistency—focus stack always contains Components.
 
 ```python
 def show_overlay(self, overlay: Overlay) -> None:
     """Show overlay and push its content onto focus stack."""
     self._overlays.append(overlay)
     if overlay.content:
-        self.push_focus(overlay.content)
+        self.push_focus(overlay.content)  # Push Component, not Overlay
 
 def close_overlay(self, overlay: Overlay) -> None:
-    """Close overlay and pop its focus."""
+    """Close overlay and pop its focus if content is current."""
     self._overlays.remove(overlay)
-    # Pop if this overlay's content is current focus
+    # Compare against Component (overlay.content), not Overlay
     if self._focused is overlay.content:
         self.pop_focus()
 ```
 
-**Nested overlays work naturally:**
+**Nested overlays:**
 ```python
 tui.set_focus(input_field)      # Stack: [input_field]
 tui.show_overlay(modal)         # Stack: [input_field, modal_input]
@@ -621,108 +598,41 @@ tui.close_overlay(confirm_box)  # Stack: [input_field, modal_input]
 tui.close_overlay(modal)        # Stack: [input_field]
 ```
 
-### Component API
+### Focusable Protocol
 
 ```python
-class Input(Component):
-    def __init__(self, tui: TUI):
-        super().__init__()
-        tui.register_focusable(self)  # For Tab cycling
-
-    def on_focus(self) -> None:
-        self.focused = True
-
-    def on_blur(self) -> None:
-        self.focused = False
-
-    def handle_input(self, data: bytes) -> None:
-        if is_click(data):
-            tui.push_focus(self)  # Push onto stack
+class Focusable(Protocol):
+    def on_focus(self) -> None: ...
+    def on_blur(self) -> None: ...
+    def handle_input(self, data: bytes) -> bool: ...  # Returns True if consumed
+    def get_cursor_position(self) -> tuple[int, int] | None: ...
 ```
+
+**Input consumption:** `handle_input()` returns `bool`:
+- `True` = input was consumed, stop propagation
+- `False` = input not handled, bubble to parent/container
 
 ## Flicker Reduction
 
-Flicker happens when the user sees intermediate states. We eliminate it through:
-
-1. **DEC 2026 synchronized updates** — Atomic frame rendering; the terminal buffers all output and displays it as one frame
-2. **Line-level diffing** — Only changed lines redraw; stable content never updates
-3. **Complete frame construction** — Build the entire frame (including overlays) before any output
+1. **DEC 2026 synchronized updates** — Atomic frame rendering
+2. **Line-level diffing** — Only changed lines redraw
+3. **Complete frame construction** — Build entire frame before output
+4. **Hardware cursor hidden during update** — Prevent cursor jumping
 
 ### DEC 2026 Synchronized Updates
 
-DEC 2026 (synchronized output) is the primary flicker-reduction mechanism:
-
 ```python
-# Enable synchronized output
 DEC_2026_START = "\x1b[?2026h"
-
-# Disable synchronized output  
 DEC_2026_END = "\x1b[?2026l"
 ```
 
-Terminals that support this (kitty, iTerm2, Windows Terminal, alacritty, wezterm) buffer all output between start/end and render it as one atomic frame. The user never sees cursor movement, partial writes, or intermediate states.
+**MVP:** Assume DEC 2026 support on modern terminals. Always emit sync codes.
 
-**Critical:** All cursor movement and content writes must happen between these markers. Never write outside the sync block.
-
-**Feature Detection** — Query terminal support:
-```python
-# Query: CSI ? 2026 $ p
-dec_2026_query = "\x1b[?2026$p"
-
-# Response if supported: CSI ? 2026 ; 1 $ y
-dec_2026_supported = "\x1b[?2026;1$y"
-
-# Response if not supported: CSI ? 2026 ; 2 $ y  
-dec_2026_not_supported = "\x1b[?2026;2$y"
-```
-
-**Graceful degradation**: If DEC 2026 not supported, TUI renders without sync codes. May show flicker on complex updates. Terminal support assumed on modern terminals; query for certainty.
+**Post-MVP:** Feature detection via `CSI ? 2026 $ p` query during initialization (before async input thread starts).
 
 ### Frame Construction
 
-Build the complete frame before output:
-
 ```python
-def render_frame(self) -> None:
-    """Render main content and overlays atomically."""
-    # Build complete frame buffer first
-    lines = self._root.render() if self._root else []
-    
-    # Composite overlays into the same buffer
-    for overlay in self._overlays:
-        if overlay.visible:
-            self._composite_overlay(lines, overlay)
-    
-    # Single atomic output
-    self._output_frame(lines)
-```
-
-### Output Phase
-
-Write the entire frame inside the sync block:
-
-```python
-def _output_frame(self, lines: list[RenderedLine]) -> None:
-    """Output complete frame atomically."""
-    self.terminal.write(DEC_2026_START)
-    
-    for row, line in enumerate(lines):
-        self.terminal.move_cursor(0, row)
-        self.terminal.write(line.content)
-    
-    self.terminal.write(DEC_2026_END)
-```
-
-Within the sync block, cursor movement patterns and multiple writes do not matter—the terminal only renders the final state.
-
-### Cursor Management
-
-Hide the cursor before the sync block, position it after:
-
-```python
-HIDE_CURSOR = "\x1b[?25l"
-SHOW_CURSOR = "\x1b[?25h"
-
 def render_frame(self) -> None:
     """Render with cursor hidden during update."""
     lines = self._build_frame()
@@ -730,21 +640,18 @@ def render_frame(self) -> None:
     self.terminal.write(HIDE_CURSOR)
     self.terminal.write(DEC_2026_START)
     
-    for row, line in enumerate(lines):
-        self.terminal.move_cursor(0, row)
-        self.terminal.write(line.content)
+    self._hardware_cursor_row = 0  # Reset tracking
+    self._hardware_cursor_col = 0
+    self._output_diff(lines)
     
     self.terminal.write(DEC_2026_END)
     
-    # Position cursor for user input
     if self._focused:
-        pos = self._focused.get_cursor_position()
+        pos = self._calculate_screen_position(self._focused)
         self.terminal.move_cursor(pos.col, pos.row)
     
     self.terminal.write(SHOW_CURSOR)
 ```
-
-This prevents the cursor from appearing at random positions during the frame update.
 
 ## Component Invalidation
 
@@ -756,112 +663,149 @@ def invalidate_component(self, component: Component) -> None:
     rect = component._rect
     for row in range(rect.y, rect.y + rect.height):
         self._previous_lines.pop(row, None)
+    component._rect = Rect(0, 0, 0, 0)  # Clear position
 ```
-
-This forces those lines to redraw on the next frame while unchanged lines remain cached.
 
 ## Public API
 
-### Creating Components
-
-Users subclass `Component` and implement `measure()` and `render()`:
+### Complete Export List
 
 ```python
-class MyComponent(Component):
-    def measure(self, width: int, height: int) -> Size:
-        return Size(min(20, width), 1)
+# Core
+from pypitui import TUI, Component, Size, RenderedLine, Rect
 
-    def render(self) -> list[RenderedLine]:
-        return [RenderedLine("Hello", width=5)]
-```
+# Components
+from pypitui import Container, Text, Input, SelectList, SelectItem, BorderedBox
 
-### Composing the UI
+# Overlays
+from pypitui import Overlay, OverlayPosition
 
-```python
-tui = TUI(terminal)
-container = Container()
-tui.add_child(container)
+# Input
+from pypitui import Key, matches_key, parse_key, MouseEvent, parse_mouse
 
-container.add_child(Text("Header"))
-container.add_child(MyComponent())
-```
+# Focus
+from pypitui import Focusable
 
-### Handling Input
+# Errors
+from pypitui import LineOverflowError
 
-```python
-def handle_input(self, data: bytes) -> None:
-    if matches_key(data, Key.TAB):
-        self.tui.cycle_focus()
-    elif self.tui._focused:
-        self.tui._focused.handle_input(data)
+# Styles
+from pypitui import StyleSpan, detect_color_support
+
+# Utils
+from pypitui import truncate_to_width, slice_by_width, wcwidth
 ```
 
 ## Implementation Requirements
 
 ### Input Handling
 
-**Kitty Keyboard Protocol** — Full support for progressive enhancement:
-```python
-# Enable: CSI > 1 u
-# Full mode: CSI > 3 u
-KITTY_ENABLE = "\x1b[>1u"
-KITTY_FULL = "\x1b[>3u"
-```
-- Key release events
-- Modifier key state
-- Unicode key input
-
-**Partial Escape Sequence Buffering** — Handle incomplete sequences with timeout:
-```python
-def _read_input(self) -> bytes:
-    """Read input with timeout for partial sequences."""
-    data = os.read(self.fd, 1024)
-    
-    # Buffer incomplete escape sequences
-    if data.startswith(b'\x1b') and not self._is_complete_sequence(data):
-        # Wait up to 50ms for rest of sequence
-        time.sleep(0.05)
-        more = os.read(self.fd, 1024)
-        data += more
-    
-    return data
-```
-
-**Mouse Support** — Both focus and selection:
-- Click to focus components
-- Click to select items in SelectList
-- Mouse events via `CSI ? 1006 h` (SGR extended coordinates)
-
-**Async Input** — Separate thread for non-blocking reads:
+**Async Thread Model:**
 ```python
 class Terminal:
     def start(self, on_input: Callable[[bytes], None]) -> None:
-        """Start input thread."""
+        """Start async input thread."""
+        self._on_input = on_input
+        self._running = True
         self._input_thread = threading.Thread(target=self._read_loop)
+        self._input_thread.start()
         
     def _read_loop(self) -> None:
         while self._running:
-            data = self._read_with_timeout()
+            data = self._read_with_timeout(timeout=0.05)
             if data:
                 self._on_input(data)
+                
+    def stop(self) -> None:
+        self._running = False
+        self._input_thread.join(timeout=1.0)
 ```
+
+**Partial Escape Sequence Buffering:**
+```python
+def _read_with_timeout(self, timeout: float) -> bytes:
+    data = os.read(self.fd, 1024)
+    if data.startswith(b'\x1b') and not self._is_complete_sequence(data):
+        time.sleep(timeout)
+        more = os.read(self.fd, 1024)
+        data += more
+    return data
+```
+
+**Basic CSI Keys (MVP):**
+- Arrow keys: `ESC [ A`, `ESC [ B`, `ESC [ C`, `ESC [ D`
+- Enter: `\r`
+- Escape: `\x1b`
+- Tab: `\t`
+- Control: `\x01`-`\x1f`
+
+**Post-MVP:** Kitty Keyboard Protocol for full modifier and Unicode support.
+
+### Mouse Events (SGR 1006 Extended)
+
+**Protocol:** `CSI ? 1006 h` enables SGR extended coordinates
+
+**Event format:** `CSI < Cb ; Cx ; Cy M` (press) or `m` (release)
+
+```python
+@dataclass
+class MouseEvent:
+    row: int
+    col: int
+    button: int  # 0=left, 1=middle, 2=right, 3=release, 64=wheel up, 65=wheel down
+    press: bool  # True=press, False=release
+
+def parse_mouse(data: bytes) -> MouseEvent | None:
+    """Parse SGR 1006 extended mouse sequence."""
+    # CSI < Cb ; Cx ; Cy M/m
+    match = re.match(rb'\x1b\[<(\d+);(\d+);(\d+)([Mm])', data)
+    if match:
+        button = int(match.group(1))
+        col = int(match.group(2)) - 1  # 1-indexed to 0-indexed
+        row = int(match.group(3)) - 1
+        press = match.group(4) == b'M'
+        return MouseEvent(row, col, button, press)
+    return None
+```
+
+**Focus determination:** Hit-test by comparing mouse position against `component._rect` for each visible component.
 
 ### Text and Unicode
 
-**Wide Character Handling** — Critical for emoji and CJK:
+**Wide Character Handling:**
 ```python
 from wcwidth import wcswidth, wcwidth
 
 def visible_width(text: str) -> int:
-    """Return display width accounting for wide chars."""
     return wcswidth(text)
 
 def truncate_to_width(text: str, width: int) -> str:
-    """Truncate at column boundary without breaking sequences."""
-    # Handle emoji, wide chars, combining marks
+    """Truncate without breaking wide chars or sequences."""
+    result = []
+    current_width = 0
+    for char in text:
+        char_width = wcwidth(char)
+        if current_width + char_width > width:
+            break
+        result.append(char)
+        current_width += char_width
+    return ''.join(result)
+
+def slice_by_width(text: str, start: int, end: int) -> str:
+    """Slice by display width, treating wide chars as atomic."""
+    result = []
+    current_width = 0
+    for char in text:
+        char_width = wcwidth(char)
+        if current_width >= end:
+            break
+        if current_width >= start:
+            result.append(char)
+        current_width += char_width
+    return ''.join(result)
 ```
 
-**Line Overflow** — Crash on overflow:
+**Line Overflow:**
 ```python
 def _output_line(self, line: str, row: int) -> None:
     if visible_width(line) > self.terminal.width:
@@ -874,33 +818,22 @@ def _output_line(self, line: str, row: int) -> None:
 
 ### Colors and Styles
 
-**Truecolor (RGB)** — Primary support:
+**Truecolor (RGB):**
 ```python
-# Foreground: CSI 38 ; 2 ; r ; g ; b m
-# Background: CSI 48 ; 2 ; r ; g ; b m
 TRUECOLOR_FG = "\x1b[38;2;{};{};{}m"
 TRUECOLOR_BG = "\x1b[48;2;{};{};{}m"
 ```
 
-**Color Capability Detection** — Auto-detect with environment overrides:
-
+**Color Detection:**
 ```python
 def detect_color_support() -> int:
-    """Return color level: 0=none, 1=16, 2=256, 3=truecolor."""
-    # Explicit user override takes precedence
     if os.environ.get("PYPITUI_COLOR"):
         return int(os.environ["PYPITUI_COLOR"])
-    
-    # Respect NO_COLOR (any value disables colors)
     if os.environ.get("NO_COLOR"):
         return 0
+    if os.environ.get("FORCE_COLOR") is not None:
+        return min(int(os.environ["FORCE_COLOR"]), 3)
     
-    # FORCE_COLOR overrides detection
-    force = os.environ.get("FORCE_COLOR")
-    if force is not None:
-        return min(int(force), 3)
-    
-    # Auto-detection via environment variables
     colorterm = os.environ.get("COLORTERM", "").lower()
     if colorterm in ("truecolor", "24bit"):
         return 3
@@ -911,13 +844,12 @@ def detect_color_support() -> int:
     if "color" in term or "ansi" in term:
         return 1
     
-    # Default to truecolor (assume modern terminal)
-    return 3
+    return 3  # Default: assume modern terminal
 ```
 
 | Variable | Effect |
 |----------|--------|
-| `NO_COLOR` | Disable all colors (any value) |
+| `NO_COLOR` | Disable all colors |
 | `FORCE_COLOR=0/1/2/3` | Force color level |
 | `PYPITUI_COLOR=0/1/2/3` | PyPiTUI-specific override |
 | `COLORTERM=truecolor/24bit` | Auto-detect truecolor |
@@ -926,181 +858,30 @@ def detect_color_support() -> int:
 
 ### Images
 
-**Kitty Graphics Protocol** — Inline image display with fallback:
+**MVP:** ASCII fallback only.
 
-```python
-class ImageComponent(Component):
-    def __init__(self, image_path: str) -> None:
-        self.image_path = image_path
-        self._supports_graphics: bool | None = None
-    
-    def render(self, width: int) -> list[str]:
-        # Check support (cached after first query)
-        if self._supports_graphics is None:
-            self._supports_graphics = self._detect_graphics_support()
-        
-        if self._supports_graphics:
-            return self._render_kitty_graphics(width)
-        else:
-            return self._render_placeholder(width)
-    
-    def _render_placeholder(self, width: int) -> list[str]:
-        """Fallback when graphics not supported."""
-        filename = Path(self.image_path).name
-        return [
-            "┌" + "─" * (width - 2) + "┐",
-            "│  [Image]" + " " * (width - 12) + "│",
-            f"│  {filename[:width-6]:<{width-4}}│",
-            "└" + "─" * (width - 2) + "┘",
-        ]
-```
-
-**Graphics Detection** — Query terminal support:
-```python
-def _detect_graphics_support(self) -> bool:
-    """Send Kitty graphics query and await response."""
-    # Query: CSI_Gi=31,s=1,v=1,a=q;AAAA\x1b\\
-    # Response indicates support level
-    # For now, assume supported; implement query later
-    return True
-```
-
-**Fallback behavior**: When Kitty graphics not supported, render ASCII box with filename.
+**Post-MVP:** Kitty Graphics Protocol with capability detection.
 
 ### Debug Mode
-
-Two separate debug mechanisms controlled by different environment variables:
-
-**`PYPITUI_DEBUG`** — Raw escape sequence logging:
-```python
-if os.environ.get("PYPITUI_DEBUG"):
-    debug_dir = Path("/tmp/pypitui")
-    debug_dir.mkdir(exist_ok=True)
-    
-    # Log every render frame with raw output
-    log_path = debug_dir / f"render-{timestamp}-{uuid}.log"
-    log_data = {
-        "first_changed": first_changed,
-        "viewport_top": viewport_top,
-        "cursor_row": cursor_row,
-        "new_lines": new_lines,
-        "previous_lines": previous_lines,
-        "output_buffer": buffer,  # Raw escape sequences
-    }
-```
-
-**`PYPITUI_LOG`** — Application logging (Python stdlib):
-```python
-import logging
-
-logger = logging.getLogger("pypitui")
-
-# In TUI operations
-logger.debug("Rendering frame with %d lines", len(lines))
-logger.info("Focus changed to %s", component)
-logger.error("Component render failed: %s", e)
-```
-
-Log rotation: 100MB per file, keeps 3 backups.
-
-**PII Stripping** — Logs sanitize sensitive data:
-```python
-SENSITIVE_PATTERNS = [
-    (r'password[=:]\S+', 'password=***'),
-    (r'token[=:]\S+', 'token=***'),
-    # Add more as discovered
-]
-```
 
 | Variable | Effect |
 |----------|--------|
 | `PYPITUI_DEBUG=1` | Raw render frames to `/tmp/pypitui/`, re-raise exceptions |
-| `PYPITUI_LOG=debug` | Application logs to stderr |
-| `PYPITUI_LOG=/path/to/file` | Application logs to file |
+| `PYPITUI_LOG=debug` or path | Application logging |
 
 ### Error Handling
 
-TUI catches errors and displays them to users via error overlays:
-
-```python
-def do_render(self) -> None:
-    try:
-        lines = self._root.render()
-    except Exception as e:
-        # Show error overlay instead of crashing
-        self._show_error_overlay(f"Render error: {e}")
-        if os.environ.get("PYPITUI_DEBUG"):
-            raise  # Re-raise in debug mode for stack traces
-```
-
-**Error Overlay** — Displays error message without crashing:
-```python
-def _show_error_overlay(self, message: str) -> None:
-    error_overlay = Overlay(
-        BorderedBox(
-            title="Error",
-            children=[Text(message)]
-        ),
-        position=OverlayPosition(anchor="center")
-    )
-    self.show_overlay(error_overlay)
-```
-
-**Terminal write failures** — Unrecoverable, cleanup and exit:
-```python
-def _write_output(self, data: str) -> None:
-    try:
-        self.terminal.write(data)
-    except (IOError, OSError) as e:
-        self.stop()  # Restore terminal state
-        sys.exit(f"Terminal write failed: {e}")
-```
-
-**Input callback errors** — Show overlay, continue running:
-```python
-def _handle_input(self, data: bytes) -> None:
-    try:
-        self._focused.handle_input(data)
-    except Exception as e:
-        self._show_error_overlay(f"Input error: {e}")
-        if os.environ.get("PYPITUI_DEBUG"):
-            raise
-```
-
-Debug mode (`PYPITUI_DEBUG=1`) re-raises exceptions for development.
-
-### Hardware Cursor / IME Support
-
-**Cursor Position API** — Components report cursor position for IME support:
-
-```python
-class Input(Component, Focusable):
-    def get_cursor_position(self) -> tuple[int, int] | None:
-        """Return (row, col) relative to component origin, or None if not focused."""
-        if not self.focused:
-            return None
-        
-        # Calculate position within component
-        row = self.cursor_line  # Line number within rendered content
-        col = wcswidth(self.content[:self.cursor_pos])
-        return (row, col)
-```
-
-TUI queries focused component and translates to screen coordinates:
-
 ```python
 def render_frame(self) -> None:
-    # ... render frame ...
-    
-    # Position hardware cursor for IME
-    if self._focused:
-        rel_pos = self._focused.get_cursor_position()
-        if rel_pos:
-            screen_row = component_screen_y + rel_pos[0]
-            screen_col = component_screen_x + rel_pos[1]
-            self.terminal.move_cursor(screen_col, screen_row)
-    
-    self.terminal.write(SHOW_CURSOR)
+    try:
+        lines = self._root.render(self.terminal.width)
+        self._output_diff(lines)
+    except LineOverflowError as e:
+        self._show_error_overlay(f"Layout error: {e}")
+    except Exception as e:
+        self._show_error_overlay(f"Render error: {e}")
+        if os.environ.get("PYPITUI_DEBUG"):
+            raise
 ```
 
 ## File Structure
@@ -1109,7 +890,7 @@ def render_frame(self) -> None:
 src/pypitui/
 ├── __init__.py          # Public exports
 ├── tui.py               # TUI class, rendering loop
-├── component.py         # Component base class
+├── component.py         # Component base class, Size, RenderedLine, Rect
 ├── components/          # Built-in components
 │   ├── __init__.py
 │   ├── container.py     # Vertical layout
@@ -1117,64 +898,74 @@ src/pypitui/
 │   ├── input.py         # Text input with cursor
 │   ├── select.py        # Selection list
 │   ├── bordered.py      # Box with borders
-│   ├── overlay.py       # Floating overlays
-│   └── image.py         # Kitty graphics
-├── terminal.py          # Terminal I/O abstraction
-├── keys.py              # Key parsing (Kitty protocol)
-├── mouse.py             # Mouse event parsing
+│   └── rich.py          # Optional Rich integration
+├── overlay.py           # Overlay wrapper class (NOT a Component)
+├── terminal.py          # Terminal I/O abstraction, threaded input
+├── keys.py              # Key parsing (basic CSI)
+├── mouse.py             # Mouse event parsing (SGR 1006)
 ├── styles.py            # Color and style codes
-└── utils.py             # wcwidth, truncation helpers
+└── utils.py             # wcwidth, truncate_to_width, slice_by_width
 ```
+
+## Post-MVP Enhancements
+
+### Component Render Caching
+
+**Challenge:** Manual `invalidate()` is error-prone. Need automatic cache invalidation when width changes or component properties change.
+
+### DEC 2026 Feature Detection
+
+Query during `Terminal.start()` before spawning async thread:
+```python
+def start(self, on_input):
+    self._dec2026_supported = self._sync_query_dec2026()
+    self._input_thread = threading.Thread(target=self._read_loop)
+```
+
+### Kitty Keyboard Protocol
+
+Full progressive enhancement with key release events and modifier state.
+
+### Kitty Graphics Protocol
+
+Inline image display with fallback for unsupported terminals.
 
 ## Resolved Edge Cases
 
 ### Terminal Resize
-- **Behavior**: Full redraw on resize
-- **Reflow**: Container recalculates layouts with new width
-- **Scroll position**: Updates to new `viewport_top`
+- Full redraw on resize
+- Container reflow with new width
+- Viewport recalculation
 
 ### Wide Characters
-- **Slicing**: `slice_by_width()` treats wide chars as atomic units
-- **Overlay collision**: Overlay shifts right if it would split a wide char
-- **Grapheme clusters**: Treated as single units (é = e + ◌́)
+- `slice_by_width()` treats wide chars as atomic
+- Overlay collision shifts right to avoid splitting
+- Grapheme clusters as single units
 
 ### Overlay Positioning
-- **Negative indexing**: `row=-1` means bottom (Python-style)
-- **Clipping**: Overlays clamped to terminal bounds
-- **Z-order**: Higher `z_index` renders on top
-- **Overlap**: Latest overlay in list wins on same z-index
+- Negative indexing (Python-style)
+- Clamping to terminal bounds
+- Z-index ordering (ascending)
 
-### Scrollback "Thrashing"
-- **Rapid append-then-edit**: Triggers full redraw each time
-- **Acceptable cost**: Not optimized; correct behavior preferred
+### Scrollback Handling
+- **Any change in scrollback triggers full redraw**
+- Terminal scrollback is immutable
+- Cursor positioning cannot reach scrolled-off content
 
 ### Focus Management
-- **Stack (LIFO)**: `_focus_stack` holds focus history
-- **Current**: Top of stack (or None if empty)
-- **Operations**: `push_focus()`, `pop_focus()`, `set_focus()` (pop+push)
-- **Tab order**: `register_focusable()` for Tab cycling within context
-- **Error in `on_focus()`**: Pop and restore previous, show error overlay
-- **Overlay opens**: Pushes overlay content onto stack
-- **Overlay closes**: Pops focus (if overlay content is current)
-- **Nested overlays**: Work naturally via stack
-- **No focus**: Empty stack, keyboard input dropped
+- Stack stores Components (not Overlays)
+- `show_overlay()` pushes `overlay.content`
+- `handle_input()` returns `bool` for consumption
+
+### Input Architecture
+- **Async:** User input (keyboard, mouse)
+- **Sync:** Feature queries during init
 
 ### Color Detection
-- **Algorithm**: `COLORTERM` → `TERM` → default truecolor
-- **Overrides**: `NO_COLOR`, `FORCE_COLOR`, `PYPITUI_COLOR`
-- **Respect standards**: Follows de facto terminal conventions
-
-### Image Fallback
-- **Unsupported terminals**: Render ASCII box with filename
-- **Detection**: Kitty graphics query (assumed supported initially)
+- `PYPITUI_COLOR` override
+- Standard `NO_COLOR`/`FORCE_COLOR` support
+- Defaults to truecolor
 
 ### Error Handling
-- **Component render errors**: Error overlay displayed
-- **Terminal write errors**: Cleanup and exit
-- **Input callback errors**: Error overlay, continue running
-- **Debug mode**: Re-raises exceptions for stack traces
-
-### DEC 2026 Detection
-- **Query**: `CSI ? 2026 $ p`
-- **Fallback**: Graceful degradation (no sync codes)
-- **Assumption**: Modern terminals support it
+- Error overlays for graceful degradation
+- Debug mode re-raises for stack traces

@@ -17,7 +17,7 @@ PyPiTUI is a Python TUI library with comprehensive architecture documentation bu
 Implement the full PyPiTUI library with:
 1. **Differential rendering engine** with full viewport-aware diffing from day one
 2. **Component system** with measure/render lifecycle
-3. **Terminal abstraction** with DEC 2026 sync codes and Kitty keyboard protocol
+3. **Terminal abstraction** with DEC 2026 sync codes and threaded async input handling
 4. **Focus management** with stack-based focus and tab order
 5. **Built-in components**: Container, Text, Input, SelectList, BorderedBox, Overlay
 6. **Test-first development** with hybrid strategy: unit tests for rendering engine, E2E for interactive components
@@ -30,7 +30,7 @@ Implement the full PyPiTUI library with:
 - Track `_previous_lines` (row -> content hash)
 - Detect appends vs. edits for optimal output
 - Handle viewport shifts when content exceeds terminal height
-- Full clear+redraw when editing scrollback (above visible viewport)
+- **Any change in scrollback triggers full clear+redraw** (scrollback content is immutable in terminal)
 - DEC 2026 synchronized updates for atomic frames
 
 ### Component System
@@ -38,10 +38,15 @@ Implement the full PyPiTUI library with:
 - Vertical-only layout (no flexbox/grids—keep it simple)
 - Parent containers distribute width; children handle internal layout
 - Overlays for viewport-relative positioning (fixed headers/footers)
+- **Component caching post-MVP**: Manual invalidation is error-prone; design better mechanism later
+
+### Terminal I/O Architecture
+- **Async**: User input (keyboard, mouse) via threaded input handler with callbacks
+- **Sync**: Feature queries (DEC 2026 detection, etc.) during initialization before async thread starts
 
 ### Zero-Dependency Core
 - Only `wcwidth` for Unicode width handling
-- Rich integration optional, isolated in `rich_components.py`
+- Rich integration optional, isolated in `components/rich.py`
 - Markdown/code highlighting via lighter alternative (mistune/pygments)
 
 ---
@@ -49,18 +54,20 @@ Implement the full PyPiTUI library with:
 ## Success Criteria
 
 1. `examples/demo.py` runs without errors showing all component types
-2. Differential rendering produces minimal escape sequences (verified by debug logs)
-3. 80%+ unit test coverage for `tui.py`, `terminal.py`, `styles.py`
-4. E2E tests verify Input, SelectList, and Overlay interactions
-5. mypy strict mode passes with zero errors
-6. Pre-commit hooks (ruff, mypy, pytest) all green
+2. **Differential rendering efficiency**: Append-only scenario emits ≤20% of escape sequences vs full clear+redraw (measured via MockTerminal)
+3. **Performance**: Frame render time <16ms (60 FPS target) for 100-line terminal
+4. 80%+ unit test coverage for `tui.py`, `terminal.py`, `styles.py`
+5. E2E tests verify Input, SelectList, and Overlay interactions
+6. mypy strict mode passes with zero errors
+7. Pre-commit hooks (ruff, mypy, pytest) all green
+8. Wide character handling verified for emoji (width 2) and CJK text
 
 ---
 
 ## Milestones
 
 ### Milestone 1: Foundation & Terminal Abstraction
-**Goal**: Low-level terminal I/O with DEC 2026 sync codes and input parsing.
+**Goal**: Low-level terminal I/O with DEC 2026 sync codes and threaded async input handling.
 
 #### terminal.py - Core Terminal I/O
 - [ ] **Test**: `test_terminal_enter_raw_mode()` — verify tty flags are saved and raw mode is set
@@ -81,15 +88,32 @@ Implement the full PyPiTUI library with:
 - [ ] **Implement**: `DEC_2026_START = "\x1b[?2026h"`, `DEC_2026_END = "\x1b[?2026l"`
 - [ ] **Test**: `test_terminal_write_within_sync_block()` — verify sequences wrapped correctly
 - [ ] **Implement**: `Terminal.write_sync_block(data: str)` context helper
+- [ ] **Decision**: DEC 2026 feature detection deferred to post-MVP; assume modern terminal support
 
 #### Color Support Detection
 - [ ] **Test**: `test_detect_color_support_no_color()` — NO_COLOR=1 returns 0
 - [ ] **Test**: `test_detect_color_support_force_color()` — FORCE_COLOR=3 returns 3
 - [ ] **Test**: `test_detect_color_support_truecolor()` — COLORTERM=truecolor returns 3
 - [ ] **Test**: `test_detect_color_support_256color()` — TERM=256color returns 2
+- [ ] **Test**: `test_detect_color_support_16color()` — TERM=color returns 1
+- [ ] **Test**: `test_detect_color_support_default()` — no env vars returns 3 (assume modern)
+- [ ] **Test**: `test_detect_color_support_pypitui_override()` — PYPITUI_COLOR=2 returns 2
+- [ ] **Test**: `test_detect_color_support_invalid_force()` — invalid FORCE_COLOR defaults to 3
 - [ ] **Implement**: `detect_color_support() -> int` function
 
-#### Key Parsing (Kitty Protocol)
+#### Threaded Async Input Handling
+- [ ] **Test**: `test_sync_queries_complete_before_async_thread()` — DEC 2026 detection and other capability queries finish before input thread spawns
+- [ ] **Implement**: All synchronous terminal queries (DEC 2026 detection, capability queries) MUST complete before `Terminal.start()` spawns the async input thread
+- [ ] **Test**: `test_input_thread_started()` — input thread spawned on `start()`
+- [ ] **Implement**: `Terminal.start(on_input: Callable[[bytes], None])` — spawn input thread
+- [ ] **Test**: `test_input_callback_receives_data()` — callback invoked with raw bytes
+- [ ] **Implement**: `Terminal._read_loop()` — blocking read with callback dispatch
+- [ ] **Test**: `test_input_thread_stopped()` — thread terminates on `stop()`
+- [ ] **Implement**: `Terminal.stop()` — signal thread exit and join
+- [ ] **Test**: `test_partial_escape_sequence_buffering()` — incomplete sequence buffered
+- [ ] **Implement**: `Terminal._read_with_timeout()` — 50ms timeout for sequence completion
+
+#### Key Parsing (Basic CSI)
 - [ ] **Test**: `test_key_enum_values()` — verify Key.ENTER, Key.ESCAPE, Key.TAB bytes
 - [ ] **Implement**: `Key` enum with common keys
 - [ ] **Test**: `test_matches_key_exact_match()` — matches_key(b"\r", Key.ENTER) is True
@@ -99,53 +123,103 @@ Implement the full PyPiTUI library with:
 - [ ] **Test**: `test_parse_key_control()` — parse_key(b"\x01") returns Key.ctrl("a")
 - [ ] **Implement**: `parse_key(data: bytes) -> str | Key`
 
-#### Mouse Events
-- [ ] **Test**: `test_parse_mouse_click()` — parse SGR extended mouse sequence
-- [ ] **Test**: `test_parse_mouse_release()` — verify release event parsing
-- [ ] **Implement**: `MouseEvent` dataclass and `parse_mouse(data: bytes) -> MouseEvent | None`
+#### Mouse Events (SGR 1006 Extended)
+- [ ] **Test**: `test_parse_mouse_click()` — parse SGR extended mouse sequence (CSI < 0;10;20 M)
+- [ ] **Test**: `test_parse_mouse_release()` — verify release event parsing (CSI < 0;10;20 m)
+- [ ] **Test**: `test_parse_mouse_wheel()` — verify scroll wheel events
+- [ ] **Test**: `test_parse_mouse_move()` — verify mouse move with button held
+- [ ] **Test**: `test_mouse_coordinates_converted_to_zero_indexed()` — SGR 1006 reports 1-indexed coordinates, MouseEvent stores 0-indexed screen coordinates
+- [ ] **Implement**: `MouseEvent` dataclass with `row: int, col: int` (0-indexed screen coordinates) and `parse_mouse(data: bytes) -> MouseEvent | None`
 
 ---
 
 ### Milestone 2: Rendering Engine
-**Goal**: Differential rendering with full viewport-aware diffing.
+**Goal**: Differential rendering with full viewport-aware diffing and 60 FPS performance (<16ms frame time).
+
+#### Core Data Structures
+- [ ] **Test**: `test_size_dataclass()` — Size(width, height) stores dimensions
+- [ ] **Implement**: `Size` dataclass with `width: int`, `height: int`
+- [ ] **Test**: `test_rendered_line_dataclass()` — RenderedLine stores content and styles
+- [ ] **Implement**: `RenderedLine` dataclass with `content: str`, `styles: list[StyleSpan]`
+- [ ] **Note**: `RenderedLine` is the canonical return type for all `render()` methods. The architecture document's `list[str]` references are simplified for conceptual clarity.
+- [ ] **Test**: `test_rect_dataclass()` — Rect(x, y, width, height) stores position and dimensions
+- [ ] **Implement**: `Rect` dataclass with `x: int`, `y: int`, `width: int`, `height: int`
 
 #### TUI Class Foundation
-- [ ] **Test**: `test_tui_init_caches_previous_lines()` — _previous_lines is empty dict
-- [ ] **Implement**: `TUI.__init__(self, terminal: Terminal)`
+- [ ] **Test**: `test_tui_init_caches_previous_lines()` — _previous_lines is empty dict row->content_hash
+- [ ] **Test**: `test_tui_init_tracks_max_lines()` — _max_lines_rendered starts at 0
+- [ ] **Test**: `test_tui_init_tracks_viewport_top()` — _viewport_top starts at 0
+- [ ] **Test**: `test_tui_init_hardware_cursor()` — _hardware_cursor_row and _hardware_cursor_col tracked
+- [ ] **Implement**: `TUI.__init__(self, terminal: Terminal)` with full state tracking
 - [ ] **Test**: `test_tui_add_child_sets_root()` — add_child stores component
 - [ ] **Implement**: `TUI.add_child(self, component: Component)`
 
 #### Differential Rendering Core
+- [ ] **Test**: `test_find_changed_bounds_identifies_range()` — returns (first, last) changed indices
+- [ ] **Implement**: `TUI._find_changed_bounds(self, new_lines: list[str]) -> tuple[int, int]`
 - [ ] **Test**: `test_output_diff_writes_changed_lines()` — only changed lines emit escape sequences
 - [ ] **Test**: `test_output_diff_skips_unchanged_lines()` — unchanged lines generate no output
-- [ ] **Implement**: `TUI._output_diff(self, lines: list[str])` basic version
+- [ ] **Test**: `test_escape_sequence_efficiency()` — append-only emits ≤20% sequences vs full redraw (via MockTerminal)
+- [ ] **Implement**: `TUI._output_diff(self, lines: list[str])` with full diffing algorithm
 
 #### Viewport Tracking
 - [ ] **Test**: `test_viewport_top_calculation()` — viewport_top = max(0, content_height - term_height)
 - [ ] **Test**: `test_viewport_top_zero_when_content_fits()` — 3 lines on 24-line terminal = 0
 - [ ] **Test**: `test_viewport_top_nonzero_when_content_scrolls()` — 30 lines on 24-line terminal = 6
 - [ ] **Implement**: `TUI._calculate_viewport_top(self, content_height: int) -> int`
+- [ ] **Test**: `test_compute_line_diff_accounts_for_viewport()` — cursor positioning with viewport offset
+- [ ] **Implement**: `TUI._compute_line_diff(self, target_row: int, prev_viewport_top: int, viewport_top: int) -> int`
 
 #### Append Optimization
-- [ ] **Test**: `test_detect_append_start()` — pure append returns appendStart=True
-- [ ] **Test**: `test_detect_edit_not_append()` — middle edit returns appendStart=False
-- [ ] **Implement**: `TUI._detect_append(self, new_lines: list[str], prev_lines: dict[int, str]) -> bool`
+- [ ] **Test**: `test_detect_append_start()` — pure append returns append_start=True
+- [ ] **Test**: `test_detect_edit_not_append()` — middle edit returns append_start=False
+- [ ] **Implement**: `TUI._detect_append(self, new_lines: list[str], prev_lines: dict[int, str], first_changed: int) -> bool`
 - [ ] **Test**: `test_append_uses_newline_scrolling()` — append writes \r\n not cursor positioning
-- [ ] **Implement**: Append path in `_output_diff()` using `\r\n` for terminal natural scrolling
+- [ ] **Test**: `test_append_with_viewport_shift()` — scrollback handled via terminal natural scroll
+- [ ] **Implement**: Append path with `\r\n` for terminal natural scrolling
 
-#### Scrollback-Aware Redraw
-- [ ] **Test**: `test_edit_above_viewport_triggers_full_redraw()` — first_changed < viewport_top
-- [ ] **Test**: `test_edit_in_viewport_does_not_clear()` — first_changed >= viewport_top
-- [ ] **Implement**: Scrollback detection and `_full_render(clear=True)` path
+#### Scrollback-Aware Redraw (CRITICAL)
+- [ ] **Test**: `test_edit_in_scrollback_triggers_full_redraw()` — first_changed < viewport_top triggers clear
+- [ ] **Test**: `test_edit_in_viewport_does_not_clear()` — first_changed >= viewport_top uses diff
+- [ ] **Implement**: `TUI._is_scrollback_edit(self, first_changed: int, viewport_top: int) -> bool`
+- [ ] **Test**: `test_mixed_scrollback_edit_and_append_triggers_full_redraw()` — when both scrollback edit and append occur in same frame, full redraw takes precedence over append optimization
+- [ ] **Implement**: Scrollback edit detection takes precedence; full redraw occurs when `first_changed < viewport_top`, even if append optimization would otherwise apply
+- [ ] **Test**: `test_clear_on_shrink_true()` — full clear when content shrinks
+- [ ] **Test**: `test_clear_on_shrink_false()` — differential clear when content shrinks
+- [ ] **Implement**: `clear_on_shrink: bool` parameter in TUI config
 
-#### Component Invalidation
+**Design Note:** Any change in scrollback (content above current viewport) triggers full clear+redraw because terminal scrollback is immutable. Cursor positioning cannot reach scrolled-off content. This takes precedence over append optimization.
+
+#### Line Overflow Protection
+- [ ] **Test**: `test_line_overflow_raises_error()` — line exceeding width raises LineOverflowError
+- [ ] **Test**: `test_line_overflow_includes_context()` — error shows row, width, content
+- [ ] **Implement**: `LineOverflowError` exception and width validation in `_output_line()`
+- [ ] **Test**: `test_render_error_shows_overlay()` — component render error displays error overlay
+- [ ] **Implement**: Error overlay display in `render_frame()` exception handler
+
+#### Component Position Tracking
+- [ ] **Test**: `test_component_rect_set_during_render()` — _rect populated after render_frame()
+- [ ] **Implement**: TUI sets `component._rect` during render with absolute (x, y, width, height)
 - [ ] **Test**: `test_invalidate_component_clears_rect_lines()` — specific rows removed from _previous_lines
 - [ ] **Implement**: `TUI.invalidate_component(self, component: Component)`
+
+#### Hardware Cursor Management
+- [ ] **Test**: `test_hardware_cursor_tracked_per_write()` — _hardware_cursor_row/col updated after each line
+- [ ] **Test**: `test_hardware_cursor_reset_on_render_start()` — cursor reset to (0,0) before diff output
+- [ ] **Implement**: Explicit cursor tracking in `_output_line()` and `_output_diff()`
+- [ ] **Test**: `test_hardware_cursor_for_overlay_focus()` — absolute positioning for overlay content
+- [ ] **Implement**: Absolute screen coordinate calculation for overlay-focused components
 
 #### Terminal Resize
 - [ ] **Test**: `test_resize_clears_previous_lines()` — _previous_lines cleared on resize
 - [ ] **Test**: `test_resize_updates_terminal_dimensions()` — width/height updated
+- [ ] **Test**: `test_resize_updates_viewport_top()` — viewport recalculated
+- [ ] **Test**: `test_resize_triggers_full_redraw()` — all visible lines are re-emitted after resize via MockTerminal escape sequence verification
 - [ ] **Implement**: `TUI.on_resize(self, new_width: int, new_height: int)`
+
+#### Performance
+- [ ] **Test**: `test_frame_render_time_under_16ms()` — render completes within 60 FPS budget
+- [ ] **Implement**: Frame timing instrumentation in `render_frame()`
 
 ---
 
@@ -157,12 +231,16 @@ Implement the full PyPiTUI library with:
 - [ ] **Implement**: `Component` ABC with `measure()`, `render()`, `invalidate()`
 - [ ] **Test**: `test_component_invalidation_bubbles()` — invalidate() calls _child_invalidated()
 - [ ] **Implement**: `Component.invalidate(self)` and `_child_invalidated(self, child)`
+- [ ] **Test**: `test_component_rect_field_exists()` — _rect: Rect stores position and dimensions
+- [ ] **Implement**: `Component._rect: Rect` field for TUI to set during render
+
+**Note:** Components MAY implement internal caching (e.g., Text component caching wrapped lines) as an optimization, but TUI does not rely on it. TUI-level `_previous_lines` diffing is the primary and required caching mechanism.
 
 #### Container Component
 - [ ] **Test**: `test_container_measure_returns_sum_of_children()` — height = sum(child heights)
 - [ ] **Implement**: `Container.measure(self, available_width: int, available_height: int) -> Size`
 - [ ] **Test**: `test_container_render_stacks_vertically()` — children rendered sequentially
-- [ ] **Implement**: `Container.render(self, width: int) -> list[str]`
+- [ ] **Implement**: `Container.render(self, width: int) -> list[RenderedLine]`
 - [ ] **Test**: `test_container_add_child_appends_to_list()` — children list grows
 - [ ] **Implement**: `Container.add_child(self, component: Component)`
 - [ ] **Test**: `test_container_clear_children()` — children list emptied
@@ -172,11 +250,22 @@ Implement the full PyPiTUI library with:
 - [ ] **Test**: `test_text_measure_single_line()` — height=1 for simple text
 - [ ] **Test**: `test_text_measure_multi_line()` — height=n for n lines
 - [ ] **Implement**: `Text.measure(self, available_width: int, available_height: int) -> Size`
-- [ ] **Test**: `test_text_render_returns_lines()` — returns list of strings
-- [ ] **Test**: `test_text_render_wraps_long_lines()` — wrapping at width boundary
-- [ ] **Implement**: `Text.render(self, width: int) -> list[str]` with wrapping
-- [ ] **Test**: `test_text_render_cached()` — second call returns cached result
-- [ ] **Implement**: Text render caching with `_cached: list[str] | None`
+- [ ] **Test**: `test_text_render_returns_lines()` — returns list of RenderedLine
+- [ ] **Test**: `test_text_render_wraps_long_lines()` — wrapping at width boundary using wcwidth
+- [ ] **Implement**: `Text.render(self, width: int) -> list[RenderedLine]` with proper wide char handling
+- [ ] **Test**: `test_text_content_mutable()` — set_text updates content and invalidates
+- [ ] **Implement**: `Text.set_text(self, text: str)` with invalidation
+
+**Note:** No render caching in MVP. May add intelligent caching post-MVP.
+
+#### Wide Character Support
+- [ ] **Test**: `test_wcwidth_emoji()` — emoji counted as width 2
+- [ ] **Test**: `test_wcwidth_cjk()` — CJK characters counted as width 2
+- [ ] **Test**: `test_truncate_to_width_respects_wide_chars()` — never splits wide chars
+- [ ] **Test**: `test_wide_char_at_boundary_excluded()` — wide characters at exact width boundary are excluded (strict <= rule)
+- [ ] **Implement**: `truncate_to_width(text: str, width: int) -> str` using wcwidth — wide chars at exact boundary are excluded
+- [ ] **Test**: `test_slice_by_width_atomic()` — wide chars treated as atomic units
+- [ ] **Implement**: `slice_by_width(text: str, start: int, end: int) -> str`
 
 ---
 
@@ -190,12 +279,13 @@ Implement the full PyPiTUI library with:
 - [ ] **Implement**: `Input.measure()`
 - [ ] **Test**: `test_input_render_shows_content()` — typed text appears in render
 - [ ] **Test**: `test_input_render_shows_placeholder_when_empty()` — placeholder visible
-- [ ] **Implement**: `Input.render(self, width: int) -> list[str]`
+- [ ] **Implement**: `Input.render(self, width: int) -> list[RenderedLine]`
 - [ ] **Test**: `test_input_handle_key_appends_char()` — "a" typed adds "a" to content
 - [ ] **Test**: `test_input_handle_backspace_removes_char()` — backspace removes last char
-- [ ] **Implement**: `Input.handle_input(self, data: bytes)`
-- [ ] **Test**: `test_input_cursor_position()` — returns (row, col) tuple
-- [ ] **Implement**: `Input.get_cursor_position(self) -> tuple[int, int] | None`
+- [ ] **Test**: `test_input_handle_input_returns_bool()` — returns True when consuming input
+- [ ] **Implement**: `Input.handle_input(self, data: bytes) -> bool`
+- [ ] **Test**: `test_input_cursor_position_relative()` — returns (row, col) relative to component's top-left origin; row 0 = first rendered line, col = display width units (wcwidth)
+- [ ] **Implement**: `Input.get_cursor_position(self) -> tuple[int, int] | None` — returns cursor position relative to component's top-left corner; row 0 = first rendered line, column = wcwidth display units
 - [ ] **Test**: `test_input_on_submit_callback()` — Enter triggers on_submit
 - [ ] **Implement**: `Input.on_submit` callback field
 
@@ -209,7 +299,9 @@ Implement the full PyPiTUI library with:
 - [ ] **Implement**: `SelectList.render()` with selection highlighting
 - [ ] **Test**: `test_selectlist_handle_down_moves_selection()` — selection index increments
 - [ ] **Test**: `test_selectlist_handle_up_moves_selection()` — selection index decrements
-- [ ] **Implement**: `SelectList.handle_input()` for Up/Down/Enter
+- [ ] **Test**: `test_selectlist_wraps_at_boundaries()` — Up at top wraps to bottom, vice versa
+- [ ] **Test**: `test_selectlist_handle_input_returns_bool()` — returns True when consuming input
+- [ ] **Implement**: `SelectList.handle_input(data: bytes) -> bool` for Up/Down/Enter
 
 #### SelectItem Dataclass
 - [ ] **Test**: `test_selectitem_creation()` — id and label stored
@@ -229,24 +321,28 @@ Implement the full PyPiTUI library with:
 ---
 
 ### Milestone 5: Focus Management
-**Goal**: Stack-based focus with tab order.
+**Goal**: Stack-based focus (_focus_stack for overlays/context) with tab order (_focus_order for cycling).
 
-#### Focus Stack
+#### Focus Stack (LIFO for Overlay/Context Management)
 - [ ] **Test**: `test_focus_stack_empty_returns_none()` — _focused is None initially
 - [ ] **Test**: `test_push_focus_adds_to_stack()` — stack grows
 - [ ] **Implement**: `TUI.push_focus(self, component: Component | None)`
-- [ ] **Test**: `test_push_focus_calls_on_focus()` — component.on_focus() invoked
-- [ ] **Test**: `test_push_focus_invalidates_component()` — invalidate called
-- [ ] **Implement**: on_focus() lifecycle and invalidation
+- [ ] **Test**: `test_push_focus_calls_on_blur_on_previous()` — previous.on_blur() invoked
+- [ ] **Test**: `test_push_focus_calls_on_focus_on_new()` — component.on_focus() invoked
+- [ ] **Test**: `test_push_focus_invalidates_both()` — invalidate called on both components
+- [ ] **Implement**: Full lifecycle: on_blur() previous, on_focus() new, invalidation
+- [ ] **Test**: `test_push_focus_error_restores_previous()` — pop on error, restore previous focus
+- [ ] **Implement**: Error handling: pop and restore on on_focus() failure
 - [ ] **Test**: `test_pop_focus_removes_from_stack()` — stack shrinks
 - [ ] **Test**: `test_pop_focus_returns_popped_component()` — returns correct component
 - [ ] **Implement**: `TUI.pop_focus(self) -> Component | None`
 - [ ] **Test**: `test_pop_focus_calls_on_blur()` — component.on_blur() invoked
-- [ ] **Implement**: on_blur() lifecycle
+- [ ] **Test**: `test_pop_focus_calls_on_focus_on_previous()` — previous.on_focus() restored
+- [ ] **Implement**: on_blur() lifecycle and previous restore
 - [ ] **Test**: `test_set_focus_pops_then_pushes()` — replaces current focus
 - [ ] **Implement**: `TUI.set_focus(self, component: Component | None)`
 
-#### Focus Order / Tab Cycling
+#### Focus Order (Tab Cycling)
 - [ ] **Test**: `test_register_focusable_adds_to_order()` — _focus_order list grows
 - [ ] **Implement**: `TUI.register_focusable(self, component: Component)`
 - [ ] **Test**: `test_cycle_focus_moves_to_next()` — Tab moves to next in order
@@ -254,68 +350,116 @@ Implement the full PyPiTUI library with:
 - [ ] **Implement**: `TUI.cycle_focus(self, direction: int = 1)`
 
 #### Focusable Protocol
-- [ ] **Test**: `test_focusable_components_have_on_focus()` — Focusable protocol check
-- [ ] **Implement**: `Focusable` protocol with `on_focus()`, `on_blur()`, `handle_input()`
+- [ ] **Test**: `test_focusable_components_have_on_focus()` — Focusable protocol check using `@runtime_checkable` with `isinstance()`
+- [ ] **Implement**: `@runtime_checkable class Focusable(Protocol)` with `on_focus()`, `on_blur()`, `handle_input() -> bool`
+- [ ] **Test**: `test_focusable_get_cursor_position()` — returns relative position for IME
+- [ ] **Implement**: `Focusable.get_cursor_position(self) -> tuple[int, int] | None`
 
 ---
 
 ### Milestone 6: Overlay System
-**Goal**: Viewport-relative floating UI.
+**Goal**: Viewport-relative floating UI. **Note: Overlay is NOT a Component—it wraps a Component.**
 
-#### OverlayPosition
-- [ ] **Test**: `test_overlay_position_absolute()` — row=5, col=10 resolved correctly
-- [ ] **Test**: `test_overlay_position_negative_indexing()` — row=-1 is bottom
-- [ ] **Test**: `test_overlay_position_anchor_center()` — anchor="center" calculates center
-- [ ] **Implement**: `OverlayPosition` dataclass with `resolve()` method
+#### OverlayPosition Dataclass
+- [ ] **Test**: `test_overlay_position_fields()` — row, col, width, height, anchor stored
+- [ ] **Implement**: `OverlayPosition` dataclass:
+  - `row: int` — 0=top, -1=bottom (Python negative indexing)
+  - `col: int = 0` — 0=left edge
+  - `width: int = -1` — -1=auto-size to content
+  - `height: int = -1` — -1=auto-size to content
+  - `anchor: str | None = None` — "center", "top-left", "bottom-right", etc.
 
-#### Overlay Class
-- [ ] **Test**: `test_overlay_init_stores_content()` — content and position stored
+#### Overlay Class (Wrapper, Not Component)
+- [ ] **Test**: `test_overlay_wraps_component()` — content is Component instance
 - [ ] **Implement**: `Overlay.__init__(self, content: Component, position: OverlayPosition)`
-- [ ] **Test**: `test_overlay_visibility_toggle()` — visible flag can be set
+- [ ] **Test**: `test_overlay_visible_flag()` — visible: bool = True
 - [ ] **Implement**: `Overlay.visible` property
+- [ ] **Test**: `test_overlay_z_index()` — z_index: int = 0 for stacking
+- [ ] **Implement**: `Overlay.z_index` property
 
 #### TUI Overlay Management
 - [ ] **Test**: `test_show_overlay_adds_to_list()` — _overlays grows
-- [ ] **Test**: `test_show_overlay_pushes_focus()` — overlay content gets focus
-- [ ] **Implement**: `TUI.show_overlay(self, overlay: Overlay)`
+- [ ] **Test**: `test_show_overlay_pushes_content_focus()` — overlay.content (Component) gets focus via push_focus(); NOT the Overlay wrapper itself
+- [ ] **Implement**: `TUI.show_overlay(self, overlay: Overlay)` — adds to list, pushes overlay.content (the Component, not the Overlay wrapper) onto focus stack
 - [ ] **Test**: `test_close_overlay_removes_from_list()` — _overlays shrinks
-- [ ] **Test**: `test_close_overlay_pops_focus()` — focus restored to previous
-- [ ] **Implement**: `TUI.close_overlay(self, overlay: Overlay)`
+- [ ] **Test**: `test_close_overlay_pops_content_focus()` — focus restored via pop_focus() if overlay.content is current
+- [ ] **Implement**: `TUI.close_overlay(self, overlay: Overlay)` — removes from list, pops focus if overlay.content is current
+- [ ] **Test**: `test_nested_overlays_stack_focus()` — multiple overlays push/pop correctly; focus stack contains only Components, never Overlay wrappers
+- [ ] **Implement**: Nested overlay support via focus stack
+
+**Clarification:** The focus stack stores only `Component` instances, never `Overlay` wrappers. When showing an overlay, extract `overlay.content` (a Component) and push that. When comparing focus, compare Component references.
+
+#### Overlay Position Resolution (TUI Method)
+- [ ] **Test**: `test_resolve_position_absolute()` — row=5, col=10 → screen coordinates
+- [ ] **Test**: `test_resolve_position_negative()` — row=-1 → bottom row
+- [ ] **Test**: `test_resolve_position_anchor_center()` — anchor="center" calculates center position
+- [ ] **Test**: `test_resolve_position_clamping()` — position clamped to terminal bounds
+- [ ] **Implement**: `TUI._resolve_position(pos: OverlayPosition) -> tuple[int, int, int, int]` — returns (row, col, width, height)
 
 #### Overlay Compositing
-- [ ] **Test**: `test_composite_overlay_stamps_content()` — overlay lines appear in buffer
-- [ ] **Test**: `test_composite_overlay_respects_position()` — content at correct offset
-- [ ] **Implement**: `TUI._composite_overlay(self, lines: list[str], overlay: Overlay)`
-- [ ] **Test**: `test_composite_overlay_clipping()` — content past bounds is truncated
-- [ ] **Implement**: Clipping to terminal bounds
+- [ ] **Test**: `test_composite_overlay_stamps_content()` — overlay lines merged into buffer
+- [ ] **Test**: `test_composite_overlay_respects_position()` — content at resolved offset
+- [ ] **Implement**: `TUI._composite_overlay(self, lines: list[RenderedLine], overlay: Overlay, viewport_top: int)`
+- [ ] **Test**: `test_composite_overlay_clipping()` — content past terminal bounds truncated
+- [ ] **Implement**: Clipping to terminal bounds (0->width/height)
+
+#### Line Compositing with Wide Char Support
+- [ ] **Test**: `test_composite_line_splices_content()` — overlay replaces base at column
+- [ ] **Test**: `test_composite_line_respects_wide_chars()` — never splits wide characters
+- [ ] **Implement**: `TUI._composite_line(base: str, overlay: str, col: int, width: int) -> str`
+- [ ] **Test**: `test_pad_or_truncate_overlay()` — overlay padded/truncated to declared width
+- [ ] **Implement**: `pad_or_truncate(text: str, width: int) -> str`
 
 #### Z-Index Ordering
-- [ ] **Test**: `test_overlays_composite_in_z_order()` — higher z_index renders on top
-- [ ] **Implement**: Sort overlays by `z_index` before compositing
+- [ ] **Test**: `test_overlays_composite_in_z_order()` — sorted by z_index ascending
+- [ ] **Test**: `test_overlays_same_z_index_fifo()` — overlays with equal z_index composite in `_overlays` list insertion order (most recently shown on top)
+- [ ] **Implement**: Sort overlays by `z_index` before compositing in `render_frame()`; ties broken by `_overlays` list order (insertion order, most recent appended to end)
 
 ---
 
-### Milestone 7: Rich Integration (Optional)
-**Goal**: Markdown and code highlighting via lighter alternative.
+### Milestone 7: Rich Integration (MVP Basic Support)
+**Goal**: Basic markdown and code highlighting using mistune + pygments.
 
-#### Research
-- [ ] **Spike**: Evaluate `mistune` vs `markdown-it-py` for markdown parsing
-- [ ] **Spike**: Evaluate `pygments` alone for code highlighting
-- [ ] **Decision**: Choose lighter library combination
+#### Dependencies
+- [ ] **Add**: `mistune>=3.0` to optional dependencies `[rich]`
+- [ ] **Add**: `pygments>=2.17` to optional dependencies `[rich]`
 
 #### Markdown Component
 - [ ] **Test**: `test_markdown_renders_headers()` — # Header becomes bold/underlined
 - [ ] **Test**: `test_markdown_renders_bold()` — **text** becomes bold
-- [ ] **Implement**: `Markdown(Component)` using chosen library
+- [ ] **Test**: `test_markdown_renders_lists()` — bullet points rendered correctly
+- [ ] **Implement**: `Markdown(Component)` using mistune parser
 
 #### Code Component
-- [ ] **Test**: `test_code_renders_with_syntax_highlighting()` — colored tokens
+- [ ] **Test**: `test_code_renders_with_syntax_highlighting()` — colored tokens via pygments
+- [ ] **Test**: `test_code_language_detection()` — language parameter used for lexer
 - [ ] **Implement**: `CodeBlock(Component)` with pygments highlighting
+
+#### Lazy Import Pattern
+- [ ] **Test**: `test_rich_components_lazy_import()` — import error handled gracefully
+- [ ] **Implement**: Lazy import in `components/rich.py` to avoid hard dependency
+
+**File Location:** `src/pypitui/components/rich.py` (moved from top-level)
 
 ---
 
-### Milestone 8: Demo & Documentation
-**Goal**: Working demo and user-facing docs.
+### Milestone 8: Error Handling & Demo
+**Goal**: Graceful error handling and working examples.
+
+#### Error Handling
+- [ ] **Test**: `test_render_error_shows_overlay()` — component render error displays error overlay
+- [ ] **Implement**: `TUI._show_error_overlay(message: str)` — displays error without crashing; message is plain text (not pre-formatted), BorderedBox handles wrapping, recommended max 200 chars
+- [ ] **Test**: `test_terminal_write_error_cleanup()` — IOError triggers cleanup and exit
+- [ ] **Implement**: Terminal write error handling with state restoration
+- [ ] **Test**: `test_input_callback_error_continues()` — callback error shows overlay, continues running
+- [ ] **Implement**: Input callback error isolation
+- [ ] **Test**: `test_debug_mode_re_raises()` — PYPITUI_DEBUG=1 re-raises for stack traces
+- [ ] **Implement**: Debug mode exception handling
+
+#### PII Stripping in Logs
+- [ ] **Test**: `test_log_sanitizes_passwords()` — password patterns replaced with ***
+- [ ] **Test**: `test_log_sanitizes_tokens()` — token patterns replaced with ***
+- [ ] **Implement**: Log sanitization patterns for sensitive data
 
 #### Examples
 - [ ] **E2E**: `demo.py` runs without errors — smoke test
@@ -326,7 +470,16 @@ Implement the full PyPiTUI library with:
 - [ ] **Implement**: `examples/overlays.py` modal dialog examples
 
 #### Public API
-- [ ] **Implement**: `src/pypitui/__init__.py` exports
+- [ ] **Implement**: Complete `src/pypitui/__init__.py` exports:
+  - Core: `TUI`, `Component`, `Size`, `RenderedLine`, `Rect`
+  - Components: `Container`, `Text`, `Input`, `SelectList`, `SelectItem`, `BorderedBox`
+  - Overlays: `Overlay`, `OverlayPosition`
+  - Input: `Key`, `matches_key`, `parse_key`, `MouseEvent`, `parse_mouse`
+  - Focus: `Focusable` protocol
+  - Errors: `LineOverflowError`
+  - Styles: `StyleSpan`, `detect_color_support`
+  - Utils: `truncate_to_width`, `slice_by_width`, `wcwidth`
+- [ ] **Test**: `test_all_public_api_importable()` — verify each export can be imported from `pypitui`
 - [ ] **Verify**: `from pypitui import TUI, Container, Text, Input` works
 
 #### Documentation
@@ -335,6 +488,66 @@ Implement the full PyPiTUI library with:
 - [ ] **Verify**: mypy strict mode passes
 - [ ] **Verify**: ruff linting passes
 - [ ] **Verify**: pytest all green
+- [ ] **Test**: `test_file_structure_matches_spec()` — verify all files from "File Structure" section exist at correct paths
+
+---
+
+## Testing Infrastructure
+
+### MockTerminal for Unit Tests
+```python
+class MockTerminal:
+    """Mock terminal for testing escape sequence efficiency and output correctness."""
+    
+    def __init__(self, width: int = 80, height: int = 24):
+        self.width = width
+        self.height = height
+        self._output: list[str] = []
+        self._escape_counts: dict[str, int] = {}
+    
+    def write(self, data: str | bytes) -> None:
+        s = data.decode() if isinstance(data, bytes) else data
+        self._output.append(s)
+        # Count escape sequences for efficiency metrics
+        for seq in re.findall(r'\x1b\[[0-9;]*[A-Za-z]', s):
+            self._escape_counts[seq] = self._escape_counts.get(seq, 0) + 1
+    
+    def get_escape_sequence_count(self) -> int:
+        return sum(self._escape_counts.values())
+    
+    def get_output(self) -> str:
+        return "".join(self._output)
+    
+    def clear_output(self) -> None:
+        self._output.clear()
+        self._escape_counts.clear()
+```
+
+### Efficiency Test Pattern
+```python
+def test_append_efficiency():
+    term = MockTerminal(width=80, height=24)
+    tui = TUI(term)
+    
+    # Setup: render initial content
+    container = Container()
+    container.add_child(Text("Line 1\nLine 2\nLine 3"))
+    tui.add_child(container)
+    tui.render_frame()
+    
+    # Measure: append more lines
+    term.clear_output()
+    container.add_child(Text("Line 4\nLine 5"))
+    tui.render_frame()
+    
+    append_sequences = term.get_escape_sequence_count()
+    
+    # Baseline: what would full redraw cost?
+    # Full redraw = cursor moves + clear lines for ALL 5 lines
+    # Append = newlines + content for 2 new lines only
+    # Assert: append uses ≤20% of full redraw sequences
+    assert append_sequences <= FULL_REDRAW_BASELINE * 0.20
+```
 
 ---
 
@@ -347,14 +560,29 @@ Implement the full PyPiTUI library with:
 | 2026-03-18 | Hybrid testing strategy | Rendering engine is deterministic → unit tests; Interactive components need E2E |
 | 2026-03-18 | Remove .agents/ folder | User direction; ultimate_demo.py not aligned with test-first approach |
 | 2026-03-18 | Post-MVP: Images | Kitty Graphics Protocol adds complexity; ASCII fallback sufficient for v1 |
+| 2026-03-18 | Threaded async input for user input | Dedicated input thread with callback dispatch; main loop polls |
+| 2026-03-18 | Sync stdin/stdout for feature queries | DEC 2026 detection requires request/response during init |
+| 2026-03-18 | Basic CSI input, full Kitty later | Enable full Kitty protocol post-MVP |
+| 2026-03-18 | `mistune` for markdown | ~20KB, pure Python, no dependencies |
+| 2026-03-18 | Rich integration in MVP | Basic wrapper for markdown + syntax highlighting via pygments |
+| 2026-03-18 | 60 FPS performance target | <16ms max frame render time |
+| 2026-03-18 | Escape sequence efficiency metric | Append-only emits ≤20% vs full redraw (measured via MockTerminal) |
+| 2026-03-18 | Any scrollback change = full redraw | Scrollback content is immutable in terminal; cursor cannot reach it |
+| 2026-03-18 | Component render caching post-MVP | Manual invalidation is error-prone; design better mechanism later |
+| 2026-03-18 | Focus stack stores Components, not Overlays | Overlay.content (Component) is pushed; maintains type consistency |
+| 2026-03-18 | handle_input() returns bool | True = consumed, False = bubble up; explicit flow control |
+| 2026-03-18 | DEC 2026 feature detection post-MVP | Assume modern terminal support for MVP; add detection later |
+| 2026-03-18 | SGR 1006 mouse protocol | Modern standard; focus by hit-detection on painted canvas |
 
 ---
 
 ## Open Questions
 
-1. **Markdown Library**: `mistune` (~20KB) vs `markdown-it-py` (~150KB) — both lighter than Rich (~10MB). Mistune is pure Python with no dependencies.
-2. **Test Runner**: pytest with pytest-asyncio for input handling tests.
-3. **E2E Framework**: tmux-based (existing skill) vs `pytest-terminal` — sticking with tmux for consistency with pi-tui origins.
+1. ~~**Markdown Library**: `mistune` selected.~~
+2. ~~**Input Handling**: Threaded async for user input; sync for feature queries.~~
+3. ~~**E2E Framework**: tmux-based (existing skill) vs `pytest-terminal` — sticking with tmux for consistency with pi-tui origins.~~
+4. ~~**Scrollback handling**: Any change in scrollback triggers full redraw.~~
+5. ~~**Component caching**: Deferred post-MVP.~~
 
 ---
 
@@ -371,9 +599,9 @@ Implement the full PyPiTUI library with:
 
 ```
 src/pypitui/
-├── __init__.py          # Public exports
-├── tui.py               # TUI class, rendering loop
-├── component.py         # Component base class
+├── __init__.py          # Public exports (TUI, Container, Text, Input, etc.)
+├── tui.py               # TUI class, rendering loop, overlay management
+├── component.py         # Component base class, Size, RenderedLine, Rect
 ├── components/          # Built-in components
 │   ├── __init__.py
 │   ├── container.py     # Vertical layout
@@ -381,23 +609,27 @@ src/pypitui/
 │   ├── input.py         # Text input with cursor
 │   ├── select.py        # Selection list
 │   ├── bordered.py      # Box with borders
-│   └── overlay.py       # Floating overlays
-├── terminal.py          # Terminal I/O abstraction
-├── keys.py              # Key parsing (Kitty protocol)
-├── mouse.py             # Mouse event parsing
+│   └── rich.py          # Optional Rich integration (markdown, code)
+├── overlay.py           # Overlay wrapper class (NOT a Component)
+├── terminal.py          # Terminal I/O abstraction, threaded input
+├── keys.py              # Key parsing (basic CSI)
+├── mouse.py             # Mouse event parsing (SGR 1006)
 ├── styles.py            # Color and style codes
-└── utils.py             # wcwidth, truncation helpers
+└── utils.py             # wcwidth, truncate_to_width, slice_by_width
 
 tests/
 ├── unit/                # Unit tests (deterministic)
 │   ├── test_terminal.py
 │   ├── test_tui.py
 │   ├── test_components.py
-│   └── test_styles.py
-└── e2e/                 # E2E tests (interactive)
-    ├── test_input.py
-    ├── test_select.py
-    └── test_overlays.py
+│   ├── test_overlay.py
+│   ├── test_styles.py
+│   └── test_utils.py
+├── e2e/                 # E2E tests (interactive)
+│   ├── test_input.py
+│   ├── test_select.py
+│   └── test_overlays.py
+└── mocks.py             # MockTerminal and other test utilities
 
 examples/
 ├── demo.py              # Full showcase
@@ -405,18 +637,86 @@ examples/
 └── overlays.py          # Modal dialogs
 ```
 
+**Key Architectural Notes:**
+- `Overlay` is in `overlay.py` — it is **NOT** a Component, it wraps a Component
+- `OverlayPosition` is defined alongside `Overlay` for viewport-relative positioning
+- `TUI` manages overlays via `show_overlay()`, `close_overlay()`, and `_composite_overlay()`
+- Rich components are optional via `components/rich.py` with lazy imports
+- Threaded input handling lives in `terminal.py` with `start()`/`stop()` lifecycle
+- Hardware cursor tracking in TUI for efficient diff output and IME positioning
+- Focus stack stores Components (overlay.content), not Overlay wrappers
+
+---
+
+## Post-MVP Enhancements
+
+### Component Render Caching
+**Problem:** Text wrapping is expensive for large content.
+
+**Current (MVP):** No component-level caching; rely on TUI diff cache.
+
+**Future:** Intelligent invalidation system where components cache renders and TUI invalidates automatically when width changes or explicit invalidation occurs.
+
+**Challenge:** Manual `invalidate()` calls are error-prone. Need automatic cache invalidation when:
+- Terminal width changes
+- Component properties change
+- Parent layout changes
+
+### DEC 2026 Feature Detection
+**Current (MVP):** Assume DEC 2026 support; always emit sync codes.
+
+**Future:** Query during `Terminal.start()` before spawning async thread:
+```python
+def start(self, on_input):
+    # Synchronous query
+    self._dec2026_supported = self._sync_query_dec2026()
+    # Then start async thread
+    self._input_thread = threading.Thread(target=self._read_loop)
+```
+
+### Kitty Keyboard Protocol
+**Current (MVP):** Basic CSI sequences for arrow keys, enter, escape.
+
+**Future:** Full progressive enhancement with key release events, modifier state, and Unicode key input via `CSI > 1 u`.
+
+### Kitty Graphics Protocol
+**Current (MVP):** ASCII fallback for images.
+
+**Future:** Full graphics support with terminal capability detection.
+
 ---
 
 ## Progress Summary
 
 | Milestone | Status | Tests | Implement | Total |
 |-----------|--------|-------|-----------|-------|
-| 1: Terminal | ⬜ | 0/14 | 0/14 | 0/28 |
-| 2: Rendering | ⬜ | 0/14 | 0/14 | 0/28 |
-| 3: Components | ⬜ | 0/12 | 0/12 | 0/24 |
-| 4: Interactive | ⬜ | 0/14 | 0/14 | 0/28 |
-| 5: Focus | ⬜ | 0/12 | 0/12 | 0/24 |
-| 6: Overlays | ⬜ | 0/12 | 0/12 | 0/24 |
-| 7: Rich | ⬜ | 0/3 | 0/3 | 0/6 |
-| 8: Demo | ⬜ | 0/3 | 0/3 | 0/6 |
-| **Total** | **⬜** | **0/84** | **0/84** | **0/168** |
+| 1: Terminal | ⬜ | 0/24 | 0/24 | 0/48 |
+| 2: Rendering | ⬜ | 0/28 | 0/28 | 0/56 |
+| 3: Components | ⬜ | 0/17 | 0/17 | 0/34 |
+| 4: Interactive | ⬜ | 0/16 | 0/16 | 0/32 |
+| 5: Focus | ⬜ | 0/15 | 0/15 | 0/30 |
+| 6: Overlays | ⬜ | 0/18 | 0/18 | 0/36 |
+| 7: Rich | ⬜ | 0/6 | 0/6 | 0/12 |
+| 8: Error Handling & Demo | ⬜ | 0/13 | 0/13 | 0/26 |
+| **Total** | **⬜** | **0/137** | **0/137** | **0/274** |
+7** | **0/137** | **0/274** |
+*0/274** |
+* | **0/274** |
+*0/274** |
+** |
+**0/274** |
+*0/274** |
+* | **0/274** |
+*0/274** |
+** |
+** |
+
+*0/274** |
+* | **0/274** |
+*0/274** |
+** |
+
+*0/274** |
+* | **0/274** |
+*0/274** |
+** |
