@@ -122,8 +122,6 @@ include = [
 
 [tool.hatch.build.targets.wheel.force-include]
 "docs" = "pypitui/docs"
-"examples" = "pypitui/examples"
-"LLMS.md" = "pypitui/LLMS.md"
 
 [tool.basedpyright]
 pythonVersion = "3.12"
