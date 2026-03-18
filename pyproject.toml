@@ -52,6 +52,9 @@ extend-exclude = ["*.pyi"]
 
 [tool.ruff.lint.per-file-ignores]
 "*.pyi" = ["E501", "I001"]  # Line too long, unsorted imports in stubs
+"src/pypitui/rich_components.py" = ["PLC0415"]  # Lazy imports for optional deps
+"src/pypitui/components.py" = ["PLC0415"]  # Lazy import for rich_to_ansi
+"src/pypitui/tui.py" = ["C901", "PLR0912", "PLR0915"]  # Complex rendering logic
 
 [tool.ruff.lint]
 select = [
@@ -121,6 +124,11 @@ include = [
 "docs" = "pypitui/docs"
 "examples" = "pypitui/examples"
 "LLMS.md" = "pypitui/LLMS.md"
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+reportMissingImports = "warning"  # rich is optional dependency
+reportMissingModuleSource = "warning"
 
 [dependency-groups]
 dev = [

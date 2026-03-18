@@ -595,7 +595,7 @@ class TestOverlayViewportPositioning:
         handle = tui.show_overlay(overlay, options)
 
         # Composite with viewport_top = 10
-        result = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
+        result, _overlay_rows = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
 
         # Overlay should appear at content row 12 (not screen row 2)
         # The rendering loop will later render result[10:20] to screen rows 0-9
@@ -620,7 +620,7 @@ class TestOverlayViewportPositioning:
         handle = tui.show_overlay(overlay, options)
 
         # Composite with viewport_top = 10
-        result = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
+        result, _overlay_rows = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
 
         # Overlay at content row 10 (which maps to screen row 0 when rendered)
         assert "BOUNDARY OVERLAY" in result[10]
@@ -642,7 +642,7 @@ class TestOverlayViewportPositioning:
         handle = tui.show_overlay(overlay, options)
 
         # Composite with viewport_top = 10
-        result = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
+        result, _overlay_rows = tui._composite_overlays(base_lines, 80, 10, viewport_top=10)
 
         # Overlay at content row 19 (which maps to screen row 9 when rendered)
         assert len(result) >= 20

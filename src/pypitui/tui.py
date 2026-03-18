@@ -82,6 +82,16 @@ class Component(ABC):
         """
         return False
 
+    @property
+    def is_transient(self) -> bool:
+        """If True, component lines are NOT written to scrollback.
+
+        Transient components (like status bars, input fields) are rendered
+        via absolute positioning and should not pollute scrollback history.
+        Default is False - lines go to scrollback normally.
+        """
+        return False
+
 
 class Focusable(ABC):
     """Interface for components that can receive focus and display a
@@ -263,6 +273,23 @@ class Container(Component):
             lines.extend(child_lines)
         return lines
 
+    def render_with_transient(self, width: int) -> tuple[list[str], set[int]]:
+        """Render all children and track transient line indices.
+
+        Returns:
+            Tuple of (lines, set of indices that are from transient components)
+        """
+        lines: list[str] = []
+        transient_indices: set[int] = set()
+        for child in self.children:
+            child_lines = child.render(width)
+            start_idx = len(lines)
+            lines.extend(child_lines)
+            if child.is_transient:
+                for j in range(start_idx, len(lines)):
+                    transient_indices.add(j)
+        return lines, transient_indices
+
 
 class TUI(Container):
     """Main class for managing terminal UI with differential rendering.
@@ -300,8 +327,10 @@ class TUI(Container):
         self._show_hardware_cursor = show_hardware_cursor
 
         # State for differential rendering
-        self._previous_lines: list[str] = []  # Lines with overlays (for screen updates)
-        self._previous_base_lines: list[str] = []  # Base content only (for scrollback)
+        self._previous_lines: list[str] = []  # Lines with overlays
+        self._previous_base_lines: list[str] = []  # Base content only
+        # Transient line indices from previous frame
+        self._previous_transient_indices: set[int] = set()
         self._previous_width: int = 0
 
         # Focus management
@@ -328,7 +357,7 @@ class TUI(Container):
 
         # Overlay stack
         self._overlay_stack: list[_OverlayEntry] = []
-        self._previous_overlay_rows: set[int] = set()  # Track rows with overlays
+        self._previous_overlay_rows: set[int] = set()  # Track overlay rows
 
         # Terminal size - updated via request_resize_check()
         self._terminal_size: tuple[int, int] = self.terminal.get_size()
@@ -439,6 +468,7 @@ class TUI(Container):
         self._previous_lines = []  # Reset differential rendering
         self._previous_base_lines = []  # Reset base content tracking
         self._previous_overlay_rows = set()  # Reset overlay tracking
+        self._previous_transient_indices = set()  # Reset transient tracking
         # Initialize terminal size cache
         self._terminal_size = self.terminal.get_size()
 
@@ -490,6 +520,7 @@ class TUI(Container):
             self._previous_lines = []
             self._previous_base_lines = []
             self._previous_overlay_rows = set()
+            self._previous_transient_indices = set()
             self._first_visible_row_previous = 0
         if reset_scrollback:
             self.reset_scrollback_state()
@@ -735,7 +766,7 @@ class TUI(Container):
                 line appears at the top of the screen.
 
         Returns:
-            Tuple of (composited lines, set of content row indices with overlays)
+            Tuple of (composited lines, set of row indices with overlays)
         """
         result = list(base_lines)
         overlay_rows: set[int] = set()
@@ -849,6 +880,7 @@ class TUI(Container):
         self._previous_lines = []
         self._previous_base_lines = []
         self._previous_overlay_rows = set()
+        self._previous_transient_indices = set()
         self._first_visible_row_previous = 0
 
     def _check_resize(self, term_width: int, term_height: int) -> None:
@@ -864,6 +896,7 @@ class TUI(Container):
             self._previous_lines = []
             self._previous_base_lines = []
             self._previous_overlay_rows = set()
+            self._previous_transient_indices = set()
             self._first_visible_row_previous = 0
             self._total_lines_emitted = 0
             # Clear screen + scrollback, move cursor home
@@ -876,35 +909,42 @@ class TUI(Container):
         _previous_count: int,
         term_height: int,
         lines: list[str],
-    ) -> str:
-        """Handle content growth using relative cursor movement.
+        transient_indices: set[int] | None = None,
+    ) -> tuple[str, set[int]]:
+        """Handle content growth using \r\n for scrollback.
 
-        Uses linefeeds (\n) to naturally scroll content into scrollback.
-        Only writes NEW lines that haven't been emitted yet.
+        Returns tuple of (updated_buffer, set_of_scrolled_line_indices).
+        Lines that were written with \r\n should not be re-rendered via
+        absolute positioning to avoid duplication.
         """
         if self._anchor_top:
-            return buffer
+            return buffer, set()
 
         if current_count <= term_height:
-            return buffer
+            return buffer, set()
 
-        first_visible = current_count - term_height
-        # Track all emitted lines, not just scrollback
         new_start = self._total_lines_emitted
+        transient_indices = transient_indices or set()
+        scrolled_indices: set[int] = set()
 
-        # Write ALL new lines with CRLF for natural scrollback
+        # Write new lines with CRLF for natural scrollback
+        # Skip transient lines (they're rendered via absolute positioning)
         if new_start < current_count:
             for i in range(new_start, current_count):
-                buffer += lines[i] + "\r\n"
+                if i not in transient_indices:
+                    buffer += lines[i] + "\r\n"
+                    scrolled_indices.add(i)
             self._total_lines_emitted = current_count
 
-        return buffer
+        return buffer, scrolled_indices
 
     def _render_changed_lines(
         self,
         lines: list[str],
         term_height: int,
         overlay_rows: set[int],
+        transient_indices: set[int] | None = None,
+        scrolled_indices: set[int] | None = None,
     ) -> str:
         """Render changed lines using absolute cursor positioning.
 
@@ -916,9 +956,13 @@ class TUI(Container):
             lines: Current lines to render (including overlays)
             term_height: Terminal height
             overlay_rows: Set of content row indices that have overlays
+            transient_indices: Set of content row indices that are transient
+            scrolled_indices: Set of line indices already written via \r\n
         """
         buffer = ""
         current_count = len(lines)
+        transient_indices = transient_indices or set()
+        scrolled_indices = scrolled_indices or set()
 
         # Calculate what content is currently visible
         if current_count > term_height:
@@ -927,23 +971,18 @@ class TUI(Container):
             first_visible = 0
 
         # Check if content shrank (fewer lines than before)
-        # When content shrinks, clear screen and do full re-render to avoid artifacts
         prev_visible_count = min(len(self._previous_lines), term_height)
         curr_visible_count = min(current_count, term_height)
         content_shrank = prev_visible_count > curr_visible_count
 
         # Check if we need full re-render
-        # - Content shrank: clear screen to remove old content
-        # - Overlays changed: re-render affected rows
         overlays_changed = overlay_rows != self._previous_overlay_rows
         needs_full_render = content_shrank or overlays_changed
 
         if needs_full_render:
             if content_shrank:
-                # When content shrank, clear screen and re-render
                 buffer += "\x1b[2J\x1b[H"
 
-            # Render all visible lines with absolute positioning
             for screen_row in range(min(term_height, current_count)):
                 content_row = first_visible + screen_row
                 if content_row >= len(lines):
@@ -952,23 +991,26 @@ class TUI(Container):
                 buffer += "\x1b[2K"
                 buffer += lines[content_row]
         else:
-            # Normal differential rendering - only update changed lines
+            # Normal differential rendering
             for screen_row in range(min(term_height, current_count)):
                 content_row = first_visible + screen_row
                 if content_row >= len(lines):
                     break
 
-                # Determine if this row needs updating
                 needs_update = False
 
-                if not self._previous_lines:
-                    # After resize - render all lines
+                # Skip lines that were scrolled via \r\n (already on screen)
+                if content_row in scrolled_indices:
+                    continue
+                # Transient rows must be rendered via absolute positioning
+                if (content_row in transient_indices or
+                        not self._previous_lines):
                     needs_update = True
                 elif content_row >= len(self._previous_lines):
-                    # New row - already written with \r\n
-                    continue
+                    # New row - only skip if it was actually scrolled via \r\n
+                    # If not in scrolled_indices, it needs absolute positioning
+                    needs_update = True
                 else:
-                    # Existing row - only update if changed
                     prev_line = self._previous_lines[content_row]
                     if prev_line != lines[content_row]:
                         needs_update = True
@@ -978,7 +1020,6 @@ class TUI(Container):
                     buffer += "\x1b[2K"
                     buffer += lines[content_row]
 
-        # Update tracked first_visible for next frame
         self._first_visible_row_previous = first_visible
 
         return buffer
@@ -1013,7 +1054,14 @@ class TUI(Container):
         signal.signal(signal.SIGWINCH, _handle_sigwinch)
 
     def render_frame(self) -> None:
-        """Render a single frame using absolute cursor positioning.
+        """Render a single frame using differential updates.
+
+        Strategy:
+        1. Clear previous transient lines (prevents ghosts)
+        2. Write new content lines with \r\n (scrolls into scrollback)
+        3. Re-render changed lines via absolute positioning
+           - Always render transients (they're not in scrollback)
+           - Render non-transients only if changed
 
         Uses synchronized output (DEC 2026) to prevent flickering.
         """
@@ -1028,7 +1076,8 @@ class TUI(Container):
         if self._force_full_redraw:
             self._handle_visible_redraw()
 
-        base_lines = self.render(term_width)
+        # Render base content and track transient line indices
+        base_lines, transient_indices = self.render_with_transient(term_width)
         viewport_top = self._calculate_first_visible_row(term_height)
         lines, current_overlay_rows = self._composite_overlays(
             base_lines, term_width, term_height, viewport_top
@@ -1037,29 +1086,75 @@ class TUI(Container):
 
         buffer = self._begin_sync()
 
-        previous_count = len(self._previous_lines)
+        # Calculate visible range
         current_count = len(lines)
+        if current_count > term_height:
+            first_visible = current_count - term_height
+        else:
+            first_visible = 0
 
-        # Track base content growth separately from overlays
-        # Overlays are transient and shouldn't go to scrollback
-        base_previous_count = len(self._previous_base_lines) if hasattr(self, '_previous_base_lines') else 0
-        base_current_count = len(base_lines)
+        # Determine if we should use \r\n for scrollback
+        # Only when content exceeds terminal height
+        use_scrollback = current_count > term_height and not self._anchor_top
 
-        buffer = self._handle_content_growth(
-            buffer, base_current_count, base_previous_count, term_height, base_lines
-        )
+        if use_scrollback:
+            # 1. Clear previous transient lines before scrolling
+            if self._previous_lines:
+                prev_lines = self._previous_lines
+                prev_first = max(0, len(prev_lines) - term_height)
+                prev_transients = getattr(
+                    self, '_previous_transient_indices', set()
+                )
+                for content_row in prev_transients:
+                    screen_row = content_row - prev_first
+                    if 0 <= screen_row < term_height:
+                        buffer += f"\x1b[{screen_row + 1};1H"
+                        buffer += "\x1b[2K"
 
-        # Combine current and previous overlay rows to ensure old overlay content is cleared
+            # 2. Write new content with \r\n (non-transient only)
+            new_lines_start = self._total_lines_emitted
+            if new_lines_start < len(base_lines):
+                for i in range(new_lines_start, len(base_lines)):
+                    if i not in transient_indices:
+                        buffer += base_lines[i] + "\r\n"
+                self._total_lines_emitted = len(base_lines)
+
+        # 3. Re-render changed lines via absolute positioning
         all_overlay_rows = current_overlay_rows | self._previous_overlay_rows
-        self._previous_overlay_rows = current_overlay_rows
 
-        buffer += self._render_changed_lines(lines, term_height, all_overlay_rows)
+        visible_rows = min(term_height, current_count)
+        for screen_row in range(visible_rows):
+            content_row = first_visible + screen_row
+            if content_row >= len(lines):
+                break
+
+            # Determine if this line needs updating
+            # Always render: transients, overlays, new lines, or changed lines
+            is_transient = content_row in transient_indices
+            is_overlay = content_row in all_overlay_rows
+            no_previous = not self._previous_lines
+            is_new = content_row >= len(self._previous_lines)
+            is_changed = (
+                not is_new and
+                self._previous_lines[content_row] != lines[content_row]
+            )
+
+            if (
+                is_transient or is_overlay or no_previous
+                or is_new or is_changed
+            ):
+                buffer += f"\x1b[{screen_row + 1};1H"
+                buffer += "\x1b[2K"
+                buffer += lines[content_row]
 
         buffer += self._end_sync()
         self.terminal.write(buffer)
 
+        # Update state
         self._previous_lines = lines
         self._previous_base_lines = base_lines
+        self._previous_transient_indices = transient_indices
+        self._previous_overlay_rows = current_overlay_rows
         self._previous_width = term_width
         self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
 
