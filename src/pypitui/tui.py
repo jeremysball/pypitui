@@ -1082,6 +1082,8 @@ class TUI(Container):
         lines, current_overlay_rows = self._composite_overlays(
             base_lines, term_width, term_height, viewport_top
         )
+
+
         lines = self._apply_line_resets(lines)
 
         buffer = self._begin_sync()
@@ -1120,13 +1122,34 @@ class TUI(Container):
                 self._total_lines_emitted = len(base_lines)
 
         # 3. Re-render changed lines via absolute positioning
+        # Accumulate overlay rows from previous frames to ensure cleanup
         all_overlay_rows = current_overlay_rows | self._previous_overlay_rows
 
-        visible_rows = min(term_height, current_count)
+        # Track which overlay rows were re-rendered (cleared from tracking)
+        rendered_overlay_rows: set[int] = set()
+
+        # Check if content shrank (fewer lines than before)
+        if self._previous_lines:
+            prev_line_count = len(self._previous_lines)
+        else:
+            prev_line_count = 0
+        content_shrank = current_count < prev_line_count
+
+        # Determine which rows to render. When content shrinks, clear old rows
+        max_rows_to_render = max(current_count, prev_line_count)
+        visible_rows = min(term_height, max_rows_to_render)
+
         for screen_row in range(visible_rows):
             content_row = first_visible + screen_row
+
+            # If this row is beyond current content, clear it (content shrank)
             if content_row >= len(lines):
-                break
+                # Only clear if this row had content or overlays before
+                if content_shrank or content_row in all_overlay_rows:
+                    buffer += f"\x1b[{screen_row + 1};1H"
+                    buffer += "\x1b[2K"
+                    rendered_overlay_rows.add(content_row)
+                continue
 
             # Determine if this line needs updating
             # Always render: transients, overlays, new lines, or changed lines
@@ -1147,14 +1170,22 @@ class TUI(Container):
                 buffer += "\x1b[2K"
                 buffer += lines[content_row]
 
+                # Track that we rendered this overlay row
+                if is_overlay:
+                    rendered_overlay_rows.add(content_row)
+
         buffer += self._end_sync()
         self.terminal.write(buffer)
 
         # Update state
+        # Keep overlay rows that need cleanup or are currently active
         self._previous_lines = lines
         self._previous_base_lines = base_lines
         self._previous_transient_indices = transient_indices
-        self._previous_overlay_rows = current_overlay_rows
+        self._previous_overlay_rows = (
+            (self._previous_overlay_rows - rendered_overlay_rows)
+            | current_overlay_rows
+        )
         self._previous_width = term_width
         self._max_lines_rendered = max(self._max_lines_rendered, len(lines))
 
