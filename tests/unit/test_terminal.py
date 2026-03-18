@@ -96,6 +96,25 @@ class TestTerminalCursor:
         output = mock_buffer.getvalue()
         assert b"\x1b[2K" in output  # CSI 2K - clear entire line
 
+    def test_terminal_clear_screen(self) -> None:
+        """Verify CSI 2J and CSI 3J sequences are emitted."""
+        from pypitui.terminal import Terminal
+
+        mock_buffer = BytesIO()
+        mock_fd = 3
+        mock_buffer.fileno = MagicMock(return_value=mock_fd)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=mock_fd, buffer=mock_buffer)
+                    with term:
+                        term.clear_screen()
+
+        output = mock_buffer.getvalue()
+        assert b"\x1b[2J" in output  # CSI 2J - clear screen
+        assert b"\x1b[3J" in output  # CSI 3J - clear scrollback
+
 
 class TestTerminalRawMode:
     """Tests for Terminal context manager raw mode."""

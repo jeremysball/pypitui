@@ -75,3 +75,8 @@ class Terminal:
     def clear_line(self) -> None:
         """Clear the current line."""
         self.write("\x1b[2K")  # CSI 2K - clear entire line
+
+    def clear_screen(self) -> None:
+        """Clear the screen and scrollback."""
+        self.write("\x1b[2J")  # CSI 2J - clear screen
+        self.write("\x1b[3J")  # CSI 3J - clear scrollback
