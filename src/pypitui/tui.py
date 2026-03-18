@@ -1117,8 +1117,13 @@ class TUI(Container):
                         buffer += "\x1b[2K"
 
             # 2. Write new content with \r\n (non-transient only)
-            if new_lines_start < len(base_lines):
-                for i in range(new_lines_start, len(base_lines)):
+            # When content grows beyond what we've emitted, write the new
+            # lines. On first transition, _total_lines_emitted may be 0, so
+            # we start from first_visible to avoid writing lines already on
+            # screen.
+            emit_start = max(new_lines_start, first_visible)
+            if emit_start < len(base_lines):
+                for i in range(emit_start, len(base_lines)):
                     if i not in transient_indices:
                         buffer += base_lines[i] + "\r\n"
                 self._total_lines_emitted = len(base_lines)
@@ -1141,13 +1146,17 @@ class TUI(Container):
         max_rows_to_render = max(current_count, prev_line_count)
         visible_rows = min(term_height, max_rows_to_render)
 
-        # Track which lines were just emitted via scrollback in this frame
-        # Don't re-render them via absolute positioning
+        # When using scrollback, track which base lines were newly emitted.
+        # These should not be re-rendered via absolute positioning (they're
+        # already on screen from the \r\n writes).
         newly_emitted: set[int] = set()
-        if use_scrollback and new_lines_start < len(base_lines):
-            for i in range(new_lines_start, len(base_lines)):
+        if use_scrollback:
+            emit_start = max(new_lines_start, first_visible)
+        else:
+            emit_start = new_lines_start
+        if use_scrollback and emit_start < len(base_lines):
+            for i in range(emit_start, len(base_lines)):
                 if i not in transient_indices:
-                    # Map base_lines index to lines index
                     newly_emitted.add(i)
 
         for screen_row in range(visible_rows):
@@ -1171,8 +1180,11 @@ class TUI(Container):
                 self._previous_lines[content_row] != lines[content_row]
             )
 
-            # Skip lines just emitted via scrollback (already on screen)
-            skip = use_scrollback and content_row in newly_emitted
+            # Skip lines just emitted via scrollback (already on screen via
+            # \r\n). But always render if changed, is transient, or has overlay
+            was_just_emitted = content_row in newly_emitted
+            skip_due_to_scrollback = use_scrollback and was_just_emitted
+            skip = skip_due_to_scrollback and not is_changed
             if skip and not is_transient and not is_overlay:
                 continue
 
