@@ -80,3 +80,11 @@ class Terminal:
         """Clear the screen and scrollback."""
         self.write("\x1b[2J")  # CSI 2J - clear screen
         self.write("\x1b[3J")  # CSI 3J - clear scrollback
+
+    def hide_cursor(self) -> None:
+        """Hide the cursor."""
+        self.write("\x1b[?25l")  # CSI ?25l - hide cursor
+
+    def show_cursor(self) -> None:
+        """Show the cursor."""
+        self.write("\x1b[?25h")  # CSI ?25h - show cursor

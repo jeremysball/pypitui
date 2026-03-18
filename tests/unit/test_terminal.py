@@ -115,6 +115,26 @@ class TestTerminalCursor:
         assert b"\x1b[2J" in output  # CSI 2J - clear screen
         assert b"\x1b[3J" in output  # CSI 3J - clear scrollback
 
+    def test_terminal_hide_show_cursor(self) -> None:
+        """Verify CSI ?25l and CSI ?25h sequences are emitted."""
+        from pypitui.terminal import Terminal
+
+        mock_buffer = BytesIO()
+        mock_fd = 3
+        mock_buffer.fileno = MagicMock(return_value=mock_fd)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=mock_fd, buffer=mock_buffer)
+                    with term:
+                        term.hide_cursor()
+                        term.show_cursor()
+
+        output = mock_buffer.getvalue()
+        assert b"\x1b[?25l" in output  # CSI ?25l - hide cursor
+        assert b"\x1b[?25h" in output  # CSI ?25h - show cursor
+
 
 class TestTerminalRawMode:
     """Tests for Terminal context manager raw mode."""
