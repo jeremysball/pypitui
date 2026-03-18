@@ -1099,6 +1099,9 @@ class TUI(Container):
         # Only when content exceeds terminal height
         use_scrollback = current_count > term_height and not self._anchor_top
 
+        # Calculate new lines to emit for scrollback
+        new_lines_start = self._total_lines_emitted
+
         if use_scrollback:
             # 1. Clear previous transient lines before scrolling
             if self._previous_lines:
@@ -1114,14 +1117,13 @@ class TUI(Container):
                         buffer += "\x1b[2K"
 
             # 2. Write new content with \r\n (non-transient only)
-            new_lines_start = self._total_lines_emitted
             if new_lines_start < len(base_lines):
                 for i in range(new_lines_start, len(base_lines)):
                     if i not in transient_indices:
                         buffer += base_lines[i] + "\r\n"
                 self._total_lines_emitted = len(base_lines)
 
-        # 3. Re-render changed lines via absolute positioning
+        # 3. Re-render via absolute positioning
         # Accumulate overlay rows from previous frames to ensure cleanup
         all_overlay_rows = current_overlay_rows | self._previous_overlay_rows
 
@@ -1135,24 +1137,31 @@ class TUI(Container):
             prev_line_count = 0
         content_shrank = current_count < prev_line_count
 
-        # Determine which rows to render. When content shrinks, clear old rows
+        # Determine which rows to render
         max_rows_to_render = max(current_count, prev_line_count)
         visible_rows = min(term_height, max_rows_to_render)
+
+        # Track which lines were just emitted via scrollback in this frame
+        # Don't re-render them via absolute positioning
+        newly_emitted: set[int] = set()
+        if use_scrollback and new_lines_start < len(base_lines):
+            for i in range(new_lines_start, len(base_lines)):
+                if i not in transient_indices:
+                    # Map base_lines index to lines index
+                    newly_emitted.add(i)
 
         for screen_row in range(visible_rows):
             content_row = first_visible + screen_row
 
             # If this row is beyond current content, clear it (content shrank)
             if content_row >= len(lines):
-                # Only clear if this row had content or overlays before
                 if content_shrank or content_row in all_overlay_rows:
                     buffer += f"\x1b[{screen_row + 1};1H"
                     buffer += "\x1b[2K"
                     rendered_overlay_rows.add(content_row)
                 continue
 
-            # Determine if this line needs updating
-            # Always render: transients, overlays, new lines, or changed lines
+            # Determine if this line needs absolute positioning update
             is_transient = content_row in transient_indices
             is_overlay = content_row in all_overlay_rows
             no_previous = not self._previous_lines
@@ -1162,15 +1171,20 @@ class TUI(Container):
                 self._previous_lines[content_row] != lines[content_row]
             )
 
-            if (
+            # Skip lines just emitted via scrollback (already on screen)
+            skip = use_scrollback and content_row in newly_emitted
+            if skip and not is_transient and not is_overlay:
+                continue
+
+            needs_render = (
                 is_transient or is_overlay or no_previous
                 or is_new or is_changed
-            ):
+            )
+            if needs_render:
                 buffer += f"\x1b[{screen_row + 1};1H"
                 buffer += "\x1b[2K"
                 buffer += lines[content_row]
 
-                # Track that we rendered this overlay row
                 if is_overlay:
                     rendered_overlay_rows.add(content_row)
 
