@@ -1099,9 +1099,6 @@ class TUI(Container):
         # Only when content exceeds terminal height
         use_scrollback = current_count > term_height and not self._anchor_top
 
-        # Calculate new lines to emit for scrollback
-        new_lines_start = self._total_lines_emitted
-
         if use_scrollback:
             # 1. Clear previous transient lines before scrolling
             if self._previous_lines:
@@ -1116,17 +1113,12 @@ class TUI(Container):
                         buffer += f"\x1b[{screen_row + 1};1H"
                         buffer += "\x1b[2K"
 
-            # 2. Write new content with \r\n (non-transient only)
-            # When content grows beyond what we've emitted, write the new
-            # lines. On first transition, _total_lines_emitted may be 0, so
-            # we start from first_visible to avoid writing lines already on
-            # screen.
-            emit_start = max(new_lines_start, first_visible)
-            if emit_start < len(base_lines):
-                for i in range(emit_start, len(base_lines)):
-                    if i not in transient_indices:
-                        buffer += base_lines[i] + "\r\n"
-                self._total_lines_emitted = len(base_lines)
+            # 2. Write ALL visible content with \r\n (not just new lines)
+            # This ensures the visible area is always correct after scroll.
+            # Skip transients - they're handled via absolute positioning.
+            for i in range(first_visible, len(base_lines)):
+                if i not in transient_indices:
+                    buffer += base_lines[i] + "\r\n"
 
         # 3. Re-render via absolute positioning
         # Accumulate overlay rows from previous frames to ensure cleanup
@@ -1146,18 +1138,13 @@ class TUI(Container):
         max_rows_to_render = max(current_count, prev_line_count)
         visible_rows = min(term_height, max_rows_to_render)
 
-        # When using scrollback, track which base lines were newly emitted.
-        # These should not be re-rendered via absolute positioning (they're
-        # already on screen from the \r\n writes).
-        newly_emitted: set[int] = set()
+        # Track which lines were written via \r\n in this frame.
+        # These don't need absolute positioning updates.
+        lines_via_crlf: set[int] = set()
         if use_scrollback:
-            emit_start = max(new_lines_start, first_visible)
-        else:
-            emit_start = new_lines_start
-        if use_scrollback and emit_start < len(base_lines):
-            for i in range(emit_start, len(base_lines)):
+            for i in range(first_visible, len(base_lines)):
                 if i not in transient_indices:
-                    newly_emitted.add(i)
+                    lines_via_crlf.add(i)
 
         for screen_row in range(visible_rows):
             content_row = first_visible + screen_row
@@ -1180,16 +1167,14 @@ class TUI(Container):
                 self._previous_lines[content_row] != lines[content_row]
             )
 
-            # After writing new lines with \r\n, terminal may have scrolled.
-            # The visible area now shows the last term_height lines of content.
-            # Regular content lines that were just emitted are already correct.
-            was_just_emitted = content_row in newly_emitted
-            if was_just_emitted and not is_transient and not is_overlay:
-                continue  # Skip non-transient lines already written via \r\n
-
-            # Determine if this line needs rendering
-            # When content fits on screen: use differential rendering
-            # When content exceeds screen: only render transients/overlays
+            # After writing with \r\n, lines are already on screen.
+            # Only use absolute positioning for:
+            # 1. Transients (not written via \r\n)
+            # 2. Overlays (dynamic content on top)
+            # 3. Changed lines (when content fits - differential)
+            was_via_crlf = content_row in lines_via_crlf
+            if was_via_crlf and not is_transient and not is_overlay:
+                continue  # Skip lines already written via \r\n
             needs_render = False
             if not use_scrollback:
                 # Content fits on screen - use full differential rendering
