@@ -57,6 +57,28 @@ class TestTerminalWrite:
         assert b"bytes data" in output
 
 
+class TestTerminalCursor:
+    """Tests for Terminal cursor movement."""
+
+    def test_terminal_move_cursor(self) -> None:
+        """Verify CSI row;colH sequence is emitted."""
+        from pypitui.terminal import Terminal
+
+        mock_buffer = BytesIO()
+        mock_fd = 3
+        mock_buffer.fileno = MagicMock(return_value=mock_fd)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=mock_fd, buffer=mock_buffer)
+                    with term:
+                        term.move_cursor(10, 5)  # col=10, row=5
+
+        output = mock_buffer.getvalue()
+        assert b"\x1b[6;11H" in output  # CSI row+1;col+1H (1-indexed)
+
+
 class TestTerminalRawMode:
     """Tests for Terminal context manager raw mode."""
 

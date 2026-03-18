@@ -61,3 +61,13 @@ class Terminal:
         if isinstance(data, str):
             data = data.encode("utf-8")
         self._buffer.write(data)
+
+    def move_cursor(self, col: int, row: int) -> None:
+        """Move cursor to position.
+
+        Args:
+            col: Column (0-indexed)
+            row: Row (0-indexed)
+        """
+        # CSI row+1;col+1H - terminals use 1-indexed coordinates
+        self.write(f"\x1b[{row + 1};{col + 1}H")
