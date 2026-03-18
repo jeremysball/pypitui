@@ -136,6 +136,17 @@ class TestTerminalCursor:
         assert b"\x1b[?25h" in output  # CSI ?25h - show cursor
 
 
+class TestDEC2026:
+    """Tests for DEC 2026 synchronized output."""
+
+    def test_dec2026_start_end_constants(self) -> None:
+        """Verify escape sequence bytes."""
+        from pypitui.terminal import DEC_2026_END, DEC_2026_START
+
+        assert DEC_2026_START == "\x1b[?2026h"
+        assert DEC_2026_END == "\x1b[?2026l"
+
+
 class TestTerminalRawMode:
     """Tests for Terminal context manager raw mode."""
 

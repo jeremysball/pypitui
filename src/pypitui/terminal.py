@@ -6,6 +6,10 @@ import tty
 from types import TracebackType
 from typing import Any, BinaryIO, Self
 
+# DEC 2026 synchronized output sequences
+DEC_2026_START = "\x1b[?2026h"
+DEC_2026_END = "\x1b[?2026l"
+
 
 class Terminal:
     """Terminal abstraction with raw mode context manager.

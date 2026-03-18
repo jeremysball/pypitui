@@ -1,6 +1,9 @@
 from types import TracebackType
 from typing import BinaryIO, Self
 
+DEC_2026_START: str
+DEC_2026_END: str
+
 class Terminal:
     def __init__(self, fd: int | None = None, buffer: BinaryIO | None = None) -> None: ...
     def __enter__(self) -> Self: ...
