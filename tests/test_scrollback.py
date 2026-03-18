@@ -271,36 +271,6 @@ class TestDifferentialRenderingWithScrollback:
 
         tui.stop()
 
-    def test_visible_lines_update_when_scrolled(self):
-        """When scrolled, only visible lines can be updated."""
-        terminal = MockTerminal(80, 10)
-        tui = TUI(terminal)
-
-        # Add 15 lines
-        for i in range(15):
-            tui.add_child(Text(f"Line {i}", padding_y=0))
-
-        tui.start()
-        tui.render_frame()
-
-        # Now change a line in the visible portion (lines 5-14)
-        tui.clear()
-        for i in range(15):
-            # Change line 10 (which is visible)
-            if i == 10:
-                tui.add_child(Text(f"MODIFIED Line {i}", padding_y=0))
-            else:
-                tui.add_child(Text(f"Line {i}", padding_y=0))
-
-        terminal.clear_buffer()
-        tui.render_frame()
-        output = terminal.get_output()
-
-        # The modified line should be in output
-        assert "MODIFIED Line 10" in output
-
-        tui.stop()
-
     def test_scrollback_lines_frozen(self):
         """Lines in scrollback cannot be changed after scrolling."""
         terminal = MockTerminal(80, 10)

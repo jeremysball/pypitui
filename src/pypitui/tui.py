@@ -1180,20 +1180,27 @@ class TUI(Container):
                 self._previous_lines[content_row] != lines[content_row]
             )
 
-            # Skip lines just emitted via scrollback (already on screen via
-            # \r\n). The \r\n puts them at the correct position; absolute
-            # positioning would duplicate them at wrong coordinates after
-            # terminal scroll. Always skip non-transient/non-overlay lines
-            # that were just emitted, regardless of is_changed.
+            # After writing new lines with \r\n, terminal may have scrolled.
+            # The visible area now shows the last term_height lines of content.
+            # Regular content lines that were just emitted are already correct.
             was_just_emitted = content_row in newly_emitted
-            skip = use_scrollback and was_just_emitted
-            if skip and not is_transient and not is_overlay:
-                continue
+            if was_just_emitted and not is_transient and not is_overlay:
+                continue  # Skip non-transient lines already written via \r\n
 
-            needs_render = (
-                is_transient or is_overlay or no_previous
-                or is_new or is_changed
-            )
+            # Determine if this line needs rendering
+            # When content fits on screen: use differential rendering
+            # When content exceeds screen: only render transients/overlays
+            needs_render = False
+            if not use_scrollback:
+                # Content fits on screen - use full differential rendering
+                needs_render = (
+                    is_transient or is_overlay or no_previous
+                    or is_new or is_changed
+                )
+            else:
+                # Content exceeds screen - only render transients/overlays
+                needs_render = is_transient or is_overlay
+
             if needs_render:
                 buffer += f"\x1b[{screen_row + 1};1H"
                 buffer += "\x1b[2K"
