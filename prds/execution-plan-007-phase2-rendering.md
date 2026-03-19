@@ -30,9 +30,9 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 - [x] **Implement**: `TUI.__init__(self, terminal: Terminal)` with full state tracking
 - [x] **Run**: `uv run pytest tests/unit/test_tui.py -k "test_tui_init" -v`
 
-- [ ] **Test**: `test_tui_add_child_sets_root()` — add_child stores component
-- [ ] **Implement**: `TUI.add_child(self, component: Component)`
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py::test_tui_add_child_sets_root -v`
+- [x] **Test**: `test_tui_add_child_sets_root()` — add_child stores component
+- [x] **Implement**: `TUI.add_child(self, component: Component)`
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py::test_tui_add_child_sets_root -v`
 
 ### Differential Rendering Core
 
