@@ -9,17 +9,17 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 
 ### Core Data Structures
 
-- [ ] **Test**: `test_size_dataclass()` — Size(width, height) stores dimensions
+- [x] **Test**: `test_size_dataclass()` — Size(width, height) stores dimensions
 - [x] **Implement**: `Size` dataclass with `width: int`, `height: int`
-- [ ] **Run**: `uv run pytest tests/unit/test_component.py::test_size_dataclass -v`
+- [x] **Run**: `uv run pytest tests/unit/test_component.py::test_size_dataclass -v`
 
-- [ ] **Test**: `test_rendered_line_dataclass()` — RenderedLine stores content and styles
-- [ ] **Implement**: `RenderedLine` dataclass with `content: str`, `styles: list[StyleSpan]`
-- [ ] **Run**: `uv run pytest tests/unit/test_component.py::test_rendered_line_dataclass -v`
+- [x] **Test**: `test_rendered_line_dataclass()` — RenderedLine stores content and styles
+- [x] **Implement**: `RenderedLine` dataclass with `content: str`, `styles: list[StyleSpan]`
+- [x] **Run**: `uv run pytest tests/unit/test_component.py::test_rendered_line_dataclass -v`
 
-- [ ] **Test**: `test_rect_dataclass()` — Rect(x, y, width, height) stores position and dimensions
-- [ ] **Implement**: `Rect` dataclass with `x: int`, `y: int`, `width: int`, `height: int`
-- [ ] **Run**: `uv run pytest tests/unit/test_component.py::test_rect_dataclass -v`
+- [x] **Test**: `test_rect_dataclass()` — Rect(x, y, width, height) stores position and dimensions
+- [x] **Implement**: `Rect` dataclass with `x: int`, `y: int`, `width: int`, `height: int`
+- [x] **Run**: `uv run pytest tests/unit/test_component.py::test_rect_dataclass -v`
 
 ### TUI Class Foundation
 

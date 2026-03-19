@@ -691,7 +691,7 @@ def start(self, on_input):
 | Milestone | Status | Tests | Implement | Total |
 |-----------|--------|-------|-----------|-------|
 | 1: Terminal | ✅ | 24/24 | 24/24 | 48/48 |
-| 2: Rendering | ⬜ | 0/28 | 0/28 | 0/56 |
+| 2: Rendering | 🟡 | 4/28 | 4/28 | 8/56 |
 | 3: Components | ⬜ | 0/17 | 0/17 | 0/34 |
 | 4: Interactive | ⬜ | 0/16 | 0/16 | 0/32 |
 | 5: Focus | ⬜ | 0/15 | 0/15 | 0/30 |
