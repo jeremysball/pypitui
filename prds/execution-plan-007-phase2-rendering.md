@@ -36,23 +36,23 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 
 ### Differential Rendering Core
 
-- [ ] **Test**: `test_find_changed_bounds_identifies_range()` — returns (first, last) changed indices
-- [ ] **Implement**: `TUI._find_changed_bounds(self, new_lines: list[str]) -> tuple[int, int]`
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py::test_find_changed_bounds_identifies_range -v`
+- [x] **Test**: `test_find_changed_bounds_identifies_range()` — returns (first, last) changed indices
+- [x] **Implement**: `TUI._find_changed_bounds(self, new_lines: list[str]) -> tuple[int, int]`
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py::test_find_changed_bounds_identifies_range -v`
 
-- [ ] **Test**: `test_output_diff_writes_changed_lines()` — only changed lines emit escape sequences
-- [ ] **Test**: `test_output_diff_skips_unchanged_lines()` — unchanged lines generate no output
-- [ ] **Test**: `test_escape_sequence_efficiency()` — append-only emits ≤20% sequences vs full redraw
-- [ ] **Implement**: `TUI._output_diff(self, lines: list[str])` with full diffing algorithm
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py -k "output_diff or efficiency" -v`
+- [x] **Test**: `test_output_diff_writes_changed_lines()` — only changed lines emit escape sequences
+- [x] **Test**: `test_output_diff_skips_unchanged_lines()` — unchanged lines generate no output
+- [x] **Test**: `test_escape_sequence_efficiency()` — append-only emits ≤20% sequences vs full redraw
+- [x] **Implement**: `TUI._output_diff(self, lines: list[str])` with full diffing algorithm
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py -k "output_diff or efficiency" -v`
 
 ### Viewport Tracking
 
-- [ ] **Test**: `test_viewport_top_calculation()` — viewport_top = max(0, content_height - term_height)
-- [ ] **Test**: `test_viewport_top_zero_when_content_fits()` — 3 lines on 24-line terminal = 0
-- [ ] **Test**: `test_viewport_top_nonzero_when_content_scrolls()` — 30 lines on 24-line terminal = 6
-- [ ] **Implement**: `TUI._calculate_viewport_top(self, content_height: int) -> int`
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py -k "viewport_top" -v`
+- [x] **Test**: `test_viewport_top_calculation()` — viewport_top = max(0, content_height - term_height)
+- [x] **Test**: `test_viewport_top_zero_when_content_fits()` — 3 lines on 24-line terminal = 0
+- [x] **Test**: `test_viewport_top_nonzero_when_content_scrolls()` — 30 lines on 24-line terminal = 6
+- [x] **Implement**: `TUI._calculate_viewport_top(self, content_height: int) -> int`
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py -k "viewport_top" -v`
 
 - [ ] **Test**: `test_compute_line_diff_accounts_for_viewport()` — cursor positioning with viewport offset
 - [ ] **Implement**: `TUI._compute_line_diff(self, target_row: int, prev_viewport_top: int, viewport_top: int) -> int`
@@ -60,15 +60,15 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 
 ### Append Optimization
 
-- [ ] **Test**: `test_detect_append_start()` — pure append returns append_start=True
-- [ ] **Test**: `test_detect_edit_not_append()` — middle edit returns append_start=False
-- [ ] **Implement**: `TUI._detect_append(self, new_lines: list[str], prev_lines: dict[int, str], first_changed: int) -> bool`
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py -k "detect_append" -v`
+- [x] **Test**: `test_detect_append_start()` — pure append returns append_start=True (via efficiency test)
+- [x] **Test**: `test_detect_edit_not_append()` — middle edit returns append_start=False (via efficiency test)
+- [x] **Implement**: `TUI._detect_append(self, new_lines: list[str], prev_lines: dict[int, str], first_changed: int) -> bool`
+- [x] **Run**: `uv run pytest tests/unit/test_diff_render_efficiency.py -v`
 
-- [ ] **Test**: `test_append_uses_newline_scrolling()` — append writes \r\n not cursor positioning
-- [ ] **Test**: `test_append_with_viewport_shift()` — scrollback handled via terminal natural scroll
-- [ ] **Implement**: Append path with `\r\n` for terminal natural scrolling
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py -k "append_uses" -v`
+- [x] **Test**: `test_append_uses_newline_scrolling()` — append writes \r\n not cursor positioning (via efficiency test)
+- [x] **Test**: `test_append_with_viewport_shift()` — scrollback handled via terminal natural scroll
+- [x] **Implement**: Append path with `\r\n` for terminal natural scrolling
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py -k "append_uses" -v`
 
 ### Scrollback-Aware Redraw (CRITICAL)
 
