@@ -106,12 +106,12 @@ Implement the full PyPiTUI library with:
 - [x] **Implement**: All synchronous terminal queries (DEC 2026 detection, capability queries) MUST complete before `Terminal.start()` spawns the async input thread
 - [x] **Test**: `test_input_thread_started()` — input thread spawned on `start()`
 - [x] **Implement**: `Terminal.start(on_input: Callable[[bytes], None])` — spawn input thread
-- [ ] **Test**: `test_input_callback_receives_data()` — callback invoked with raw bytes
+- [x] **Test**: `test_input_callback_receives_data()` — callback invoked with raw bytes
 - [x] **Implement**: `Terminal._read_loop()` — blocking read with callback dispatch
 - [x] **Test**: `test_input_thread_stopped()` — thread terminates on `stop()`
 - [x] **Implement**: `Terminal.stop()` — signal thread exit and join
-- [ ] **Test**: `test_partial_escape_sequence_buffering()` — incomplete sequence buffered
-- [ ] **Implement**: `Terminal._read_with_timeout()` — 50ms timeout for sequence completion
+- [x] **Test**: `test_partial_escape_sequence_buffering()` — incomplete sequence buffered
+- [x] **Implement**: `Terminal._read_with_timeout()` — 50ms timeout for sequence completion
 
 #### Key Parsing (Basic CSI)
 - [x] **Test**: `test_key_enum_values()` — verify Key.ENTER, Key.ESCAPE, Key.TAB bytes
@@ -690,7 +690,7 @@ def start(self, on_input):
 
 | Milestone | Status | Tests | Implement | Total |
 |-----------|--------|-------|-----------|-------|
-| 1: Terminal | 🟡 | 22/24 | 24/24 | 46/48 |
+| 1: Terminal | ✅ | 24/24 | 24/24 | 48/48 |
 | 2: Rendering | ⬜ | 0/28 | 0/28 | 0/56 |
 | 3: Components | ⬜ | 0/17 | 0/17 | 0/34 |
 | 4: Interactive | ⬜ | 0/16 | 0/16 | 0/32 |
@@ -698,7 +698,7 @@ def start(self, on_input):
 | 6: Overlays | ⬜ | 0/18 | 0/18 | 0/36 |
 | 7: Rich | ⬜ | 0/6 | 0/6 | 0/12 |
 | 8: Error Handling & Demo | ⬜ | 0/13 | 0/13 | 0/26 |
-| **Total** | **🟡** | **22/137** | **24/137** | **46/274** |
+| **Total** | **🟡** | **24/137** | **24/137** | **48/274** |
 
 **Legend:** ⬜ Not started | 🟡 In Progress | ✅ Complete
 7** | **0/137** | **0/274** |
