@@ -52,3 +52,33 @@ class TUI:
             component: Root component to render
         """
         self._root = component
+
+    def _find_changed_bounds(
+        self, new_lines: list[tuple[int, str]]
+    ) -> tuple[int, int]:
+        """Find the range of changed lines.
+
+        Args:
+            new_lines: List of (row, content_hash) tuples
+
+        Returns:
+            Tuple of (first_changed, last_changed) indices
+        """
+        first_changed = len(new_lines)
+        last_changed = -1
+
+        for i, (row, content_hash) in enumerate(new_lines):
+            if row not in self._previous_lines:
+                # New line
+                first_changed = min(first_changed, i)
+                last_changed = max(last_changed, i)
+            elif self._previous_lines[row] != content_hash:
+                # Changed line
+                first_changed = min(first_changed, i)
+                last_changed = max(last_changed, i)
+
+        # Handle case where nothing changed
+        if last_changed == -1:
+            return (0, -1)
+
+        return (first_changed, last_changed)

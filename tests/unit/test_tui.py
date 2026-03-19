@@ -107,3 +107,43 @@ class TestTUIAddChild:
         tui.add_child(mock_comp)
 
         assert tui._root is mock_comp
+
+
+class TestTUIDifferentialRendering:
+    """Tests for TUI differential rendering."""
+
+    def test_find_changed_bounds_identifies_range(self) -> None:
+        """Returns (first, last) changed indices."""
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up previous state
+        tui._previous_lines = {
+            0: "hash0",
+            1: "hash1",
+            2: "hash2",
+            3: "hash3",
+            4: "hash4",
+        }
+
+        # New lines with changes at lines 1 and 3
+        new_lines = [
+            (0, "hash0"),  # unchanged
+            (1, "new_hash1"),  # changed
+            (2, "hash2"),  # unchanged
+            (3, "new_hash3"),  # changed
+            (4, "hash4"),  # unchanged
+        ]
+
+        first, last = tui._find_changed_bounds(new_lines)
+        assert first == 1
+        assert last == 3
