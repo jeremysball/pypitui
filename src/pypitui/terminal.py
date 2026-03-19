@@ -73,6 +73,7 @@ class Terminal:
         if isinstance(data, str):
             data = data.encode("utf-8")
         self._buffer.write(data)
+        self._buffer.flush()
 
     def move_cursor(self, col: int, row: int) -> None:
         """Move cursor to position.

@@ -34,8 +34,10 @@ class Key(StrEnum):
         """Handle dynamic control key creation."""
         if isinstance(value, str) and value.startswith("ctrl+"):
             # Create dynamic control key member
+            name = value.replace("+", "_").upper()
             obj = str.__new__(cls, value)
             obj._value_ = value
+            obj._name_ = name
             return obj
         msg = "invalid key"
         raise ValueError(msg)
