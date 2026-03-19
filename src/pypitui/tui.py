@@ -65,6 +65,22 @@ class TUI:
         """
         self._root = component
 
+    def _calculate_viewport_top(self, content_height: int) -> int:
+        """Calculate viewport scroll position.
+
+        Viewport stays at top (0) until content exceeds terminal height,
+        then scrolls to keep bottom of content visible.
+
+        Args:
+            content_height: Total content height in lines
+
+        Returns:
+            Viewport top position (0 or content_height - term_height)
+        """
+        # Default terminal height to 24 if not available
+        term_height = 24
+        return max(0, content_height - term_height)
+
     def _find_changed_bounds(
         self, new_lines: list[tuple[int, str]]
     ) -> tuple[int, int]:

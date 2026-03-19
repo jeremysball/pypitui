@@ -109,6 +109,79 @@ class TestTUIAddChild:
         assert tui._root is mock_comp
 
 
+class TestTUIViewportTracking:
+    """Tests for TUI viewport tracking."""
+
+    def test_viewport_top_calculation(self) -> None:
+        """viewport_top = max(0, content_height - term_height)."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Test content shorter than terminal (24 lines)
+        viewport_top = tui._calculate_viewport_top(10)
+        assert viewport_top == 0, f"Expected 0, got {viewport_top}"
+
+        # Test content taller than terminal
+        viewport_top = tui._calculate_viewport_top(30)
+        assert viewport_top == 6, f"Expected 6, got {viewport_top}"
+
+        # Test content exactly matching terminal height
+        viewport_top = tui._calculate_viewport_top(24)
+        assert viewport_top == 0, f"Expected 0, got {viewport_top}"
+
+    def test_viewport_top_zero_when_content_fits(self) -> None:
+        """3 lines on 24-line terminal = 0."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        viewport_top = tui._calculate_viewport_top(3)
+        assert viewport_top == 0
+
+    def test_viewport_top_nonzero_when_content_scrolls(self) -> None:
+        """30 lines on 24-line terminal = 6."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        viewport_top = tui._calculate_viewport_top(30)
+        assert viewport_top == 6
+
+
 class TestTUIDifferentialRendering:
     """Tests for TUI differential rendering."""
 
