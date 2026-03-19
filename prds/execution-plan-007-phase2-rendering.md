@@ -10,7 +10,7 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 ### Core Data Structures
 
 - [ ] **Test**: `test_size_dataclass()` — Size(width, height) stores dimensions
-- [ ] **Implement**: `Size` dataclass with `width: int`, `height: int`
+- [x] **Implement**: `Size` dataclass with `width: int`, `height: int`
 - [ ] **Run**: `uv run pytest tests/unit/test_component.py::test_size_dataclass -v`
 
 - [ ] **Test**: `test_rendered_line_dataclass()` — RenderedLine stores content and styles
