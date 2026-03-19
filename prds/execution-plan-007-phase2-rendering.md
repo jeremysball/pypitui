@@ -23,12 +23,12 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 
 ### TUI Class Foundation
 
-- [ ] **Test**: `test_tui_init_caches_previous_lines()` — _previous_lines is empty dict row->content_hash
-- [ ] **Test**: `test_tui_init_tracks_max_lines()` — _max_lines_rendered starts at 0
-- [ ] **Test**: `test_tui_init_tracks_viewport_top()` — _viewport_top starts at 0
-- [ ] **Test**: `test_tui_init_hardware_cursor()` — _hardware_cursor_row and _hardware_cursor_col tracked
-- [ ] **Implement**: `TUI.__init__(self, terminal: Terminal)` with full state tracking
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py -k "test_tui_init" -v`
+- [x] **Test**: `test_tui_init_caches_previous_lines()` — _previous_lines is empty dict row->content_hash
+- [x] **Test**: `test_tui_init_tracks_max_lines()` — _max_lines_rendered starts at 0
+- [x] **Test**: `test_tui_init_tracks_viewport_top()` — _viewport_top starts at 0
+- [x] **Test**: `test_tui_init_hardware_cursor()` — _hardware_cursor_row and _hardware_cursor_col tracked
+- [x] **Implement**: `TUI.__init__(self, terminal: Terminal)` with full state tracking
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py -k "test_tui_init" -v`
 
 - [ ] **Test**: `test_tui_add_child_sets_root()` — add_child stores component
 - [ ] **Implement**: `TUI.add_child(self, component: Component)`
