@@ -147,3 +147,55 @@ class TestTUIDifferentialRendering:
         first, last = tui._find_changed_bounds(new_lines)
         assert first == 1
         assert last == 3
+
+    def test_output_diff_writes_changed_lines(self) -> None:
+        """Only changed lines emit escape sequences."""
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up previous state
+        tui._previous_lines = {0: "hash0", 1: "hash1_old", 2: "hash2"}
+
+        # Output lines with change at line 1
+        lines = [(0, "hash0", "line0"), (1, "hash1_new", "line1_new"), (2, "hash2", "line2")]
+        tui._output_diff(lines, 80)
+
+        output = mock_buffer.getvalue()
+        # Should emit escape sequences for changed line (line 1)
+        assert b"line1_new" in output
+        # Should have cursor positioning
+        assert b"\x1b[" in output
+
+    def test_output_diff_skips_unchanged_lines(self) -> None:
+        """Unchanged lines generate no output."""
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up previous state where all lines are same
+        tui._previous_lines = {0: "hash0", 1: "hash1", 2: "hash2"}
+
+        # Output lines with no changes
+        lines = [(0, "hash0", "line0"), (1, "hash1", "line1"), (2, "hash2", "line2")]
+        tui._output_diff(lines, 80)
+
+        output = mock_buffer.getvalue()
+        # Should generate minimal or no output for unchanged lines
+        assert len(output) == 0 or b"line0" not in output

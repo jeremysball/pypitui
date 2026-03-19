@@ -82,3 +82,61 @@ class TUI:
             return (0, -1)
 
         return (first_changed, last_changed)
+
+    def _output_diff(
+        self, lines: list[tuple[int, str, str]], width: int
+    ) -> None:
+        """Output only changed lines to terminal.
+
+        Args:
+            lines: List of (row, content_hash, content) tuples
+            width: Terminal width for line validation
+        """
+        # Find changed bounds
+        first_changed, last_changed = self._find_changed_bounds(
+            [(row, hash_val) for row, hash_val, _ in lines]
+        )
+
+        # Nothing changed
+        if last_changed == -1:
+            return
+
+        # Output changed lines
+        for i in range(first_changed, last_changed + 1):
+            row, content_hash, content = lines[i]
+
+            # Skip if unchanged
+            if (
+                row in self._previous_lines
+                and self._previous_lines[row] == content_hash
+            ):
+                continue
+
+            # Validate line width
+            if len(content) > width:
+                msg = (
+                    f"Line {row} exceeds width {width}: "
+                    f"{len(content)} chars"
+                )
+                raise LineOverflowError(msg)
+
+            # Move cursor and output line
+            self.terminal.move_cursor(0, row - self._viewport_top)
+            self.terminal.clear_line()
+            self.terminal.write(content)
+
+            # Update tracking
+            self._previous_lines[row] = content_hash
+            self._hardware_cursor_row = row - self._viewport_top
+            self._hardware_cursor_col = len(content)
+
+        # Update max lines rendered
+        self._max_lines_rendered = max(
+            self._max_lines_rendered, len(lines)
+        )
+
+
+class LineOverflowError(Exception):
+    """Raised when a line exceeds terminal width."""
+
+    pass
