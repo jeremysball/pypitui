@@ -57,10 +57,31 @@ Implement the full PyPiTUI library with:
 2. **Differential rendering efficiency**: Append-only scenario emits ≤20% of escape sequences vs full clear+redraw (measured via MockTerminal)
 3. **Performance**: Frame render time <16ms (60 FPS target) for 100-line terminal
 4. 80%+ unit test coverage for `tui.py`, `terminal.py`, `styles.py`
-5. E2E tests verify Input, SelectList, and Overlay interactions
-6. mypy strict mode passes with zero errors
-7. Pre-commit hooks (ruff, mypy, pytest) all green
-8. Wide character handling verified for emoji (width 2) and CJK text
+5. **Integration tests** cover Terminal+TUI pipeline, differential rendering, and render loop
+6. E2E tests verify Input, SelectList, and Overlay interactions
+7. mypy strict mode passes with zero errors
+8. Pre-commit hooks (ruff, mypy, pytest) all green
+9. Wide character handling verified for emoji (width 2) and CJK text
+
+### Test Strategy
+
+**Unit Tests** (47 tests): Core functionality in isolation
+- Terminal I/O operations
+- Key/mouse parsing
+- Style/color detection
+- Component data structures
+- TUI differential rendering
+
+**Integration Tests** (20 tests): Component interactions
+- Terminal + TUI pipeline
+- Differential rendering end-to-end
+- Full render loop with components
+- MockTerminal verification
+
+**E2E Tests** (planned): tmux automation for interactive components
+- Input typing and submission
+- SelectList navigation
+- Overlay modal interactions
 
 ---
 
@@ -130,6 +151,13 @@ Implement the full PyPiTUI library with:
 - [x] **Test**: `test_parse_mouse_move()` — verify mouse move with button held
 - [x] **Test**: `test_mouse_coordinates_converted_to_zero_indexed()` — SGR 1006 reports 1-indexed coordinates, MouseEvent stores 0-indexed screen coordinates
 - [x] **Implement**: `MouseEvent` dataclass with `row: int, col: int` (0-indexed screen coordinates) and `parse_mouse(data: bytes) -> MouseEvent | None`
+
+#### Milestone 1 Integration Tests
+- [x] **Test**: `test_full_render_pipeline()` — TUI renders through Terminal
+- [x] **Test**: `test_second_render_only_changes_diff()` — differential output verified
+- [x] **Test**: `test_mock_terminal_counts_escapes()` — MockTerminal escape counting works
+
+**Status**: ✅ Complete (48/48 tasks, 100%)
 
 ---
 
