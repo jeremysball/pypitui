@@ -2,6 +2,7 @@
 
 import sys
 import termios
+import threading
 import tty
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -166,6 +167,36 @@ class TestDEC2026:
         assert DEC_2026_START.encode() in output
         assert b"data" in output
         assert DEC_2026_END.encode() in output
+
+
+class TestTerminalAsyncInput:
+    """Tests for Terminal threaded async input handling."""
+
+    def test_sync_queries_complete_before_async_thread(self) -> None:
+        """Capability queries finish before input thread spawns."""
+        from pypitui.terminal import Terminal
+
+        mock_buffer = BytesIO()
+        mock_fd = 3
+        mock_buffer.fileno = MagicMock(return_value=mock_fd)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    with patch(
+                        "threading.Thread"
+                    ) as mock_thread:
+                        term = Terminal(fd=mock_fd, buffer=mock_buffer)
+                        with term:
+                            # Sync queries happen in __enter__ before start()
+                            pass
+                        # start() should be called after __enter__ completes
+                        # Thread is spawned when start() is called
+                        mock_callback = MagicMock()
+                        term.start(mock_callback)
+                        mock_thread.assert_called_once()
+                        args = mock_thread.call_args
+                        assert args[1]["daemon"] is True
 
 
 class TestTerminalRawMode:

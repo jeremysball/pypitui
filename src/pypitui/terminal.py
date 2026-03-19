@@ -1,9 +1,12 @@
 """Terminal I/O abstraction with raw mode and threaded input handling."""
 
+import os
+import selectors
 import sys
 import termios
+import threading
 import tty
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from types import TracebackType
 from typing import Any, BinaryIO, Self
@@ -35,6 +38,9 @@ class Terminal:
             buffer if buffer is not None else sys.stdout.buffer
         )
         self._original_attrs: Any | None = None
+        self._on_input: Callable[[bytes], None] | None = None
+        self._running: bool = False
+        self._input_thread: threading.Thread | None = None
 
     def __enter__(self) -> Self:
         """Enter raw mode context.
@@ -110,3 +116,55 @@ class Terminal:
             yield
         finally:
             self.write(DEC_2026_END)
+
+    def start(
+        self, on_input: Callable[[bytes], None] | None = None
+    ) -> None:
+        """Start async input handling.
+
+        Spawns a daemon thread to read input and dispatch to callback.
+        Must be called after entering raw mode context.
+
+        Args:
+            on_input: Callback for input data
+        """
+        self._on_input = on_input
+        self._running = True
+        self._input_thread = threading.Thread(
+            target=self._read_loop, daemon=True
+        )
+        self._input_thread.start()
+
+    def stop(self) -> None:
+        """Stop async input handling.
+
+        Signals the input thread to exit and waits for it to finish.
+        """
+        self._running = False
+        if self._input_thread is not None and self._input_thread.is_alive():
+            self._input_thread.join(timeout=0.1)
+
+    def _read_loop(self) -> None:
+        """Main loop for async input reading.
+
+        Reads from stdin and dispatches to callback.
+        Runs in daemon thread.
+        """
+        # Use stdin for input (file descriptor 0)
+        stdin_fd = 0
+        sel = selectors.DefaultSelector()
+        sel.register(stdin_fd, selectors.EVENT_READ)
+
+        while self._running:
+            events = sel.select(timeout=0.05)  # 50ms timeout
+            for _ in events:
+                try:
+                    data = os.read(stdin_fd, 1024)
+                    if data and self._on_input:
+                        self._on_input(data)
+                except OSError:
+                    break
+            if not self._running:
+                break
+
+        sel.close()
