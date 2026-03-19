@@ -4,8 +4,20 @@ Provides the TUI class that manages component rendering,
 differential output, viewport tracking, and overlay management.
 """
 
+from typing import Protocol
+
 from pypitui.component import Component
-from pypitui.terminal import Terminal
+
+
+class TerminalProtocol(Protocol):
+    """Protocol for terminal implementations."""
+
+    def write(self, data: str | bytes) -> None: ...
+    def move_cursor(self, col: int, row: int) -> None: ...
+    def clear_line(self) -> None: ...
+    def clear_screen(self) -> None: ...
+    def hide_cursor(self) -> None: ...
+    def show_cursor(self) -> None: ...
 
 
 class TUI:
@@ -23,7 +35,7 @@ class TUI:
         _root: Root component to render
     """
 
-    def __init__(self, terminal: Terminal) -> None:
+    def __init__(self, terminal: TerminalProtocol) -> None:
         """Initialize TUI with terminal.
 
         Args:
@@ -83,6 +95,47 @@ class TUI:
 
         return (first_changed, last_changed)
 
+    def _detect_append(
+        self,
+        new_lines: list[tuple[int, str, str]],
+        first_changed: int,
+    ) -> bool:
+        """Detect if this is a pure append operation.
+
+        Pure append means only new lines are being added at the end,
+        with no changes to existing lines.
+
+        Args:
+            new_lines: List of (row, content_hash, content) tuples
+            first_changed: Index of first changed line from
+                _find_changed_bounds
+
+        Returns:
+            True if this is a pure append operation
+        """
+        if first_changed >= len(new_lines):
+            return False
+
+        # Must have existing lines to be an append (not initial render)
+        if first_changed == 0:
+            return False
+
+        # Check that all lines before first_changed are unchanged
+        for i in range(first_changed):
+            row, content_hash, _ = new_lines[i]
+            if row not in self._previous_lines:
+                return False
+            if self._previous_lines[row] != content_hash:
+                return False
+
+        # Check that all lines from first_changed onwards are new
+        for i in range(first_changed, len(new_lines)):
+            row, _, _ = new_lines[i]
+            if row in self._previous_lines:
+                return False
+
+        return True
+
     def _output_diff(
         self, lines: list[tuple[int, str, str]], width: int
     ) -> None:
@@ -101,7 +154,89 @@ class TUI:
         if last_changed == -1:
             return
 
-        # Output changed lines
+        # Check if this is a pure append operation
+        is_append = self._detect_append(lines, first_changed)
+
+        if is_append:
+            # Optimized append path: use \r\n for natural scrolling
+            self._output_append(lines, first_changed, last_changed, width)
+        else:
+            # Standard diff path: cursor positioning for each line
+            self._output_standard_diff(
+                lines, first_changed, last_changed, width
+            )
+
+        # Update max lines rendered
+        self._max_lines_rendered = max(
+            self._max_lines_rendered, len(lines)
+        )
+
+    def _output_append(
+        self,
+        lines: list[tuple[int, str, str]],
+        first_changed: int,
+        last_changed: int,
+        width: int,
+    ) -> None:
+        """Output appended lines using natural terminal scrolling.
+
+        Uses \r\n to move to next line without cursor positioning,
+        leveraging the terminal's natural scroll behavior.
+
+        Args:
+            lines: List of (row, content_hash, content) tuples
+            first_changed: Index of first new line
+            last_changed: Index of last new line
+            width: Terminal width for validation
+        """
+        for i in range(first_changed, last_changed + 1):
+            row, content_hash, content = lines[i]
+
+            # Validate line width
+            if len(content) > width:
+                msg = (
+                    f"Line {row} exceeds width {width}: "
+                    f"{len(content)} chars"
+                )
+                raise LineOverflowError(msg)
+
+            # For first appended line, position cursor if needed
+            if i == first_changed and first_changed > 0:
+                # Move to end of previous line
+                prev_row, _, prev_content = lines[i - 1]
+                self.terminal.move_cursor(
+                    len(prev_content), prev_row - self._viewport_top
+                )
+
+            # Use \r\n for natural scrolling (no cursor positioning)
+            self.terminal.write("\r\n" + content)
+
+            # Update tracking
+            self._previous_lines[row] = content_hash
+
+        # Update cursor position to end of last line
+        if last_changed >= 0:
+            last_row, _, last_content = lines[last_changed]
+            self._hardware_cursor_row = last_row - self._viewport_top
+            self._hardware_cursor_col = len(last_content)
+
+    def _output_standard_diff(
+        self,
+        lines: list[tuple[int, str, str]],
+        first_changed: int,
+        last_changed: int,
+        width: int,
+    ) -> None:
+        """Output changed lines using cursor positioning.
+
+        Standard differential rendering with explicit cursor movement.
+
+        Args:
+            lines: List of (row, content_hash, content) tuples
+            first_changed: Index of first changed line
+            last_changed: Index of last changed line
+            width: Terminal width for validation
+        """
         for i in range(first_changed, last_changed + 1):
             row, content_hash, content = lines[i]
 
@@ -129,11 +264,6 @@ class TUI:
             self._previous_lines[row] = content_hash
             self._hardware_cursor_row = row - self._viewport_top
             self._hardware_cursor_col = len(content)
-
-        # Update max lines rendered
-        self._max_lines_rendered = max(
-            self._max_lines_rendered, len(lines)
-        )
 
 
 class LineOverflowError(Exception):
