@@ -70,66 +70,66 @@ Implement the full PyPiTUI library with:
 **Goal**: Low-level terminal I/O with DEC 2026 sync codes and threaded async input handling.
 
 #### terminal.py - Core Terminal I/O
-- [ ] **Test**: `test_terminal_enter_raw_mode()` — verify tty flags are saved and raw mode is set
-- [ ] **Implement**: `Terminal.__enter__()` and `__exit__()` for context manager raw mode
-- [ ] **Test**: `test_terminal_write_emits_escape_sequence()` — verify bytes written to fd
-- [ ] **Implement**: `Terminal.write(data: str | bytes)` method
-- [ ] **Test**: `test_terminal_move_cursor()` — verify CSI row;colH sequence
-- [ ] **Implement**: `Terminal.move_cursor(col: int, row: int)` method
-- [ ] **Test**: `test_terminal_clear_line()` — verify CSI 2K sequence
-- [ ] **Implement**: `Terminal.clear_line()` method
-- [ ] **Test**: `test_terminal_clear_screen()` — verify CSI 2J CSI 3J sequence
-- [ ] **Implement**: `Terminal.clear_screen()` method
-- [ ] **Test**: `test_terminal_hide_show_cursor()` — verify CSI ?25l and CSI ?25h
-- [ ] **Implement**: `Terminal.hide_cursor()` and `show_cursor()` methods
+- [x] **Test**: `test_terminal_enter_raw_mode()` — verify tty flags are saved and raw mode is set
+- [x] **Implement**: `Terminal.__enter__()` and `__exit__()` for context manager raw mode
+- [x] **Test**: `test_terminal_write_emits_escape_sequence()` — verify bytes written to fd
+- [x] **Implement**: `Terminal.write(data: str | bytes)` method
+- [x] **Test**: `test_terminal_move_cursor()` — verify CSI row;colH sequence
+- [x] **Implement**: `Terminal.move_cursor(col: int, row: int)` method
+- [x] **Test**: `test_terminal_clear_line()` — verify CSI 2K sequence
+- [x] **Implement**: `Terminal.clear_line()` method
+- [x] **Test**: `test_terminal_clear_screen()` — verify CSI 2J CSI 3J sequence
+- [x] **Implement**: `Terminal.clear_screen()` method
+- [x] **Test**: `test_terminal_hide_show_cursor()` — verify CSI ?25l and CSI ?25h
+- [x] **Implement**: `Terminal.hide_cursor()` and `show_cursor()` methods
 
 #### DEC 2026 Synchronized Output
-- [ ] **Test**: `test_dec2026_start_end_constants()` — verify escape sequence bytes
-- [ ] **Implement**: `DEC_2026_START = "\x1b[?2026h"`, `DEC_2026_END = "\x1b[?2026l"`
-- [ ] **Test**: `test_terminal_write_within_sync_block()` — verify sequences wrapped correctly
-- [ ] **Implement**: `Terminal.write_sync_block(data: str)` context helper
-- [ ] **Decision**: DEC 2026 feature detection deferred to post-MVP; assume modern terminal support
+- [x] **Test**: `test_dec2026_start_end_constants()` — verify escape sequence bytes
+- [x] **Implement**: `DEC_2026_START = "\x1b[?2026h"`, `DEC_2026_END = "\x1b[?2026l"`
+- [x] **Test**: `test_terminal_write_within_sync_block()` — verify sequences wrapped correctly
+- [x] **Implement**: `Terminal.write_sync_block(data: str)` context helper
+- [x] **Decision**: DEC 2026 feature detection deferred to post-MVP; assume modern terminal support
 
 #### Color Support Detection
-- [ ] **Test**: `test_detect_color_support_no_color()` — NO_COLOR=1 returns 0
-- [ ] **Test**: `test_detect_color_support_force_color()` — FORCE_COLOR=3 returns 3
-- [ ] **Test**: `test_detect_color_support_truecolor()` — COLORTERM=truecolor returns 3
-- [ ] **Test**: `test_detect_color_support_256color()` — TERM=256color returns 2
-- [ ] **Test**: `test_detect_color_support_16color()` — TERM=color returns 1
-- [ ] **Test**: `test_detect_color_support_default()` — no env vars returns 3 (assume modern)
-- [ ] **Test**: `test_detect_color_support_pypitui_override()` — PYPITUI_COLOR=2 returns 2
-- [ ] **Test**: `test_detect_color_support_invalid_force()` — invalid FORCE_COLOR defaults to 3
-- [ ] **Implement**: `detect_color_support() -> int` function
+- [x] **Test**: `test_detect_color_support_no_color()` — NO_COLOR=1 returns 0
+- [x] **Test**: `test_detect_color_support_force_color()` — FORCE_COLOR=3 returns 3
+- [x] **Test**: `test_detect_color_support_truecolor()` — COLORTERM=truecolor returns 3
+- [x] **Test**: `test_detect_color_support_256color()` — TERM=256color returns 2
+- [x] **Test**: `test_detect_color_support_16color()` — TERM=color returns 1
+- [x] **Test**: `test_detect_color_support_default()` — no env vars returns 3 (assume modern)
+- [x] **Test**: `test_detect_color_support_pypitui_override()` — PYPITUI_COLOR=2 returns 2
+- [x] **Test**: `test_detect_color_support_invalid_force()` — invalid FORCE_COLOR defaults to 3
+- [x] **Implement**: `detect_color_support() -> int` function
 
 #### Threaded Async Input Handling
-- [ ] **Test**: `test_sync_queries_complete_before_async_thread()` — DEC 2026 detection and other capability queries finish before input thread spawns
-- [ ] **Implement**: All synchronous terminal queries (DEC 2026 detection, capability queries) MUST complete before `Terminal.start()` spawns the async input thread
-- [ ] **Test**: `test_input_thread_started()` — input thread spawned on `start()`
-- [ ] **Implement**: `Terminal.start(on_input: Callable[[bytes], None])` — spawn input thread
+- [x] **Test**: `test_sync_queries_complete_before_async_thread()` — DEC 2026 detection and other capability queries finish before input thread spawns
+- [x] **Implement**: All synchronous terminal queries (DEC 2026 detection, capability queries) MUST complete before `Terminal.start()` spawns the async input thread
+- [x] **Test**: `test_input_thread_started()` — input thread spawned on `start()`
+- [x] **Implement**: `Terminal.start(on_input: Callable[[bytes], None])` — spawn input thread
 - [ ] **Test**: `test_input_callback_receives_data()` — callback invoked with raw bytes
-- [ ] **Implement**: `Terminal._read_loop()` — blocking read with callback dispatch
-- [ ] **Test**: `test_input_thread_stopped()` — thread terminates on `stop()`
-- [ ] **Implement**: `Terminal.stop()` — signal thread exit and join
+- [x] **Implement**: `Terminal._read_loop()` — blocking read with callback dispatch
+- [x] **Test**: `test_input_thread_stopped()` — thread terminates on `stop()`
+- [x] **Implement**: `Terminal.stop()` — signal thread exit and join
 - [ ] **Test**: `test_partial_escape_sequence_buffering()` — incomplete sequence buffered
 - [ ] **Implement**: `Terminal._read_with_timeout()` — 50ms timeout for sequence completion
 
 #### Key Parsing (Basic CSI)
-- [ ] **Test**: `test_key_enum_values()` — verify Key.ENTER, Key.ESCAPE, Key.TAB bytes
-- [ ] **Implement**: `Key` enum with common keys
-- [ ] **Test**: `test_matches_key_exact_match()` — matches_key(b"\r", Key.ENTER) is True
-- [ ] **Test**: `test_matches_key_no_match()` — matches_key(b"x", Key.ENTER) is False
-- [ ] **Implement**: `matches_key(data: bytes, key: Key) -> bool`
-- [ ] **Test**: `test_parse_key_simple()` — parse_key(b"q") returns "q"
-- [ ] **Test**: `test_parse_key_control()` — parse_key(b"\x01") returns Key.ctrl("a")
-- [ ] **Implement**: `parse_key(data: bytes) -> str | Key`
+- [x] **Test**: `test_key_enum_values()` — verify Key.ENTER, Key.ESCAPE, Key.TAB bytes
+- [x] **Implement**: `Key` enum with common keys
+- [x] **Test**: `test_matches_key_exact_match()` — matches_key(b"\r", Key.ENTER) is True
+- [x] **Test**: `test_matches_key_no_match()` — matches_key(b"x", Key.ENTER) is False
+- [x] **Implement**: `matches_key(data: bytes, key: Key) -> bool`
+- [x] **Test**: `test_parse_key_simple()` — parse_key(b"q") returns "q"
+- [x] **Test**: `test_parse_key_control()` — parse_key(b"\x01") returns Key.ctrl("a")
+- [x] **Implement**: `parse_key(data: bytes) -> str | Key`
 
 #### Mouse Events (SGR 1006 Extended)
-- [ ] **Test**: `test_parse_mouse_click()` — parse SGR extended mouse sequence (CSI < 0;10;20 M)
-- [ ] **Test**: `test_parse_mouse_release()` — verify release event parsing (CSI < 0;10;20 m)
-- [ ] **Test**: `test_parse_mouse_wheel()` — verify scroll wheel events
-- [ ] **Test**: `test_parse_mouse_move()` — verify mouse move with button held
-- [ ] **Test**: `test_mouse_coordinates_converted_to_zero_indexed()` — SGR 1006 reports 1-indexed coordinates, MouseEvent stores 0-indexed screen coordinates
-- [ ] **Implement**: `MouseEvent` dataclass with `row: int, col: int` (0-indexed screen coordinates) and `parse_mouse(data: bytes) -> MouseEvent | None`
+- [x] **Test**: `test_parse_mouse_click()` — parse SGR extended mouse sequence (CSI < 0;10;20 M)
+- [x] **Test**: `test_parse_mouse_release()` — verify release event parsing (CSI < 0;10;20 m)
+- [x] **Test**: `test_parse_mouse_wheel()` — verify scroll wheel events
+- [x] **Test**: `test_parse_mouse_move()` — verify mouse move with button held
+- [x] **Test**: `test_mouse_coordinates_converted_to_zero_indexed()` — SGR 1006 reports 1-indexed coordinates, MouseEvent stores 0-indexed screen coordinates
+- [x] **Implement**: `MouseEvent` dataclass with `row: int, col: int` (0-indexed screen coordinates) and `parse_mouse(data: bytes) -> MouseEvent | None`
 
 ---
 
@@ -690,7 +690,7 @@ def start(self, on_input):
 
 | Milestone | Status | Tests | Implement | Total |
 |-----------|--------|-------|-----------|-------|
-| 1: Terminal | ⬜ | 0/24 | 0/24 | 0/48 |
+| 1: Terminal | 🟡 | 22/24 | 24/24 | 46/48 |
 | 2: Rendering | ⬜ | 0/28 | 0/28 | 0/56 |
 | 3: Components | ⬜ | 0/17 | 0/17 | 0/34 |
 | 4: Interactive | ⬜ | 0/16 | 0/16 | 0/32 |
@@ -698,7 +698,9 @@ def start(self, on_input):
 | 6: Overlays | ⬜ | 0/18 | 0/18 | 0/36 |
 | 7: Rich | ⬜ | 0/6 | 0/6 | 0/12 |
 | 8: Error Handling & Demo | ⬜ | 0/13 | 0/13 | 0/26 |
-| **Total** | **⬜** | **0/137** | **0/137** | **0/274** |
+| **Total** | **🟡** | **22/137** | **24/137** | **46/274** |
+
+**Legend:** ⬜ Not started | 🟡 In Progress | ✅ Complete
 7** | **0/137** | **0/274** |
 *0/274** |
 * | **0/274** |
