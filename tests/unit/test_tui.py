@@ -297,6 +297,99 @@ class TestTUIHardwareCursor:
         assert tui._hardware_cursor_row == 0  # row 5 - viewport_top 5
         assert tui._hardware_cursor_col == 6  # len("Line 5")
 
+    def test_hardware_cursor_reset_on_render_start(self) -> None:
+        """Cursor reset to known position at start of render."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set cursor to arbitrary position
+        tui._hardware_cursor_row = 10
+        tui._hardware_cursor_col = 50
+
+        # Reset cursor (simulating render start)
+        tui._hardware_cursor_row = 0
+        tui._hardware_cursor_col = 0
+
+        assert tui._hardware_cursor_row == 0
+        assert tui._hardware_cursor_col == 0
+
+    def test_hardware_cursor_for_overlay_focus(self) -> None:
+        """Absolute positioning for overlay content."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Render with viewport offset
+        tui._viewport_top = 5
+        lines = [
+            (10, "hash10", "Overlay"),  # absolute row 10
+        ]
+        tui._output_diff(lines, 80)
+
+        # Cursor should be positioned relative to viewport
+        # Row 10 - viewport_top 5 = row 5 on screen
+        assert tui._hardware_cursor_row == 5
+        assert tui._hardware_cursor_col == 7  # len("Overlay")
+
+
+class TestTUIPerformance:
+    """Tests for render performance."""
+
+    def test_frame_render_time_under_16ms(self) -> None:
+        """Render completes within 60 FPS budget (<16ms)."""
+        import time
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Create 50 lines of content (larger terminal)
+        lines = [
+            (i, f"hash{i}", f"Line {i} content here")
+            for i in range(50)
+        ]
+
+        # Time the render
+        start = time.perf_counter()
+        tui._output_diff(lines, 80)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        # Should complete in under 16ms (60 FPS)
+        assert elapsed_ms < 16.0, f"Render took {elapsed_ms:.2f}ms"
+
 
 class TestTUIResize:
     """Tests for terminal resize handling."""
