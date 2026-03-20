@@ -324,6 +324,44 @@ class TestTUIScrollbackAwareRedraw:
         assert b"Line 10" in output
         assert b"Line 11" in output
 
+    def test_mixed_scrollback_edit_and_append_triggers_full_redraw(self) -> None:
+        """Full redraw takes precedence over append optimization."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up viewport with scrollback
+        tui._viewport_top = 10
+        tui._previous_lines = {i: f"hash{i}" for i in range(20)}
+
+        # Mixed scenario: scrollback edit (line 5) AND append (lines 20-21)
+        # Scrollback should win - full redraw
+        lines = [
+            (5, "new_hash5", "Changed line 5"),  # scrollback edit
+            (20, "hash20", "Line 20"),  # new line (append)
+            (21, "hash21", "Line 21"),  # new line (append)
+        ]
+        tui._output_diff(lines, 80)
+
+        output = mock_buffer.getvalue()
+        # Should have clear screen (full redraw, not append)
+        assert b"\x1b[2J" in output
+        # All lines should be redrawn
+        assert b"Changed line 5" in output
+        assert b"Line 20" in output
+        assert b"Line 21" in output
+
 
 class TestTUIDifferentialRendering:
     """Tests for TUI differential rendering."""
