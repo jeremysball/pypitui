@@ -182,6 +182,81 @@ class TestTUIViewportTracking:
         assert viewport_top == 6
 
 
+class TestTUIScrollbackAwareRedraw:
+    """Tests for scrollback-aware redraw (CRITICAL)."""
+
+    def test_edit_in_scrollback_triggers_full_redraw(self) -> None:
+        """first_changed < viewport_top triggers clear."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up viewport with scrollback (viewport_top = 10)
+        tui._viewport_top = 10
+        tui._previous_lines = {i: f"hash{i}" for i in range(20)}
+
+        # Edit at line 5 (in scrollback, since viewport starts at 10)
+        is_scrollback = tui._is_scrollback_edit(first_changed=5, viewport_top=10)
+        assert is_scrollback is True
+
+    def test_edit_in_viewport_does_not_clear(self) -> None:
+        """first_changed >= viewport_top uses diff."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up viewport with scrollback
+        tui._viewport_top = 10
+        tui._previous_lines = {i: f"hash{i}" for i in range(20)}
+
+        # Edit at line 12 (in viewport, since viewport starts at 10)
+        is_scrollback = tui._is_scrollback_edit(first_changed=12, viewport_top=10)
+        assert is_scrollback is False
+
+    def test_scrollback_at_viewport_boundary(self) -> None:
+        """first_changed == viewport_top is in viewport (not scrollback)."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Edit exactly at viewport top
+        is_scrollback = tui._is_scrollback_edit(first_changed=10, viewport_top=10)
+        assert is_scrollback is False
+
+
 class TestTUIDifferentialRendering:
     """Tests for TUI differential rendering."""
 

@@ -81,6 +81,23 @@ class TUI:
         term_height = 24
         return max(0, content_height - term_height)
 
+    def _is_scrollback_edit(
+        self, first_changed: int, viewport_top: int
+    ) -> bool:
+        """Detect if edit is in scrollback (off-screen content).
+
+        Scrollback content is immutable in terminal history. Any edit to
+        scrollback requires a full clear+redraw to maintain consistency.
+
+        Args:
+            first_changed: Row index of first changed line
+            viewport_top: Current viewport top position
+
+        Returns:
+            True if edit is in scrollback (requires full redraw)
+        """
+        return first_changed < viewport_top
+
     def _find_changed_bounds(
         self, new_lines: list[tuple[int, str]]
     ) -> tuple[int, int]:
