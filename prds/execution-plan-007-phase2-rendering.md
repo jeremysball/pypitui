@@ -72,14 +72,14 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 
 ### Scrollback-Aware Redraw (CRITICAL)
 
-- [ ] **Test**: `test_edit_in_scrollback_triggers_full_redraw()` — first_changed < viewport_top triggers clear
-- [ ] **Test**: `test_edit_in_viewport_does_not_clear()` — first_changed >= viewport_top uses diff
-- [ ] **Implement**: `TUI._is_scrollback_edit(self, first_changed: int, viewport_top: int) -> bool`
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py -k "scrollback" -v`
+- [x] **Test**: `test_edit_in_scrollback_triggers_full_redraw()` — first_changed < viewport_top triggers clear
+- [x] **Test**: `test_edit_in_viewport_does_not_clear()` — first_changed >= viewport_top uses diff
+- [x] **Implement**: `TUI._is_scrollback_edit(self, first_changed: int, viewport_top: int) -> bool`
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py -k "scrollback" -v`
 
-- [ ] **Test**: `test_mixed_scrollback_edit_and_append_triggers_full_redraw()` — full redraw takes precedence
-- [ ] **Implement**: Scrollback edit detection takes precedence over append optimization
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py::test_mixed_scrollback_edit_and_append_triggers_full_redraw -v`
+- [x] **Test**: `test_mixed_scrollback_edit_and_append_triggers_full_redraw()` — full redraw takes precedence
+- [x] **Implement**: Scrollback edit detection takes precedence over append optimization
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py::test_mixed_scrollback_edit_and_append_triggers_full_redraw -v`
 
 - [ ] **Test**: `test_clear_on_shrink_true()` — full clear when content shrinks
 - [ ] **Test**: `test_clear_on_shrink_false()` — differential clear when content shrinks
