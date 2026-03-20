@@ -9,17 +9,17 @@ Implement the Component abstract base class, Container for vertical layout, Text
 
 ### Component ABC
 
-- [ ] **Test**: `test_component_abstract_methods()` — cannot instantiate without measure/render
-- [ ] **Implement**: `Component` ABC with `measure()`, `render()`, `invalidate()`
-- [ ] **Run**: `uv run pytest tests/unit/test_component.py::test_component_abstract_methods -v`
+- [x] **Test**: `test_component_abstract_methods()` — cannot instantiate without measure/render
+- [x] **Implement**: `Component` ABC with `measure()`, `render()`, `invalidate()`
+- [x] **Run**: `uv run pytest tests/unit/test_component.py::test_component_abstract_methods -v`
 
-- [ ] **Test**: `test_component_invalidation_bubbles()` — invalidate() calls _child_invalidated()
-- [ ] **Implement**: `Component.invalidate(self)` and `_child_invalidated(self, child)`
-- [ ] **Run**: `uv run pytest tests/unit/test_component.py::test_component_invalidation_bubbles -v`
+- [x] **Test**: `test_component_invalidation_bubbles()` — invalidate() calls _child_invalidated()
+- [x] **Implement**: `Component.invalidate(self)` and `_child_invalidated(self, child)`
+- [x] **Run**: `uv run pytest tests/unit/test_component.py::test_component_invalidation_bubbles -v`
 
-- [ ] **Test**: `test_component_rect_field_exists()` — _rect: Rect stores position and dimensions
-- [ ] **Implement**: `Component._rect: Rect` field for TUI to set during render
-- [ ] **Run**: `uv run pytest tests/unit/test_component.py::test_component_rect_field_exists -v`
+- [x] **Test**: `test_component_rect_field_exists()` — _rect: Rect stores position and dimensions
+- [x] **Implement**: `Component._rect: Rect` field for TUI to set during render
+- [x] **Run**: `uv run pytest tests/unit/test_component.py::test_component_rect_field_exists -v`
 
 ### Container Component
 
