@@ -4,9 +4,12 @@ Provides the TUI class that manages component rendering,
 differential output, viewport tracking, and overlay management.
 """
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from pypitui.component import Component, Rect
+from pypitui.component import Component, Rect, RenderedLine
+
+if TYPE_CHECKING:
+    from .overlay import Overlay, OverlayPosition
 
 
 class TerminalProtocol(Protocol):
@@ -62,6 +65,9 @@ class TUI:
         self._focused: Component | None = None
         self._focus_order: list[Component] = []
         self._focus_index: int = -1
+
+        # Overlay management
+        self._overlays: list[Overlay] = []
 
     def add_child(self, component: Component) -> None:
         """Set the root component.
@@ -502,6 +508,121 @@ class TUI:
         handler = getattr(component, "on_blur", None)
         if handler is not None:
             handler()
+
+    # Overlay management
+    def show_overlay(self, overlay: "Overlay") -> None:
+        """Show an overlay and push its content focus.
+
+        Args:
+            overlay: Overlay to show
+        """
+        self._overlays.append(overlay)
+        self.push_focus(overlay.content)
+
+    def close_overlay(self, overlay: "Overlay") -> None:
+        """Close an overlay and restore previous focus.
+
+        Args:
+            overlay: Overlay to close
+        """
+        if overlay in self._overlays:
+            self._overlays.remove(overlay)
+            # Pop focus if this overlay's content is focused
+            if self._focused is overlay.content:
+                self.pop_focus()
+
+    def _resolve_position(
+        self,
+        pos: "OverlayPosition",
+        term_width: int,
+        term_height: int,
+    ) -> tuple[int, int, int, int]:
+        """Resolve overlay position to absolute coordinates.
+
+        Args:
+            pos: Position specification
+            term_width: Terminal width
+            term_height: Terminal height
+
+        Returns:
+            Tuple of (row, col, width, height)
+        """
+        # Resolve row
+        row = term_height + pos.row if pos.row < 0 else pos.row
+
+        # Resolve col
+        col = pos.col
+
+        # Resolve dimensions (use content size or clamp)
+        width = pos.width if pos.width > 0 else term_width
+        height = pos.height if pos.height > 0 else 1
+
+        # Clamp to terminal bounds
+        row = max(0, min(row, term_height - 1))
+        col = max(0, min(col, term_width - 1))
+        width = min(width, term_width - col)
+        height = min(height, term_height - row)
+
+        return (row, col, width, height)
+
+    def _composite_overlay(
+        self,
+        base_lines: list[RenderedLine],
+        overlay: "Overlay",
+        term_width: int,
+        term_height: int,
+    ) -> list[RenderedLine]:
+        """Composite overlay onto base lines.
+
+        Args:
+            base_lines: Base rendered lines
+            overlay: Overlay to composite
+            term_width: Terminal width for clamping
+            term_height: Terminal height for clamping
+
+        Returns:
+            New list with overlay composited
+        """
+        if not overlay.visible:
+            return base_lines
+
+        # Resolve position
+        row, col, width, height = self._resolve_position(
+            overlay.position, term_width, term_height
+        )
+
+        # Ensure base_lines has enough rows
+        result = list(base_lines)
+        while len(result) < row + height:
+            result.append(RenderedLine(content=" " * term_width, styles=[]))
+
+        # Render overlay content
+        overlay_lines = overlay.content.render(width)
+
+        # Composite each line
+        for i, overlay_line in enumerate(overlay_lines[:height]):
+            target_row = row + i
+            if target_row >= len(result):
+                break
+
+            base = result[target_row].content
+            content = overlay_line.content[:width]
+
+            # Splice overlay content into base
+            before = base[:col]
+            after_start = col + len(content)
+            after = base[after_start:]
+
+            new_content = before + content + after
+            # Ensure exact width
+            new_content = new_content[:term_width].ljust(term_width)
+
+            result[target_row] = RenderedLine(
+                content=new_content,
+                styles=result[target_row].styles,
+            )
+
+        return result
 
 
 class LineOverflowError(Exception):
