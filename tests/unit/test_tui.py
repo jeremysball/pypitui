@@ -298,6 +298,105 @@ class TestTUIHardwareCursor:
         assert tui._hardware_cursor_col == 6  # len("Line 5")
 
 
+class TestTUIResize:
+    """Tests for terminal resize handling."""
+
+    def test_resize_clears_previous_lines(self) -> None:
+        """_previous_lines cleared on resize."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up some cached lines
+        tui._previous_lines = {0: "hash0", 1: "hash1", 2: "hash2"}
+
+        # Resize terminal
+        tui.on_resize(100, 30)
+
+        # Previous lines should be cleared
+        assert tui._previous_lines == {}
+
+    def test_resize_updates_viewport_top(self) -> None:
+        """Viewport recalculated after resize."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Initial state
+        tui._viewport_top = 10
+
+        # Resize to larger terminal
+        tui.on_resize(100, 30)
+
+        # Viewport should be recalculated (now 0 since default calculation)
+        assert tui._viewport_top == 0
+
+    def test_resize_triggers_full_redraw(self) -> None:
+        """Full redraw after resize on next render."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Initial render
+        lines1 = [
+            (0, "hash0", "Line 0"),
+            (1, "hash1", "Line 1"),
+        ]
+        tui._output_diff(lines1, 80)
+
+        # Resize
+        tui.on_resize(100, 30)
+
+        # Reset buffer to check next render
+        mock_buffer.seek(0)
+        mock_buffer.truncate()
+
+        # Re-render same content (should be full redraw since cache cleared)
+        lines2 = [
+            (0, "hash0", "Line 0"),
+            (1, "hash1", "Line 1"),
+        ]
+        tui._output_diff(lines2, 100)
+
+        output = mock_buffer.getvalue()
+        # Both lines should be output (not skipped as unchanged)
+        assert b"Line 0" in output
+        assert b"Line 1" in output
+
+
 class TestTUIAddChild:
     """Tests for TUI add_child."""
 

@@ -82,6 +82,29 @@ class TUI:
         for row in range(rect.y, rect.y + rect.height):
             self._previous_lines.pop(row, None)
 
+    def on_resize(self, _new_width: int, _new_height: int) -> None:
+        """Handle terminal resize event.
+
+        Clears cached line data and resets viewport since all
+        positions become invalid after resize.
+
+        Args:
+            new_width: New terminal width in columns
+            new_height: New terminal height in rows
+        """
+        # Clear all cached lines - positions are invalid after resize
+        self._previous_lines.clear()
+
+        # Reset max lines rendered
+        self._max_lines_rendered = 0
+
+        # Reset viewport to top
+        self._viewport_top = 0
+
+        # Reset hardware cursor
+        self._hardware_cursor_row = 0
+        self._hardware_cursor_col = 0
+
     def _calculate_viewport_top(self, content_height: int) -> int:
         """Calculate viewport scroll position.
 
