@@ -88,10 +88,10 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 
 ### Line Overflow Protection
 
-- [ ] **Test**: `test_line_overflow_raises_error()` — line exceeding width raises LineOverflowError
-- [ ] **Test**: `test_line_overflow_includes_context()` — error shows row, width, content
-- [ ] **Implement**: `LineOverflowError` exception and width validation in `_output_line()`
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py -k "overflow" -v`
+- [x] **Test**: `test_line_overflow_raises_error()` — line exceeding width raises LineOverflowError
+- [x] **Test**: `test_line_overflow_includes_context()` — error shows row, width, content
+- [x] **Implement**: `LineOverflowError` exception and width validation in `_output_line()`
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py -k "overflow" -v`
 
 - [ ] **Test**: `test_render_error_shows_overlay()` — component render error displays error overlay
 - [ ] **Implement**: Error overlay display in `render_frame()` exception handler
