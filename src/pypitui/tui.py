@@ -6,7 +6,7 @@ differential output, viewport tracking, and overlay management.
 
 from typing import Protocol
 
-from pypitui.component import Component
+from pypitui.component import Component, Rect
 
 
 class TerminalProtocol(Protocol):
@@ -64,6 +64,23 @@ class TUI:
             component: Root component to render
         """
         self._root = component
+
+    def invalidate_component(self, component: Component) -> None:
+        """Invalidate a component, clearing its rows from the cache.
+
+        This forces the component's rows to be re-rendered in the next frame.
+
+        Args:
+            component: The component to invalidate
+        """
+        # Access _rect attribute which is defined in Component.__init__
+        rect: Rect | None = getattr(component, "_rect", None)
+        if rect is None:
+            return
+
+        # Clear all rows covered by this component's rect
+        for row in range(rect.y, rect.y + rect.height):
+            self._previous_lines.pop(row, None)
 
     def _calculate_viewport_top(self, content_height: int) -> int:
         """Calculate viewport scroll position.

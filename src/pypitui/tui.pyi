@@ -1,5 +1,5 @@
 from _typeshed import Incomplete
-from pypitui.component import Component as Component
+from pypitui.component import Component as Component, Rect as Rect
 from typing import Protocol
 
 class TerminalProtocol(Protocol):
@@ -14,5 +14,6 @@ class TUI:
     terminal: Incomplete
     def __init__(self, terminal: TerminalProtocol) -> None: ...
     def add_child(self, component: Component) -> None: ...
+    def invalidate_component(self, component: Component) -> None: ...
 
 class LineOverflowError(Exception): ...

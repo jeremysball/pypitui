@@ -179,6 +179,57 @@ class TestTUIComponentPosition:
         assert component._rect.width == 40
         assert component._rect.height == 3
 
+    def test_invalidate_component_clears_rect_lines(self) -> None:
+        """Specific rows removed from _previous_lines on invalidate."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.component import Component, Rect, RenderedLine, Size
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        class TestComponent(Component):
+            """Test component with rect."""
+
+            def measure(self, available_width: int, available_height: int) -> Size:
+                return Size(40, 3)
+
+            def render(self, width: int) -> list[RenderedLine]:
+                return [
+                    RenderedLine(f"Line {i}", [])
+                    for i in range(3)
+                ]
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        component = TestComponent()
+        tui.add_child(component)
+
+        # Set up previous lines as if component was rendered at rows 5-7
+        tui._previous_lines = {
+            5: "hash5",
+            6: "hash6",
+            7: "hash7",
+            10: "hash10",  # unrelated line
+        }
+        component._rect = Rect(x=0, y=5, width=40, height=3)
+
+        # Invalidate the component
+        tui.invalidate_component(component)
+
+        # Component rows should be cleared, unrelated row should remain
+        assert 5 not in tui._previous_lines
+        assert 6 not in tui._previous_lines
+        assert 7 not in tui._previous_lines
+        assert 10 in tui._previous_lines  # unrelated line preserved
+
 
 class TestTUIAddChild:
     """Tests for TUI add_child."""
