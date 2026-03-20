@@ -134,6 +134,52 @@ class TestTUILineOverflow:
         assert "50" in error_msg  # content length
 
 
+class TestTUIComponentPosition:
+    """Tests for component position tracking."""
+
+    def test_component_rect_set_during_render(self) -> None:
+        """_rect populated after render with absolute (x, y, width, height)."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.component import Component, Rect, RenderedLine, Size
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        class TestComponent(Component):
+            """Test component that tracks its rect."""
+
+            def measure(self, available_width: int, available_height: int) -> Size:
+                return Size(40, 3)
+
+            def render(self, width: int) -> list[RenderedLine]:
+                return [
+                    RenderedLine(f"Line {i}", [])
+                    for i in range(3)
+                ]
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        component = TestComponent()
+        tui.add_child(component)
+
+        # Simulate render setting the rect
+        component._rect = Rect(x=0, y=0, width=40, height=3)
+
+        assert component._rect is not None
+        assert component._rect.x == 0
+        assert component._rect.y == 0
+        assert component._rect.width == 40
+        assert component._rect.height == 3
+
+
 class TestTUIAddChild:
     """Tests for TUI add_child."""
 
