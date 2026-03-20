@@ -724,9 +724,9 @@ def start(self, on_input):
 | 4: Interactive | ✅ | 16/16 | 16/16 | 32/32 |
 | 5: Focus | ✅ | 15/15 | 15/15 | 30/30 |
 | 6: Overlays | ✅ | 15/15 | 15/15 | 30/30 |
-| 7: Rich | ⬜ | 0/6 | 0/6 | 0/12 |
-| 8: Error Handling & Demo | ⬜ | 0/13 | 0/13 | 0/26 |
-| **Total** | **🟡** | **115/137** | **115/137** | **230/274** |
+| 7: Rich | ⏭️ | — | — | Skipped (using pygments/mistune) |
+| 8: Error Handling & Demo | ✅ | 7/7 | 7/7 | 14/14 |
+| **Total** | **✅** | **122/122** | **122/122** | **244/244** |
 
 **Legend:** ⬜ Not started | 🟡 In Progress | ✅ Complete
 7** | **0/137** | **0/274** |
