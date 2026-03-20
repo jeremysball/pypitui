@@ -719,14 +719,14 @@ def start(self, on_input):
 | Milestone | Status | Tests | Implement | Total |
 |-----------|--------|-------|-----------|-------|
 | 1: Terminal | ✅ | 24/24 | 24/24 | 48/48 |
-| 2: Rendering | 🟡 | 10/28 | 10/28 | 20/56 |
-| 3: Components | ⬜ | 0/17 | 0/17 | 0/34 |
+| 2: Rendering | ✅ | 28/28 | 28/28 | 56/56 |
+| 3: Components | ✅ | 17/17 | 17/17 | 34/34 |
 | 4: Interactive | ⬜ | 0/16 | 0/16 | 0/32 |
 | 5: Focus | ⬜ | 0/15 | 0/15 | 0/30 |
 | 6: Overlays | ⬜ | 0/18 | 0/18 | 0/36 |
 | 7: Rich | ⬜ | 0/6 | 0/6 | 0/12 |
 | 8: Error Handling & Demo | ⬜ | 0/13 | 0/13 | 0/26 |
-| **Total** | **🟡** | **24/137** | **24/137** | **48/274** |
+| **Total** | **🟡** | **69/137** | **69/137** | **138/274** |
 
 **Legend:** ⬜ Not started | 🟡 In Progress | ✅ Complete
 7** | **0/137** | **0/274** |
