@@ -187,6 +187,14 @@ class TUI:
         if last_changed == -1:
             return
 
+        # Get the actual row of the first changed line
+        first_changed_row = lines[first_changed][0]
+
+        # Check if edit is in scrollback (requires full redraw)
+        if self._is_scrollback_edit(first_changed_row, self._viewport_top):
+            self._output_full_redraw(lines, width)
+            return
+
         # Check if this is a pure append operation
         is_append = self._detect_append(lines, first_changed)
 
@@ -203,6 +211,44 @@ class TUI:
         self._max_lines_rendered = max(
             self._max_lines_rendered, len(lines)
         )
+
+    def _output_full_redraw(
+        self, lines: list[tuple[int, str, str]], width: int
+    ) -> None:
+        """Clear screen and redraw all lines.
+
+        Used when scrollback content is edited, requiring full redraw
+        to maintain terminal consistency.
+
+        Args:
+            lines: List of (row, content_hash, content) tuples
+            width: Terminal width for line validation
+        """
+        # Clear screen and move cursor to top
+        self.terminal.clear_screen()
+        self.terminal.move_cursor(0, 0)
+
+        # Redraw all lines
+        for row, content_hash, content in lines:
+            # Validate line width
+            if len(content) > width:
+                msg = (
+                    f"Line {row} exceeds width {width}: "
+                    f"{len(content)} chars"
+                )
+                raise LineOverflowError(msg)
+
+            # Output line with newline
+            self.terminal.write(content + "\r\n")
+
+            # Update tracking
+            self._previous_lines[row] = content_hash
+
+        # Update cursor position
+        if lines:
+            last_row, _, last_content = lines[-1]
+            self._hardware_cursor_row = last_row - self._viewport_top
+            self._hardware_cursor_col = len(last_content)
 
     def _output_append(
         self,

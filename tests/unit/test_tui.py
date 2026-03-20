@@ -256,6 +256,74 @@ class TestTUIScrollbackAwareRedraw:
         is_scrollback = tui._is_scrollback_edit(first_changed=10, viewport_top=10)
         assert is_scrollback is False
 
+    def test_scrollback_edit_clears_screen(self) -> None:
+        """Scrollback edit triggers clear_screen()."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up viewport with scrollback
+        tui._viewport_top = 10
+        tui._previous_lines = {i: f"hash{i}" for i in range(20)}
+
+        # Scrollback edit (line 5 < viewport_top 10)
+        lines = [
+            (5, "new_hash5", "Changed line 5"),  # in scrollback
+            (10, "hash10", "Line 10"),
+            (11, "hash11", "Line 11"),
+        ]
+        tui._output_diff(lines, 80)
+
+        output = mock_buffer.getvalue()
+        # Should have clear screen sequence
+        assert b"\x1b[2J" in output
+
+    def test_scrollback_edit_redraws_all_lines(self) -> None:
+        """All visible lines redrawn after scrollback clear."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Set up viewport with scrollback
+        tui._viewport_top = 10
+        tui._previous_lines = {i: f"hash{i}" for i in range(20)}
+
+        # Scrollback edit - should redraw all visible lines
+        lines = [
+            (5, "new_hash5", "Changed line 5"),  # in scrollback
+            (10, "hash10", "Line 10"),
+            (11, "hash11", "Line 11"),
+        ]
+        tui._output_diff(lines, 80)
+
+        output = mock_buffer.getvalue()
+        # All lines should be in output
+        assert b"Changed line 5" in output
+        assert b"Line 10" in output
+        assert b"Line 11" in output
+
 
 class TestTUIDifferentialRendering:
     """Tests for TUI differential rendering."""
