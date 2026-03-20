@@ -99,9 +99,9 @@ Implement differential rendering with full viewport-aware diffing and 60 FPS per
 
 ### Component Position Tracking
 
-- [ ] **Test**: `test_component_rect_set_during_render()` — _rect populated after render_frame()
-- [ ] **Implement**: TUI sets `component._rect` during render with absolute (x, y, width, height)
-- [ ] **Run**: `uv run pytest tests/unit/test_tui.py::test_component_rect_set_during_render -v`
+- [x] **Test**: `test_component_rect_set_during_render()` — _rect populated after render_frame()
+- [x] **Implement**: TUI sets `component._rect` during render with absolute (x, y, width, height)
+- [x] **Run**: `uv run pytest tests/unit/test_tui.py::test_component_rect_set_during_render -v`
 
 - [ ] **Test**: `test_invalidate_component_clears_rect_lines()` — specific rows removed from _previous_lines
 - [ ] **Implement**: `TUI.invalidate_component(self, component: Component)`
