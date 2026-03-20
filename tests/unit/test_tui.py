@@ -76,6 +76,64 @@ class TestTUIInit:
         assert tui._hardware_cursor_col == 0
 
 
+class TestTUILineOverflow:
+    """Tests for line overflow protection."""
+
+    def test_line_overflow_raises_error(self) -> None:
+        """Line exceeding width raises LineOverflowError."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import LineOverflowError, TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Try to render a line wider than allowed
+        lines = [
+            (0, "hash0", "This line is way too long for the width"),
+        ]
+
+        with pytest.raises(LineOverflowError):
+            tui._output_diff(lines, width=10)
+
+    def test_line_overflow_includes_context(self) -> None:
+        """Error shows row, width, content length."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import LineOverflowError, TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        lines = [
+            (5, "hash5", "x" * 50),  # 50 chars, max width 20
+        ]
+
+        with pytest.raises(LineOverflowError) as exc_info:
+            tui._output_diff(lines, width=20)
+
+        error_msg = str(exc_info.value)
+        assert "5" in error_msg  # row
+        assert "20" in error_msg  # width
+        assert "50" in error_msg  # content length
+
+
 class TestTUIAddChild:
     """Tests for TUI add_child."""
 
