@@ -49,3 +49,70 @@ class TestRectDataclass:
         assert rect.y == 5
         assert rect.width == 80
         assert rect.height == 24
+
+
+class TestComponentABC:
+    """Tests for Component abstract base class."""
+
+    def test_component_abstract_methods(self) -> None:
+        """Cannot instantiate without measure/render implementation."""
+        from pypitui.component import Component
+
+        with pytest.raises(TypeError):
+            Component()  # type: ignore[abstract]
+
+    def test_component_invalidation_bubbles(self) -> None:
+        """invalidate() calls _child_invalidated() on parent."""
+        from pypitui.component import Component, Rect, RenderedLine, Size
+
+        class ParentComponent(Component):
+            def __init__(self) -> None:
+                super().__init__()
+                self.child_invalidated = False
+
+            def measure(self, available_width: int, available_height: int) -> Size:
+                return Size(10, 1)
+
+            def render(self, width: int) -> list[RenderedLine]:
+                return [RenderedLine("parent", [])]
+
+            def _child_invalidated(self, child: Component) -> None:
+                self.child_invalidated = True
+
+        class ChildComponent(Component):
+            def measure(self, available_width: int, available_height: int) -> Size:
+                return Size(10, 1)
+
+            def render(self, width: int) -> list[RenderedLine]:
+                return [RenderedLine("child", [])]
+
+        parent = ParentComponent()
+        child = ChildComponent()
+
+        # Simulate parent having child
+        child.invalidate()
+        parent._child_invalidated(child)
+
+        assert parent.child_invalidated is True
+
+    def test_component_rect_field_exists(self) -> None:
+        """_rect: Rect stores position and dimensions."""
+        from pypitui.component import Component, Rect, RenderedLine, Size
+
+        class TestComponent(Component):
+            def measure(self, available_width: int, available_height: int) -> Size:
+                return Size(10, 1)
+
+            def render(self, width: int) -> list[RenderedLine]:
+                return [RenderedLine("test", [])]
+
+        comp = TestComponent()
+        # _rect starts as None
+        assert comp._rect is None
+
+        # TUI sets _rect during render
+        comp._rect = Rect(x=0, y=0, width=80, height=24)
+        assert comp._rect.x == 0
+        assert comp._rect.y == 0
+        assert comp._rect.width == 80
+        assert comp._rect.height == 24

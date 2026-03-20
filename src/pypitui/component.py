@@ -4,6 +4,7 @@ Provides the foundation for the component system including Size,
 RenderedLine, Rect, and the abstract Component base class.
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
@@ -95,7 +96,7 @@ class Rect:
         return self.y + self.height
 
 
-class Component:
+class Component(ABC):
     """Abstract base class for all UI components.
 
     Components implement a measure/render lifecycle:
@@ -109,6 +110,7 @@ class Component:
         """Initialize component."""
         self._rect: Rect | None = None
 
+    @abstractmethod
     def measure(self, available_width: int, available_height: int) -> Size:
         """Calculate the component's preferred size.
 
@@ -119,10 +121,9 @@ class Component:
         Returns:
             Preferred Size (width, height)
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement measure()"
-        )
+        ...
 
+    @abstractmethod
     def render(self, width: int) -> list[RenderedLine]:
         """Render the component to output lines.
 
@@ -132,13 +133,13 @@ class Component:
         Returns:
             List of RenderedLine objects
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement render()"
-        )
+        ...
 
-    def invalidate(self) -> None:
-        """Mark this component as needing re-render."""
-        # TODO: Notify parent/TUI of invalidation
+    def invalidate(self) -> None:  # noqa: B027
+        """Mark this component as needing re-render.
+
+        Subclasses can override to notify parents of invalidation.
+        """
         pass
 
     def _child_invalidated(self, _child: "Component") -> None:

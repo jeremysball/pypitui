@@ -1,3 +1,5 @@
+import abc
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
@@ -35,8 +37,10 @@ class Rect:
     @property
     def bottom(self) -> int: ...
 
-class Component:
+class Component(ABC, metaclass=abc.ABCMeta):
     def __init__(self) -> None: ...
+    @abstractmethod
     def measure(self, available_width: int, available_height: int) -> Size: ...
+    @abstractmethod
     def render(self, width: int) -> list[RenderedLine]: ...
     def invalidate(self) -> None: ...
