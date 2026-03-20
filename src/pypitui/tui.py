@@ -57,6 +57,12 @@ class TUI:
         # Component hierarchy
         self._root: Component | None = None
 
+        # Focus management
+        self._focus_stack: list[Component | None] = []
+        self._focused: Component | None = None
+        self._focus_order: list[Component] = []
+        self._focus_index: int = -1
+
     def add_child(self, component: Component) -> None:
         """Set the root component.
 
@@ -383,6 +389,119 @@ class TUI:
             self._previous_lines[row] = content_hash
             self._hardware_cursor_row = row - self._viewport_top
             self._hardware_cursor_col = len(content)
+
+
+    def push_focus(self, component: Component | None) -> None:
+        """Push component onto focus stack.
+
+        Calls on_blur() on previous focus, on_focus() on new.
+        If on_focus() fails, restores previous focus.
+
+        Args:
+            component: Component to focus, or None to clear focus
+        """
+        previous = self._focused
+
+        # Blur previous component
+        if previous is not None:
+            self._call_on_blur(previous)
+            self.invalidate_component(previous)
+
+        # Push new component
+        self._focus_stack.append(component)
+        self._focused = component
+
+        if component is not None:
+            try:
+                self._call_on_focus(component)
+                self.invalidate_component(component)
+            except Exception:
+                # Restore previous focus on error, don't propagate
+                self._focus_stack.pop()
+                self._focused = previous
+                if previous is not None:
+                    self._call_on_focus(previous)
+                    self.invalidate_component(previous)
+
+    def pop_focus(self) -> Component | None:
+        """Pop current focus from stack, restore previous.
+
+        Returns:
+            The component that was popped, or None if stack empty
+        """
+        if not self._focus_stack:
+            return None
+
+        # Pop current
+        popped = self._focus_stack.pop()
+
+        # Blur popped component
+        if popped is not None:
+            self._call_on_blur(popped)
+            self.invalidate_component(popped)
+
+        # Restore previous focus
+        if self._focus_stack:
+            self._focused = self._focus_stack[-1]
+            if self._focused is not None:
+                self._call_on_focus(self._focused)
+                self.invalidate_component(self._focused)
+        else:
+            self._focused = None
+
+        return popped
+
+    def set_focus(self, component: Component | None) -> None:
+        """Replace current focus without changing stack depth.
+
+        Pops then pushes to maintain stack size.
+
+        Args:
+            component: New component to focus
+        """
+        self.pop_focus()
+        self.push_focus(component)
+
+    def register_focusable(self, component: Component) -> None:
+        """Register component for tab cycling.
+
+        Args:
+            component: Component to add to focus order
+        """
+        if component not in self._focus_order:
+            self._focus_order.append(component)
+
+    def cycle_focus(self, direction: int = 1) -> None:
+        """Cycle focus to next/previous in order.
+
+        Args:
+            direction: +1 for next, -1 for previous
+        """
+        if not self._focus_order:
+            return
+
+        # Calculate new index
+        if self._focus_index < 0:
+            self._focus_index = 0
+        else:
+            self._focus_index = (self._focus_index + direction) % len(
+                self._focus_order
+            )
+
+        component = self._focus_order[self._focus_index]
+        self.set_focus(component)
+
+    def _call_on_focus(self, component: Component) -> None:
+        """Safely call on_focus on component if it exists."""
+        handler = getattr(component, "on_focus", None)
+        if handler is not None:
+            handler()
+
+    def _call_on_blur(self, component: Component) -> None:
+        """Safely call on_blur on component if it exists."""
+        handler = getattr(component, "on_blur", None)
+        if handler is not None:
+            handler()
 
 
 class LineOverflowError(Exception):
