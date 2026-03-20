@@ -23,37 +23,37 @@ Implement the Component abstract base class, Container for vertical layout, Text
 
 ### Container Component
 
-- [ ] **Test**: `test_container_measure_returns_sum_of_children()` — height = sum(child heights)
-- [ ] **Implement**: `Container.measure(self, available_width: int, available_height: int) -> Size`
-- [ ] **Run**: `uv run pytest tests/unit/test_components.py::test_container_measure_returns_sum_of_children -v`
+- [x] **Test**: `test_container_measure_returns_sum_of_children()` — height = sum(child heights)
+- [x] **Implement**: `Container.measure(self, available_width: int, available_height: int) -> Size`
+- [x] **Run**: `uv run pytest tests/unit/test_components.py::test_container_measure_returns_sum_of_children -v`
 
-- [ ] **Test**: `test_container_render_stacks_vertically()` — children rendered sequentially
-- [ ] **Implement**: `Container.render(self, width: int) -> list[RenderedLine]`
-- [ ] **Run**: `uv run pytest tests/unit/test_components.py::test_container_render_stacks_vertically -v`
+- [x] **Test**: `test_container_render_stacks_vertically()` — children rendered sequentially
+- [x] **Implement**: `Container.render(self, width: int) -> list[RenderedLine]`
+- [x] **Run**: `uv run pytest tests/unit/test_components.py::test_container_render_stacks_vertically -v`
 
-- [ ] **Test**: `test_container_add_child_appends_to_list()` — children list grows
-- [ ] **Implement**: `Container.add_child(self, component: Component)`
-- [ ] **Run**: `uv run pytest tests/unit/test_components.py::test_container_add_child_appends_to_list -v`
+- [x] **Test**: `test_container_add_child_appends_to_list()` — children list grows
+- [x] **Implement**: `Container.add_child(self, component: Component)`
+- [x] **Run**: `uv run pytest tests/unit/test_components.py::test_container_add_child_appends_to_list -v`
 
-- [ ] **Test**: `test_container_clear_children()` — children list emptied
-- [ ] **Implement**: `Container.clear_children(self)`
-- [ ] **Run**: `uv run pytest tests/unit/test_components.py::test_container_clear_children -v`
+- [x] **Test**: `test_container_clear_children()` — children list emptied
+- [x] **Implement**: `Container.clear_children(self)`
+- [x] **Run**: `uv run pytest tests/unit/test_components.py::test_container_clear_children -v`
 
 ### Text Component
 
-- [ ] **Test**: `test_text_measure_single_line()` — height=1 for simple text
-- [ ] **Test**: `test_text_measure_multi_line()` — height=n for n lines
-- [ ] **Implement**: `Text.measure(self, available_width: int, available_height: int) -> Size`
-- [ ] **Run**: `uv run pytest tests/unit/test_components.py -k "test_text_measure" -v`
+- [x] **Test**: `test_text_measure_single_line()` — height=1 for simple text
+- [x] **Test**: `test_text_measure_multi_line()` — height=n for n lines
+- [x] **Implement**: `Text.measure(self, available_width: int, available_height: int) -> Size`
+- [x] **Run**: `uv run pytest tests/unit/test_components.py -k "test_text_measure" -v`
 
-- [ ] **Test**: `test_text_render_returns_lines()` — returns list of RenderedLine
-- [ ] **Test**: `test_text_render_wraps_long_lines()` — wrapping at width boundary using wcwidth
-- [ ] **Implement**: `Text.render(self, width: int) -> list[RenderedLine]` with proper wide char handling
-- [ ] **Run**: `uv run pytest tests/unit/test_components.py -k "test_text_render" -v`
+- [x] **Test**: `test_text_render_returns_lines()` — returns list of RenderedLine
+- [x] **Test**: `test_text_render_wraps_long_lines()` — wrapping at width boundary using wcwidth
+- [x] **Implement**: `Text.render(self, width: int) -> list[RenderedLine]` with proper wide char handling
+- [x] **Run**: `uv run pytest tests/unit/test_components.py -k "test_text_render" -v`
 
-- [ ] **Test**: `test_text_content_mutable()` — set_text updates content and invalidates
-- [ ] **Implement**: `Text.set_text(self, text: str)` with invalidation
-- [ ] **Run**: `uv run pytest tests/unit/test_components.py::test_text_content_mutable -v`
+- [x] **Test**: `test_text_content_mutable()` — set_text updates content and invalidates
+- [x] **Implement**: `Text.set_text(self, text: str)` with invalidation
+- [x] **Run**: `uv run pytest tests/unit/test_components.py::test_text_content_mutable -v`
 
 ### Wide Character Support
 
