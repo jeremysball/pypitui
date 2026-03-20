@@ -231,6 +231,73 @@ class TestTUIComponentPosition:
         assert 10 in tui._previous_lines  # unrelated line preserved
 
 
+class TestTUIHardwareCursor:
+    """Tests for hardware cursor tracking."""
+
+    def test_hardware_cursor_tracked_per_write(self) -> None:
+        """_hardware_cursor_row/col updated after each line."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Initial cursor position
+        assert tui._hardware_cursor_row == 0
+        assert tui._hardware_cursor_col == 0
+
+        # Render lines
+        lines = [
+            (0, "hash0", "Hello"),
+            (1, "hash1", "World"),
+        ]
+        tui._output_diff(lines, 80)
+
+        # Cursor should be at end of last line
+        assert tui._hardware_cursor_row == 1
+        assert tui._hardware_cursor_col == 5
+
+    def test_hardware_cursor_reset_on_full_redraw(self) -> None:
+        """Cursor position correct after full redraw."""
+        from io import BytesIO
+        from unittest.mock import MagicMock, patch
+
+        from pypitui.terminal import Terminal
+        from pypitui.tui import TUI
+
+        mock_buffer = BytesIO()
+        mock_buffer.fileno = MagicMock(return_value=1)
+
+        with patch("termios.tcgetattr", return_value=[0] * 6):
+            with patch("termios.tcsetattr"):
+                with patch("tty.setraw"):
+                    term = Terminal(fd=1, buffer=mock_buffer)
+                    tui = TUI(term)
+
+        # Trigger full redraw via scrollback edit
+        tui._viewport_top = 5
+        tui._previous_lines = {i: f"hash{i}" for i in range(10)}
+
+        lines = [
+            (3, "new_hash3", "Line 3"),  # scrollback edit
+            (5, "hash5", "Line 5"),
+        ]
+        tui._output_diff(lines, 80)
+
+        # Cursor should be at end of last line
+        assert tui._hardware_cursor_row == 0  # row 5 - viewport_top 5
+        assert tui._hardware_cursor_col == 6  # len("Line 5")
+
+
 class TestTUIAddChild:
     """Tests for TUI add_child."""
 
