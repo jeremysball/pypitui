@@ -35,6 +35,7 @@ from .components.text import Text
 
 # Input handling
 from .keys import Key, matches_key, parse_key
+from .mock_terminal import MockTerminal
 from .mouse import MouseEvent, parse_mouse
 
 # Overlays
@@ -61,6 +62,7 @@ __all__ = [
     "Input",
     "Key",
     "LineOverflowError",
+    "MockTerminal",
     "MouseEvent",
     "Overlay",
     "OverlayPosition",
